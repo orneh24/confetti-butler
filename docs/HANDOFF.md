@@ -70,8 +70,9 @@ constraints" section.
 ## Follow-up session (2026-09-27)
 
 Three routers in the dev inventory: `lab-rtr-a` (192.0.2.10, IOS-XE 17.3.8a),
-`lab-rtr-b` (192.0.2.171, 17.3.2) and `lab-rtr-c` (192.0.2.167, IOS-XE 3.11 / 15.4). Main
-changes, all verified live unless noted:
+`lab-rtr-b` (192.0.2.171, 17.3.2) and `lab-rtr-c` (192.0.2.167, IOS-XE 3.11 / 15.4). These are
+**placeholders** — the repo is public, so the real addresses and hostnames were scrubbed from the
+whole history and are kept outside the repo. Main changes, all verified live unless noted:
 
 - **LLDP:** `show lldp entry local` dropped (it looks up a neighbor *named* "local"; IOS-XE has no
   command showing a device its own chassis ID). Neighbors now resolve by advertised mgmt IP. Older
@@ -81,9 +82,18 @@ changes, all verified live unless noted:
 - **Poller:** one SSH session per poll (~1.2s, was 10–15s); vanished interfaces, neighbors and
   peers are deleted; a device can no longer get stuck in `'running'`.
 - **Conflicts:** Dismiss route and button; an identical open conflict is not re-inserted.
-- **UI:** device page Edit and Credentials forms (secrets never returned by the API); dark/light
-  theme toggle; one shared palette in `static/theme.css`; topology keeps its layout on refresh and
-  draws each LLDP link once, with one ghost node per peer IP.
+- **UI:** device page Edit and Credentials forms (secrets never returned by the API); topology
+  keeps its layout on refresh and draws each LLDP link once, with one ghost node per peer IP; the
+  IPAM page's missing Topology nav link is back.
+- **Themes:** one shared palette in `static/theme.css`, picked from a header dropdown
+  (`static/theme.js`): Dark, Light, Catppuccin Mocha, Gruvbox and Terminal green. Gruvbox uses its
+  aqua-green for "ok" and Terminal green uses amber for warnings, so ok/warning/failure stay
+  distinct. The template editor (CodeMirror) is recoloured from the same palette. The same themes
+  were added to mesh-flux's hub pages. Verified in headless Chrome (Playwright): each theme applies,
+  survives a page change, no JS errors.
+- **README:** new, with a demo GIF (`docs/img/lab-butler-demo.gif`) recorded against a **mock lab**
+  (documentation-range IPs, fake serials) on a scratch database — not real lab data. The seed
+  script for that mock lab is not in the repo.
 - **Other:** device delete cleans up `poll_history` and neighbor references; PUT records new
   identifiers as aliases; credential saves are partial.
 - **Renamed:** sibling project lab-tester → mesh-flux (route `/api/discover/meshflux`, module
@@ -92,13 +102,15 @@ changes, all verified live unless noted:
 
 ## Housekeeping
 
-- **Git:** repository initialised 2026-09-27 on `main`, no remote. `butler.db*` and `butler.env` are
-  gitignored (plaintext credentials). `.gitattributes` pins `.sh`, `.initd`, `.py` and
+- **Git:** repository initialised 2026-09-27 on `main`, public at
+  https://github.com/orneh24/lab-butler. The unpushed history was rewritten before the first push to
+  replace real lab IPs, hostnames and a serial with placeholders — don't commit real lab details.
+  `butler.db*` and `butler.env` are gitignored (plaintext credentials). `.gitattributes` pins `.sh`, `.initd`, `.py` and
   `requirements.txt` to LF — the machine's system-wide `core.autocrlf=true` would otherwise check
   shell scripts out with CRLF, which breaks them on Alpine (same rule as mesh-flux).
 - Local Python dependencies for development were installed into the ambient environment on this
-  machine (`pyyaml`, `netmiko`, `requests`, and `pyflakes` for linting — `flask`/`waitress`/`jinja2` were
-  already present). The
+  machine (`pyyaml`, `netmiko`, `requests`, `pyflakes` for linting, `pillow` for resizing the README GIF —
+  `flask`/`waitress`/`jinja2`/`playwright` were already present). The
   Alpine package list `build-template.sh` installs is the authoritative list for a real deployment;
   it has not been cross-checked against the live Alpine package index (see constraint 3 in
   `CLAUDE.md` and the `py3-paramiko`/`netmiko` note in `build-template.sh` itself).
