@@ -55,7 +55,7 @@ th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-s
         <a href="/templates">Templates</a>
         <a href="/topology">Topology</a>
         <a href="/syslog" class="active">Syslog</a>
-        <button type="button" id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light mode</button>
+        <select id="theme-select" class="theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
     </nav>
 </div>
 <div class="filters">

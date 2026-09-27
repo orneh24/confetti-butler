@@ -49,7 +49,7 @@ button:hover { border-color: var(--blue); }
         <a href="/templates">Templates</a>
         <a href="/topology">Topology</a>
         <a href="/syslog">Syslog</a>
-        <button type="button" id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light mode</button>
+        <select id="theme-select" class="theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
     </nav>
 </div>
 <div class="container" id="list">

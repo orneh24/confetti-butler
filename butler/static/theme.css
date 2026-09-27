@@ -1,7 +1,8 @@
-/* The one palette for every page: dark by default, light when
-   <html data-theme="light"> is set by theme.js. Pages must not define their
-   own :root colours — copies drift (some pages once lacked --green-bg). The
-   light values are mesh-flux's light palette. */
+/* The one palette for every page. Dark is the default; any other theme is
+   <html data-theme="NAME">, set by theme.js (the list of names lives there).
+   Pages must not define their own :root colours — copies drift (some pages
+   once lacked --green-bg). Light is mesh-flux's light palette; the others
+   follow the published Catppuccin Mocha, Gruvbox and a green-CRT look. */
 :root {
     --bg:        #0d1117;
     --bg-card:   #161b22;
@@ -37,7 +38,62 @@
     --cyan:      #0b7a75;
 }
 
-.theme-toggle {
+/* Catppuccin Mocha */
+:root[data-theme="catppuccin"] {
+    --bg:        #1e1e2e;
+    --bg-card:   #262637;
+    --bg-hover:  #313244;
+    --border:    #45475a;
+    --text:      #cdd6f4;
+    --text-dim:  #a6adc8;
+    --green:     #a6e3a1;
+    --green-bg:  #2b3b31;
+    --red:       #f38ba8;
+    --red-bg:    #4a2838;
+    --yellow:    #f9e2af;
+    --yellow-bg: #443d33;
+    --gray:      #585b70;
+    --blue:      #89b4fa;
+    --cyan:      #94e2d5;
+}
+/* Gruvbox (dark) */
+:root[data-theme="gruvbox"] {
+    --bg:        #282828;
+    --bg-card:   #32302f;
+    --bg-hover:  #3c3836;
+    --border:    #504945;
+    --text:      #ebdbb2;
+    --text-dim:  #bdae93;
+    --green:     #8ec07c;
+    --green-bg:  #2c3d2e;
+    --red:       #fb4934;
+    --red-bg:    #4a2320;
+    --yellow:    #fabd2f;
+    --yellow-bg: #4a3d1e;
+    --gray:      #665c54;
+    --blue:      #83a598;
+    --cyan:      #b8bb26;
+}
+/* Terminal green — mostly one hue by design; red and amber stay distinct so "down" still reads. */
+:root[data-theme="terminal"] {
+    --bg:        #050805;
+    --bg-card:   #0a120a;
+    --bg-hover:  #112011;
+    --border:    #1f4a1f;
+    --text:      #33ff66;
+    --text-dim:  #22aa44;
+    --green:     #66ff99;
+    --green-bg:  #0d2b12;
+    --red:       #ff5f5f;
+    --red-bg:    #3a0f0f;
+    --yellow:    #ffcc33;
+    --yellow-bg: #332a0a;
+    --gray:      #1f4a1f;
+    --blue:      #00e676;
+    --cyan:      #7dffb0;
+}
+
+.theme-select {
     background: var(--bg-hover);
     border: 1px solid var(--cyan);
     color: var(--cyan);
@@ -45,9 +101,10 @@
     font-size: 11px;
     font-weight: 600;
     line-height: 16px;
-    padding: 2px 10px;
+    padding: 2px 6px;
     border-radius: 4px;
     cursor: pointer;
 }
-.theme-toggle:hover { background: var(--cyan); color: var(--bg); }
+.theme-select:hover, .theme-select:focus { border-color: var(--text); outline: none; }
+.theme-select option { background: var(--bg-card); color: var(--text); }
 .nav { align-items: center; }

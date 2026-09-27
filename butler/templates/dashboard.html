@@ -70,7 +70,7 @@ a:hover { text-decoration: underline; }
         <a href="/templates">Templates</a>
         <a href="/topology">Topology</a>
         <a href="/syslog">Syslog</a>
-        <button type="button" id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light mode</button>
+        <select id="theme-select" class="theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
     </nav>
     <div class="status"><span class="dot" id="health-dot"></span><span id="health-text">checking...</span></div>
 </div>

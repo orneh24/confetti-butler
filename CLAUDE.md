@@ -179,9 +179,10 @@ butler/
     parsers/ios.py        — Cisco IOS/IOS-XE show-command regex parsers
   templates/            — dashboard, devices, device, conflicts, ipam, templates_editor,
                           topology, syslog (Jinja2 HTML — see constraint 7 re: {% raw %})
-  static/theme.css       — the ONE colour palette (dark :root + light override); pages must not
-                          define their own :root colours
-  static/theme.js        — dark/light toggle (mesh-flux's behaviour), themeColor() for JS colours
+  static/theme.css       — the ONE place colours live: dark :root + one :root[data-theme=NAME] block
+                          per extra theme; pages must not define their own :root colours
+  static/theme.js        — THEMES list + header dropdown (saved in localStorage), themeColor() for
+                          JS colours; add a theme = one block in theme.css + one THEMES entry
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — firstboot.initd, login-setup.sh
