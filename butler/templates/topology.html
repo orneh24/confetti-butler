@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lab-butler — Topology</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/theme.css">
+<script src="/static/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/vis-network/vis-network.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5;
+    display: flex; flex-direction: column;
+}
+a { color: var(--blue); text-decoration: none; }
+.header {
+    background: var(--bg-card); border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto;
+}
+.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); }
+.nav { display: flex; gap: 18px; }
+.nav a { color: var(--text-dim); font-size: 12px; }
+.nav a.active { color: var(--cyan); }
+.filters { padding: 10px 24px; display: flex; gap: 8px; align-items: center; background: var(--bg-card); border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+button {
+    background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-dim);
+    padding: 5px 12px; border-radius: 4px; font-family: inherit; font-size: 12px; cursor: pointer;
+}
+button.active { border-color: var(--cyan); color: var(--cyan); }
+.legend { margin-left: auto; display: flex; gap: 14px; font-size: 11px; color: var(--text-dim); align-items: center; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+#net { flex: 1 1 auto; min-height: 0; }
+.empty { padding: 24px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>lab-butler</h1>
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/devices">Devices</a>
+        <a href="/conflicts">Conflicts</a>
+        <a href="/ipam">IPAM</a>
+        <a href="/templates">Templates</a>
+        <a href="/topology" class="active">Topology</a>
+        <a href="/syslog">Syslog</a>
+        <button type="button" id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light mode</button>
+    </nav>
+</div>
+<div class="filters">
+    <button class="active" data-layer="" onclick="setLayer('', this)">All</button>
+    <button data-layer="lldp" onclick="setLayer('lldp', this)">LLDP</button>
+    <button data-layer="bgp" onclick="setLayer('bgp', this)">BGP</button>
+    <button data-layer="ospf" onclick="setLayer('ospf', this)">OSPF</button>
+    <span class="legend">
+        <span><span class="dot" style="background:var(--blue)"></span>router</span>
+        <span><span class="dot" style="background:var(--text-dim)"></span>node (mesh-flux)</span>
+        <span><span class="dot" style="background:var(--gray);border:1px dashed var(--text-dim)"></span>unresolved neighbor</span>
+    </span>
+</div>
+<div id="net"></div>
+<script src="/static/vendor/vis-network/vis-network.min.js"></script>
+<script>
+var network = null;
+var nodeSet = null;
+var edgeSet = null;
+var currentLayer = '';
+
+// vis.js draws on a canvas, so it needs literal colors rather than CSS
+// variables. Read them from the current theme each time the graph is built.
+function toVisNodes(nodes) {
+    var GROUP_COLOR = { router: themeColor('--blue'), node: themeColor('--text-dim'), unknown: themeColor('--border') };
+    return nodes.map(function (n) {
+        var color = GROUP_COLOR[n.group] || themeColor('--green');
+        return {
+            id: n.id,
+            label: n.label,
+            shape: n.ghost ? 'dot' : 'box',
+            color: {
+                background: n.ghost ? themeColor('--bg-card') : color,
+                border: n.ghost ? themeColor('--text-dim') : color,
+                highlight: { background: color, border: themeColor('--text') },
+            },
+            font: { color: n.ghost ? themeColor('--text-dim') : themeColor('--bg'), face: 'monospace' },
+            borderWidth: n.ghost ? 1 : 0,
+            shapeProperties: { borderDashes: n.ghost ? [4, 3] : false },
+        };
+    });
+}
+
+function toVisEdges(edges) {
+    var LAYER_COLOR = { lldp: themeColor('--cyan'), bgp: themeColor('--yellow'), ospf: themeColor('--blue') };
+    return edges.map(function (e) {
+        return {
+            // Stable id, so a refresh updates this edge instead of replacing it.
+            id: [e.from, e.to, e.layer, e.label].join('|'),
+            from: e.from,
+            to: e.to,
+            label: e.label,
+            color: { color: LAYER_COLOR[e.layer] || themeColor('--gray') },
+            font: { color: themeColor('--text-dim'), size: 10, strokeWidth: 0, background: themeColor('--bg') },
+        };
+    });
+}
+
+// Replace a DataSet's contents in place: update what is still there, drop
+// what is gone. Rebuilding the network instead reset the layout and zoom on
+// every 20s refresh.
+function syncSet(set, items) {
+    var keep = {};
+    items.forEach(function (it) { keep[it.id] = true; });
+    set.remove(set.getIds().filter(function (id) { return !keep[id]; }));
+    set.update(items);
+}
+
+function load() {
+    var url = '/api/topology' + (currentLayer ? '?layer=' + currentLayer : '');
+    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+        var container = document.getElementById('net');
+        if (!data.nodes.length) {
+            if (network) { network.destroy(); network = null; }
+            container.innerHTML = '<div class="empty">no devices yet — add one under Devices, or poll one to discover neighbors</div>';
+            return;
+        }
+        if (network) {
+            syncSet(nodeSet, toVisNodes(data.nodes));
+            syncSet(edgeSet, toVisEdges(data.edges));
+            return;
+        }
+        container.innerHTML = '';
+        nodeSet = new vis.DataSet(toVisNodes(data.nodes));
+        edgeSet = new vis.DataSet(toVisEdges(data.edges));
+        var options = {
+            layout: { improvedLayout: true },
+            physics: { stabilization: true, barnesHut: { gravitationalConstant: -4000, springLength: 140 } },
+            interaction: { hover: true },
+            edges: { smooth: { type: 'continuous' }, arrows: { to: false } },
+        };
+        network = new vis.Network(container, { nodes: nodeSet, edges: edgeSet }, options);
+        network.on('doubleClick', function (params) {
+            if (params.nodes.length) {
+                var id = params.nodes[0];
+                if (id.indexOf('dev:') === 0) {
+                    window.location.href = '/devices/' + id.slice(4);
+                }
+            }
+        });
+    });
+}
+
+function setLayer(layer, btn) {
+    currentLayer = layer;
+    var buttons = document.querySelectorAll('.filters button');
+    for (var i = 0; i < buttons.length; i++) { buttons[i].className = ''; }
+    btn.className = 'active';
+    load();
+}
+
+load();
+setInterval(load, 20000);
+document.addEventListener('themechange', load);
+</script>
+</body>
+</html>

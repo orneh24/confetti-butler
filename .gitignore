@@ -1,0 +1,9 @@
+# Local database — holds plaintext device credentials (see CLAUDE.md, Design Decisions)
+butler.db
+butler.db-*
+# Runtime config, may hold credentials
+butler.env
+__pycache__/
+*.pyc
+# Per-user Claude Code settings
+.claude/settings.local.json

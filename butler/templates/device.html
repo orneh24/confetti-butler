@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lab-butler — Device</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/theme.css">
+<script src="/static/theme.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5;
+}
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.header {
+    background: var(--bg-card); border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;
+}
+.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); }
+.nav { display: flex; gap: 18px; }
+.nav a { color: var(--text-dim); font-size: 12px; }
+.nav a.active { color: var(--cyan); }
+.container { padding: 16px 24px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.card h2 { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.kv { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
+.kv .k { color: var(--text-dim); }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--border); }
+th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 10px; }
+.empty { color: var(--text-dim); padding: 8px 0; font-size: 12px; }
+button {
+    background: var(--bg-hover); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 12px; border-radius: 4px; font-family: inherit; font-size: 12px; cursor: pointer;
+}
+button:hover { border-color: var(--blue); }
+button:disabled { opacity: 0.5; cursor: default; }
+.pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+.pill.ok { background: var(--green-bg); color: var(--green); }
+.pill.bad { background: var(--red-bg); color: var(--red); }
+.full { grid-column: 1 / -1; }
+.form-grid { display: grid; grid-template-columns: max-content 1fr; gap: 6px 10px; align-items: center; font-size: 12px; margin-bottom: 10px; }
+.form-grid label { color: var(--text-dim); }
+.form-grid input, .form-grid select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 6px; border-radius: 4px; font-family: inherit; font-size: 12px; width: 100%;
+}
+.form-grid input[type=checkbox] { width: auto; justify-self: start; }
+.hint { color: var(--text-dim); font-size: 11px; margin-bottom: 8px; }
+.msg { font-size: 11px; margin-left: 8px; }
+.msg.ok { color: var(--green); }
+.msg.err { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="header">
+    <h1 id="page-title">lab-butler</h1>
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/devices" class="active">Devices</a>
+        <a href="/conflicts">Conflicts</a>
+        <a href="/ipam">IPAM</a>
+        <a href="/templates">Templates</a>
+        <a href="/topology">Topology</a>
+        <a href="/syslog">Syslog</a>
+        <button type="button" id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light mode</button>
+    </nav>
+</div>
+<div class="container">
+    <div class="card">
+        <h2>Device</h2>
+        <div id="device-body"><div class="kv"><span class="k">loading</span></div></div>
+        <button id="poll-btn" onclick="pollNow()">Poll now</button>
+        <span id="poll-msg" style="font-size:11px;margin-left:8px;"></span>
+    </div>
+    <div class="card">
+        <h2>Identifiers</h2>
+        <table><thead><tr><th>Kind</th><th>Value</th><th>First seen</th></tr></thead>
+            <tbody id="alias-rows"></tbody></table>
+    </div>
+    <div class="card">
+        <h2>Sources</h2>
+        <table><thead><tr><th>Source</th><th>Ref</th><th>Last seen</th></tr></thead>
+            <tbody id="source-rows"></tbody></table>
+    </div>
+    <div class="card">
+        <h2>Edit</h2>
+        <div class="hint">Operator edit — overrides polled values. A new mgmt ip, hostname or serial is also recorded as an identifier.</div>
+        <form id="edit-form" onsubmit="saveDevice(); return false;">
+            <div class="form-grid">
+                <label for="f-hostname">hostname</label><input id="f-hostname" name="hostname">
+                <label for="f-mgmt_ip">mgmt ip</label><input id="f-mgmt_ip" name="mgmt_ip">
+                <label for="f-role">role</label><input id="f-role" name="role" list="role-list">
+                <label for="f-site">site</label><input id="f-site" name="site">
+                <label for="f-vendor">vendor</label><input id="f-vendor" name="vendor">
+                <label for="f-platform">platform</label><input id="f-platform" name="platform" list="platform-list">
+                <label for="f-model">model</label><input id="f-model" name="model">
+                <label for="f-serial">serial</label><input id="f-serial" name="serial">
+                <label for="f-os_version">os version</label><input id="f-os_version" name="os_version">
+                <label for="f-poll_interval_s">poll interval (s)</label><input id="f-poll_interval_s" name="poll_interval_s" type="number" min="30" step="1">
+                <label for="f-template_name">template</label><select id="f-template_name" name="template_name"></select>
+                <label for="f-enabled">polling enabled</label><input id="f-enabled" name="enabled" type="checkbox">
+            </div>
+            <datalist id="role-list"><option value="router"><option value="switch"><option value="firewall"><option value="node"></datalist>
+            <datalist id="platform-list"><option value="cisco_ios"><option value="cisco_xe"><option value="linux"></datalist>
+            <button type="submit">Save</button><span class="msg" id="edit-msg"></span>
+        </form>
+    </div>
+    <div class="card">
+        <h2>Credentials</h2>
+        <div class="hint" id="cred-status">loading</div>
+        <form id="cred-form" onsubmit="saveCredentials(); return false;" autocomplete="off">
+            <div class="form-grid">
+                <label for="c-username">ssh username</label><input id="c-username" name="username" autocomplete="off">
+                <label for="c-password">ssh password</label><input id="c-password" name="password" type="password" autocomplete="new-password">
+                <label for="c-enable_secret">enable secret</label><input id="c-enable_secret" name="enable_secret" type="password" autocomplete="new-password">
+                <label for="c-snmp_community">snmp community</label><input id="c-snmp_community" name="snmp_community" type="password" autocomplete="new-password">
+                <label for="c-snmp_version">snmp version</label>
+                <select id="c-snmp_version" name="snmp_version"><option value="2c">2c</option><option value="1">1</option><option value="3">3</option></select>
+            </div>
+            <div class="hint">A blank secret field keeps the stored value. Stored in plaintext in butler.db.</div>
+            <button type="submit">Save</button>
+            <button type="button" onclick="clearSecrets()">Clear secrets</button>
+            <span class="msg" id="cred-msg"></span>
+        </form>
+    </div>
+    <div class="card full">
+        <h2>Interfaces</h2>
+        <table>
+            <thead><tr><th>Name</th><th>Admin</th><th>Oper</th><th>IP</th><th>Speed/Duplex</th>
+                <th>MTU</th><th>Errors</th><th>Last seen</th></tr></thead>
+            <tbody id="interface-rows"></tbody>
+        </table>
+        <div class="empty" id="interface-empty" style="display:none">no interfaces polled yet</div>
+    </div>
+</div>
+<script>
+var deviceId = {{ device_id }};
+
+function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s === null || s === undefined ? '' : String(s);
+    return d.innerHTML;
+}
+function kv(k, v) {
+    return '<div class="kv"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
+}
+
+function loadDevice() {
+    return fetch('/api/devices/' + deviceId).then(function (r) {
+        if (!r.ok) { throw new Error('not found'); }
+        return r.json();
+    }).then(function (d) {
+        document.getElementById('page-title').textContent = 'lab-butler — ' + d.hostname;
+        var body = kv('hostname', d.hostname) + kv('role', d.role) + kv('mgmt ip', d.mgmt_ip || '') +
+            kv('vendor', d.vendor) + kv('platform', d.platform) + kv('model', d.model || '') +
+            kv('serial', d.serial || '') + kv('os version', d.os_version || '') +
+            kv('site', d.site || '') + kv('key', d.key) + kv('enabled', d.enabled ? 'yes' : 'no') +
+            kv('poll interval', d.poll_interval_s + 's') + kv('poll state', d.poll_state) +
+            kv('fail count', d.fail_count) + kv('first seen', d.first_seen) + kv('last seen', d.last_seen);
+        document.getElementById('device-body').innerHTML = body;
+        fillEditForm(d);
+
+        var aliasRows = '';
+        for (var i = 0; i < d.aliases.length; i++) {
+            var a = d.aliases[i];
+            aliasRows += '<tr><td>' + esc(a.kind) + '</td><td>' + esc(a.value) + '</td><td>' + esc(a.first_seen) + '</td></tr>';
+        }
+        document.getElementById('alias-rows').innerHTML = aliasRows || '<tr><td colspan="3" class="empty">none</td></tr>';
+
+        var sourceRows = '';
+        for (var j = 0; j < d.sources.length; j++) {
+            var s = d.sources[j];
+            sourceRows += '<tr><td>' + esc(s.source) + '</td><td>' + esc(s.ref) + '</td><td>' + esc(s.last_seen) + '</td></tr>';
+        }
+        document.getElementById('source-rows').innerHTML = sourceRows || '<tr><td colspan="3" class="empty">none</td></tr>';
+    }).catch(function () {
+        document.getElementById('device-body').innerHTML = '<div class="empty">device not found</div>';
+    });
+}
+
+var EDIT_FIELDS = ['hostname', 'mgmt_ip', 'role', 'site', 'vendor', 'platform', 'model',
+                   'serial', 'os_version', 'poll_interval_s', 'template_name', 'enabled'];
+var current = null;   // last loaded device, so Save sends only the fields that changed
+
+function fillEditForm(d) {
+    current = d;
+    var f = document.getElementById('edit-form');
+    EDIT_FIELDS.forEach(function (k) {
+        if (k === 'enabled') { f.enabled.checked = !!d.enabled; }
+        else if (k !== 'template_name') { f[k].value = d[k] === null || d[k] === undefined ? '' : d[k]; }
+    });
+    fetch('/api/templates').then(function (r) { return r.json(); }).then(function (list) {
+        var names = list.map(function (t) { return t.name; });
+        if (d.template_name && names.indexOf(d.template_name) < 0) { names.push(d.template_name); }
+        var html = '<option value="">(none)</option>';
+        names.forEach(function (n) { html += '<option value="' + esc(n) + '">' + esc(n) + '</option>'; });
+        f.template_name.innerHTML = html;
+        f.template_name.value = d.template_name || '';
+    });
+}
+
+function formValue(f, k) {
+    if (k === 'enabled') { return f.enabled.checked ? 1 : 0; }
+    if (k === 'poll_interval_s') { return parseInt(f[k].value, 10); }
+    if (k === 'template_name') { return f[k].value || null; }
+    return f[k].value.trim();
+}
+
+function saveDevice() {
+    var f = document.getElementById('edit-form');
+    var msg = document.getElementById('edit-msg');
+    var body = {};
+    EDIT_FIELDS.forEach(function (k) {
+        var v = formValue(f, k);
+        var was = current[k] === undefined ? null : current[k];
+        if (k === 'template_name' || k === 'enabled' || k === 'poll_interval_s') {
+            if (v !== was) { body[k] = v; }
+        } else if (v !== (was === null ? '' : String(was))) {
+            body[k] = v;
+        }
+    });
+    if (body.poll_interval_s !== undefined && !(body.poll_interval_s >= 30)) {
+        msg.textContent = 'poll interval must be at least 30s'; msg.className = 'msg err'; return;
+    }
+    if (!Object.keys(body).length) { msg.textContent = 'nothing changed'; msg.className = 'msg'; return; }
+    fetch('/api/devices/' + deviceId, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+        if (!res.ok) { msg.textContent = res.data.error || 'save failed'; msg.className = 'msg err'; return; }
+        var warn = res.data.alias_warnings;
+        msg.textContent = warn ? 'saved — ' + warn.join('; ') : 'saved';
+        msg.className = warn ? 'msg err' : 'msg ok';
+        loadDevice();
+    });
+}
+
+function loadCredentials() {
+    fetch('/api/devices/' + deviceId + '/credentials').then(function (r) { return r.json(); }).then(function (c) {
+        var f = document.getElementById('cred-form');
+        f.username.value = c.username || '';
+        f.snmp_version.value = c.snmp_version || '2c';
+        ['password', 'enable_secret', 'snmp_community'].forEach(function (k) {
+            f[k].value = '';
+            f[k].placeholder = c[k + '_set'] ? 'stored' : 'not set';
+        });
+        document.getElementById('cred-status').textContent = c.updated_at
+            ? 'Per-device credentials, last changed ' + c.updated_at + '. Unset fields use the server defaults.'
+            : 'No per-device credentials — polling uses the server defaults (BUTLER_SSH_*).';
+    });
+}
+
+function sendCredentials(body, okText) {
+    var msg = document.getElementById('cred-msg');
+    fetch('/api/devices/' + deviceId + '/credentials', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+        msg.textContent = res.ok ? okText : (res.data.error || 'save failed');
+        msg.className = res.ok ? 'msg ok' : 'msg err';
+        if (res.ok) { loadCredentials(); }
+    });
+}
+
+function saveCredentials() {
+    var f = document.getElementById('cred-form');
+    var body = { username: f.username.value.trim(), snmp_version: f.snmp_version.value };
+    ['password', 'enable_secret', 'snmp_community'].forEach(function (k) {
+        if (f[k].value) { body[k] = f[k].value; }   // blank keeps the stored secret
+    });
+    sendCredentials(body, 'saved — use Poll now to test');
+}
+
+function clearSecrets() {
+    sendCredentials({ password: '', enable_secret: '', snmp_community: '' }, 'secrets cleared');
+}
+
+function loadInterfaces() {
+    fetch('/api/devices/' + deviceId + '/interfaces').then(function (r) { return r.json(); }).then(function (list) {
+        var rows = '';
+        for (var i = 0; i < list.length; i++) {
+            var f = list[i];
+            var sd = (f.speed || f.duplex) ? ((f.duplex || '') + ' ' + (f.speed || '')).trim() : '';
+            var errs = (f.input_errors === null) ? '' : (f.input_errors + ' / ' + f.crc_errors + ' crc');
+            rows += '<tr>' +
+                '<td>' + esc(f.name) + '</td>' +
+                '<td><span class="pill ' + (f.admin_status === 'up' ? 'ok' : 'bad') + '">' + esc(f.admin_status) + '</span></td>' +
+                '<td><span class="pill ' + (f.oper_status === 'up' ? 'ok' : 'bad') + '">' + esc(f.oper_status) + '</span></td>' +
+                '<td>' + esc(f.ip ? f.ip + '/' + f.prefix_len : '') + '</td>' +
+                '<td>' + esc(sd) + '</td>' +
+                '<td>' + esc(f.mtu || '') + '</td>' +
+                '<td>' + esc(errs) + '</td>' +
+                '<td>' + esc(f.last_seen) + '</td>' +
+                '</tr>';
+        }
+        document.getElementById('interface-rows').innerHTML = rows;
+        document.getElementById('interface-empty').style.display = list.length ? 'none' : 'block';
+    });
+}
+
+function pollNow() {
+    var btn = document.getElementById('poll-btn');
+    var msg = document.getElementById('poll-msg');
+    btn.disabled = true;
+    msg.textContent = 'polling...';
+    fetch('/api/devices/' + deviceId + '/poll', { method: 'POST' }).then(function (r) {
+        return r.json();
+    }).then(function (data) {
+        var summary = [];
+        for (var task in data.results) {
+            if (data.results.hasOwnProperty(task)) {
+                summary.push(task + (data.results[task].ok ? ':ok' : ':fail'));
+            }
+        }
+        msg.textContent = summary.join(' ');
+        btn.disabled = false;
+        loadDevice();
+        loadInterfaces();
+    }).catch(function () {
+        msg.textContent = 'poll failed';
+        btn.disabled = false;
+    });
+}
+
+loadDevice();
+loadInterfaces();
+loadCredentials();
+</script>
+</body>
+</html>

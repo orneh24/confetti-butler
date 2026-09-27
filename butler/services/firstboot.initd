@@ -1,0 +1,60 @@
+#!/sbin/openrc-run
+# OpenRC service: auto-configure lab-butler's static IP from guestinfo on
+# first boot. Identical pattern to mesh-flux's hub firstboot service — see
+# that file for the full reasoning; only names differ here.
+
+name="lab-butler-firstboot"
+description="Configure lab-butler static IP from VMware guestinfo on first boot"
+
+depend() {
+    need net
+    after open-vm-tools
+    before lab-butler
+}
+
+command_background="no"
+
+CONF_DIR="/etc/lab-butler"
+STAMP="${CONF_DIR}/.setup-done"
+
+_guestinfo() {
+    if command -v vmware-rpctool >/dev/null 2>&1; then
+        vmware-rpctool "info-get guestinfo.$1" 2>/dev/null | tr -d '\r\n'
+    elif command -v vmtoolsd >/dev/null 2>&1; then
+        vmtoolsd --cmd "info-get guestinfo.$1" 2>/dev/null | tr -d '\r\n'
+    fi
+}
+
+start() {
+    if [ -f "$STAMP" ]; then
+        einfo "lab-butler already configured; nothing to do"
+        return 0
+    fi
+
+    _ip=$(_guestinfo "butler.ip")
+    _gw=$(_guestinfo "butler.gateway")
+
+    case "$_ip" in *"No value found"*) _ip="" ;; esac
+    case "$_gw" in *"No value found"*) _gw="" ;; esac
+
+    if [ -z "$_ip" ] || [ -z "$_gw" ]; then
+        ewarn "guestinfo.butler.ip / guestinfo.butler.gateway not set"
+        ewarn "skipping auto-setup -- log in and run: butler-setup.sh"
+        return 0
+    fi
+
+    ebegin "Configuring lab-butler static IP from guestinfo"
+    mkdir -p "$CONF_DIR"
+    if set-static-ip "$_ip" "$_gw" && rc-service networking restart; then
+        date -u '+%Y-%m-%dT%H:%M:%SZ configured (guestinfo)' > "$STAMP"
+        eend 0
+    else
+        eend 1 "static IP configuration failed"
+    fi
+
+    return 0
+}
+
+stop() {
+    return 0
+}

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lab-butler</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/theme.css">
+<script src="/static/theme.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.5;
+}
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); letter-spacing: 0.5px; }
+.nav { display: flex; gap: 18px; }
+.nav a { color: var(--text-dim); font-size: 12px; }
+.nav a:hover { color: var(--text); text-decoration: none; }
+.nav a.active { color: var(--cyan); }
+.header .status { font-size: 11px; color: var(--text-dim); }
+.header .status .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--gray);
+    margin-right: 6px;
+    vertical-align: middle;
+}
+.header .status .dot.up { background: var(--green); }
+.header .status .dot.down { background: var(--red); }
+.container { padding: 16px 24px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+}
+.card h2 { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.kv { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
+.kv .k { color: var(--text-dim); }
+.kv .v { color: var(--text); }
+.v.ok { color: var(--green); }
+.v.bad { color: var(--red); }
+.v.unknown { color: var(--gray); }
+.note { color: var(--text-dim); font-size: 11px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>lab-butler</h1>
+    <nav class="nav">
+        <a href="/" class="active">Dashboard</a>
+        <a href="/devices">Devices</a>
+        <a href="/conflicts">Conflicts</a>
+        <a href="/ipam">IPAM</a>
+        <a href="/templates">Templates</a>
+        <a href="/topology">Topology</a>
+        <a href="/syslog">Syslog</a>
+        <button type="button" id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light mode</button>
+    </nav>
+    <div class="status"><span class="dot" id="health-dot"></span><span id="health-text">checking...</span></div>
+</div>
+<div class="container">
+    <div class="card">
+        <h2>Clock</h2>
+        <div id="time-body"><div class="kv"><span class="k">loading</span></div></div>
+    </div>
+    <div class="card">
+        <h2>Services</h2>
+        <div id="services-body"><div class="kv"><span class="k">loading</span></div></div>
+    </div>
+    <div class="card">
+        <h2>System</h2>
+        <div id="system-body"><div class="kv"><span class="k">loading</span></div></div>
+    </div>
+</div>
+<script>
+function kv(k, v, cls) {
+    return '<div class="kv"><span class="k">' + k + '</span><span class="v' +
+        (cls ? ' ' + cls : '') + '">' + v + '</span></div>';
+}
+
+function fmtBytes(n) {
+    if (n === null || n === undefined) { return 'unknown'; }
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    while (n >= 1024 && i < units.length - 1) { n = n / 1024; i++; }
+    return n.toFixed(1) + ' ' + units[i];
+}
+
+function renderTime(data) {
+    var html = kv('server utc', data.utc);
+    if (data.chrony) {
+        html += kv('synced', data.chrony.synced ? 'yes' : 'no', data.chrony.synced ? 'ok' : 'bad');
+        html += kv('stratum', data.chrony.stratum === null ? 'unknown' : data.chrony.stratum);
+        if (data.chrony.local_only) {
+            html += '<div class="note">clock is free-running (no upstream source)</div>';
+        }
+    } else {
+        html += kv('chrony', data.reason || 'unavailable', 'unknown');
+    }
+    document.getElementById('time-body').innerHTML = html;
+}
+
+function renderHealth(data) {
+    var dot = document.getElementById('health-dot');
+    var text = document.getElementById('health-text');
+    dot.className = 'dot up';
+    text.textContent = 'up since ' + (data.uptime_s ? Math.floor(data.uptime_s / 60) + 'm' : 'unknown');
+
+    var services = '';
+    for (var name in data.services) {
+        if (!data.services.hasOwnProperty(name)) { continue; }
+        var s = data.services[name];
+        var cls = s.status === 'up' ? 'ok' : (s.status === 'down' ? 'bad' : 'unknown');
+        services += kv(name, s.status || 'unknown', cls);
+    }
+    services += kv('syslog listener', data.syslog_listening ? 'up' : 'down', data.syslog_listening ? 'ok' : 'bad');
+    services += kv('poller', data.poller_running ? 'up' : 'down', data.poller_running ? 'ok' : 'bad');
+    document.getElementById('services-body').innerHTML = services;
+
+    var system = '';
+    if (data.load_avg) {
+        system += kv('load', data.load_avg['1m'].toFixed(2) + ' / ' + data.load_avg['5m'].toFixed(2) + ' / ' + data.load_avg['15m'].toFixed(2));
+    } else {
+        system += kv('load', 'unknown', 'unknown');
+    }
+    if (data.memory) {
+        system += kv('memory used', data.memory.used_pct + '%');
+    } else {
+        system += kv('memory', 'unknown', 'unknown');
+    }
+    if (data.disk) {
+        system += kv('disk used', data.disk.used_pct + '% (' + fmtBytes(data.disk.free_bytes) + ' free)');
+    } else {
+        system += kv('disk', 'unknown', 'unknown');
+    }
+    document.getElementById('system-body').innerHTML = system;
+}
+
+function poll() {
+    fetch('/api/time').then(function (r) { return r.json(); }).then(renderTime).catch(function () {
+        document.getElementById('time-body').innerHTML = kv('error', 'request failed', 'bad');
+    });
+    fetch('/api/health').then(function (r) { return r.json(); }).then(renderHealth).catch(function () {
+        document.getElementById('health-dot').className = 'dot down';
+        document.getElementById('health-text').textContent = 'unreachable';
+    });
+}
+
+poll();
+setInterval(poll, 15000);
+</script>
+</body>
+</html>

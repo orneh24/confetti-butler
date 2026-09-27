@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lab-butler — Templates</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/theme.css">
+<script src="/static/theme.js"></script>
+<link rel="stylesheet" href="/static/vendor/codemirror/codemirror.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5;
+    display: flex; flex-direction: column;
+}
+a { color: var(--blue); text-decoration: none; }
+.header {
+    background: var(--bg-card); border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto;
+}
+.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); }
+.nav { display: flex; gap: 18px; }
+.nav a { color: var(--text-dim); font-size: 12px; }
+.nav a.active { color: var(--cyan); }
+.layout { flex: 1 1 auto; display: grid; grid-template-columns: 220px 1fr 320px; min-height: 0; }
+.col { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.col:last-child { border-right: none; }
+.pad { padding: 12px; }
+h2 { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.tlist { list-style: none; }
+.tlist li { padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.tlist li:hover { background: var(--bg-hover); }
+.tlist li.active { background: var(--bg-hover); color: var(--cyan); }
+input[type=text], select, textarea {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 8px; border-radius: 4px; font-family: inherit; font-size: 12px; width: 100%;
+}
+button {
+    background: var(--bg-hover); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 10px; border-radius: 4px; font-family: inherit; font-size: 12px; cursor: pointer;
+}
+button:hover { border-color: var(--blue); }
+button.primary { border-color: var(--blue); color: var(--blue); }
+.field { margin-bottom: 8px; }
+.field label { display: block; font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px; }
+.editor-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.CodeMirror { flex: 1 1 auto; height: auto; font-size: 12px; }
+.toolbar { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+.toolbar .msg { font-size: 11px; color: var(--text-dim); }
+.warn-list { list-style: none; font-size: 11px; }
+.warn-list li { padding: 6px 8px; margin-bottom: 4px; border-radius: 4px; background: var(--yellow-bg); color: var(--yellow); }
+.warn-list li.danger { background: var(--red-bg); color: var(--red); }
+pre.preview { font-size: 11px; white-space: pre-wrap; word-break: break-word; background: var(--bg); padding: 8px; border-radius: 4px; max-height: 240px; overflow-y: auto; }
+.varrow { display: flex; gap: 4px; margin-bottom: 4px; }
+.varrow input { font-size: 11px; }
+.empty { color: var(--text-dim); font-size: 12px; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>lab-butler</h1>
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/devices">Devices</a>
+        <a href="/conflicts">Conflicts</a>
+        <a href="/ipam">IPAM</a>
+        <a href="/templates" class="active">Templates</a>
+        <a href="/topology">Topology</a>
+        <a href="/syslog">Syslog</a>
+        <button type="button" id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">Light mode</button>
+    </nav>
+</div>
+<div class="layout">
+    <div class="col">
+        <div class="pad">
+            <h2>Templates</h2>
+            <ul class="tlist" id="tlist"></ul>
+            <button style="margin-top:8px;width:100%" onclick="newTemplate()">+ New</button>
+        </div>
+    </div>
+    <div class="col editor-wrap">
+        <div class="toolbar">
+            <input type="text" id="t-name" placeholder="template name" style="width:200px">
+            <input type="text" id="t-note" placeholder="note (optional)">
+            <button class="primary" onclick="saveTemplate()">Save</button>
+            <span class="msg" id="save-msg"></span>
+        </div>
+        <textarea id="editor"></textarea>
+    </div>
+    <div class="col">
+        <div class="pad">
+            <h2>Preview against device</h2>
+            <div class="field">
+                <select id="p-device"><option value="">select a device...</option></select>
+            </div>
+            <button onclick="loadVars()" style="width:100%;margin-bottom:8px">Load vars</button>
+            <div id="varrows"></div>
+            <button onclick="saveVars()" style="width:100%;margin-bottom:8px">Save vars</button>
+            <button class="primary" onclick="preview()" style="width:100%">Render preview</button>
+            <div id="preview-warnings"></div>
+            <pre class="preview" id="preview-body"></pre>
+
+            <h2 style="margin-top:16px">Versions</h2>
+            <div id="versions"></div>
+        </div>
+    </div>
+</div>
+<script src="/static/vendor/codemirror/codemirror.min.js"></script>
+<script src="/static/vendor/codemirror/addon/mode/simple.min.js"></script>
+<script>
+{% raw %}
+// A minimal syntax mode for Jinja2-templated IOS config: "!" comments,
+// double-curly variable blocks and percent-brace tag blocks, plus a
+// handful of common IOS keywords. Not vendored — CodeMirror ships no
+// Cisco IOS mode, and this is short enough to own directly rather than
+// pull in a third-party grammar for it.
+//
+// This whole script is wrapped in {% raw %} because it is rendered
+// through Flask's render_template — without it, Jinja2 would try to
+// parse the double-curly/percent-brace patterns below as its own
+// template syntax rather than passing them through as literal JS.
+CodeMirror.defineSimpleMode("ios-jinja", {
+    start: [
+        { regex: /!.*/, token: "comment" },
+        { regex: /\{\{.*?\}\}/, token: "variable-2" },
+        { regex: /\{%.*?%\}/, token: "keyword" },
+        { regex: /\b(interface|router|network|neighbor|access-list|ip|no|shutdown|description|address|hostname|enable|username|line|vty|console|crypto|snmp-server|logging|ntp|banner)\b/, token: "keyword" },
+        { regex: /\b\d{1,3}(\.\d{1,3}){3}\b/, token: "number" },
+        { regex: /"(?:[^\\]|\\.)*?"/, token: "string" },
+    ],
+});
+
+var cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
+    mode: "ios-jinja",
+    theme: "default",
+    lineNumbers: true,
+    indentUnit: 2,
+    tabSize: 2,
+});
+
+var currentName = null;
+
+function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s === null || s === undefined ? '' : String(s);
+    return d.innerHTML;
+}
+
+function loadList() {
+    fetch('/api/templates').then(function (r) { return r.json(); }).then(function (list) {
+        var html = '';
+        for (var i = 0; i < list.length; i++) {
+            var t = list[i];
+            html += '<li class="' + (t.name === currentName ? 'active' : '') + '" onclick="openTemplate(\'' +
+                t.name.replace(/'/g, "\\'") + '\')">' + esc(t.name) + '</li>';
+        }
+        document.getElementById('tlist').innerHTML = html || '<li class="empty">none yet</li>';
+    });
+}
+
+function openTemplate(name) {
+    fetch('/api/templates/' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (t) {
+        currentName = t.name;
+        document.getElementById('t-name').value = t.name;
+        document.getElementById('t-name').disabled = true;
+        document.getElementById('t-note').value = t.note || '';
+        cm.setValue(t.body || '');
+        document.getElementById('save-msg').textContent = 'v' + t.version;
+        loadVersions();
+        loadList();
+    });
+}
+
+function newTemplate() {
+    currentName = null;
+    document.getElementById('t-name').value = '';
+    document.getElementById('t-name').disabled = false;
+    document.getElementById('t-note').value = '';
+    cm.setValue('! new template\n');
+    document.getElementById('save-msg').textContent = '';
+    document.getElementById('versions').innerHTML = '';
+    loadList();
+}
+
+function renderWarnings(dangerous, security) {
+    var html = '';
+    dangerous = dangerous || [];
+    security = security || [];
+    for (var i = 0; i < dangerous.length; i++) {
+        html += '<li class="danger">line ' + dangerous[i].line + ': ' + esc(dangerous[i].reason) + '</li>';
+    }
+    for (var j = 0; j < security.length; j++) {
+        html += '<li>line ' + security[j].line + ': ' + esc(security[j].reason) + '</li>';
+    }
+    return html ? '<ul class="warn-list">' + html + '</ul>' : '';
+}
+
+function saveTemplate() {
+    var name = document.getElementById('t-name').value.trim();
+    var note = document.getElementById('t-note').value.trim();
+    var body = cm.getValue();
+    var msg = document.getElementById('save-msg');
+    if (!name) { msg.textContent = 'name is required'; return; }
+
+    var isNew = currentName === null;
+    var url = isNew ? '/api/templates' : '/api/templates/' + encodeURIComponent(currentName);
+    var method = isNew ? 'POST' : 'PUT';
+    var payload = isNew ? { name: name, body: body, note: note } : { body: body, note: note };
+
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (result) {
+        if (result.ok) {
+            currentName = name;
+            document.getElementById('t-name').disabled = true;
+            msg.textContent = 'saved v' + (result.data.version || 1);
+            document.getElementById('preview-warnings').innerHTML = renderWarnings(null, result.data.warnings);
+            loadList();
+            loadVersions();
+        } else {
+            msg.textContent = result.data.error || 'save failed';
+        }
+    });
+}
+
+function loadVersions() {
+    if (!currentName) { return; }
+    fetch('/api/templates/' + encodeURIComponent(currentName) + '/versions').then(function (r) { return r.json(); }).then(function (list) {
+        var html = '';
+        for (var i = 0; i < list.length; i++) {
+            html += '<div class="varrow"><span style="flex:1">v' + list[i].version + ' — ' + esc(list[i].saved_at) + '</span></div>';
+        }
+        document.getElementById('versions').innerHTML = html || '<div class="empty">none</div>';
+    });
+}
+
+function loadDevices() {
+    fetch('/api/devices').then(function (r) { return r.json(); }).then(function (list) {
+        var sel = document.getElementById('p-device');
+        var html = '<option value="">select a device...</option>';
+        for (var i = 0; i < list.length; i++) {
+            html += '<option value="' + list[i].id + '">' + esc(list[i].hostname) + '</option>';
+        }
+        sel.innerHTML = html;
+    });
+}
+
+function loadVars() {
+    var deviceId = document.getElementById('p-device').value;
+    if (!deviceId) { return; }
+    fetch('/api/devices/' + deviceId + '/vars').then(function (r) { return r.json(); }).then(function (vars) {
+        var html = '';
+        for (var key in vars) {
+            if (vars.hasOwnProperty(key)) {
+                html += varRow(key, vars[key]);
+            }
+        }
+        html += varRow('', '');
+        document.getElementById('varrows').innerHTML = html;
+    });
+}
+
+function varRow(key, value) {
+    return '<div class="varrow"><input type="text" placeholder="key" value="' + esc(key) +
+        '" class="vkey"><input type="text" placeholder="value" value="' + esc(value) + '" class="vval"></div>';
+}
+
+function saveVars() {
+    var deviceId = document.getElementById('p-device').value;
+    if (!deviceId) { return; }
+    var keys = document.querySelectorAll('.vkey');
+    var vals = document.querySelectorAll('.vval');
+    var obj = {};
+    for (var i = 0; i < keys.length; i++) {
+        var k = keys[i].value.trim();
+        if (k) { obj[k] = vals[i].value; }
+    }
+    fetch('/api/devices/' + deviceId + '/vars', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(obj),
+    }).then(loadVars);
+}
+
+function preview() {
+    var deviceId = document.getElementById('p-device').value;
+    var body = document.getElementById('preview-body');
+    if (!deviceId) { body.textContent = 'select a device first'; return; }
+    body.textContent = 'rendering...';
+
+    var url = currentName ? '/api/templates/' + encodeURIComponent(currentName) + '/preview'
+                           : '/api/templates/__unsaved__/preview';
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: parseInt(deviceId, 10), body: cm.getValue() }),
+    }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (result) {
+        if (result.ok) {
+            body.textContent = result.data.rendered;
+            document.getElementById('preview-warnings').innerHTML =
+                renderWarnings(result.data.dangerous, result.data.security);
+        } else {
+            body.textContent = result.data.error || 'render failed';
+            document.getElementById('preview-warnings').innerHTML = '';
+        }
+    });
+}
+
+loadList();
+loadDevices();
+{% endraw %}
+</script>
+</body>
+</html>

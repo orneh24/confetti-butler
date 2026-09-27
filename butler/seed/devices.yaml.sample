@@ -1,0 +1,23 @@
+# Static device seed file. Copy to devices.yaml and point
+# POST /api/discover/seedfile at it, or load it directly with:
+#   identity.ingest via app/collectors/seedfile.py
+#
+# Each entry needs at least one identifying field: serial, vmuuid, mgmt_ip
+# or hostname. More identifiers make later dedup against a sweep or vCenter
+# import safer — see app/identity.py for the merge rule.
+
+devices:
+  - hostname: core-r1
+    mgmt_ip: 10.0.0.1
+    serial: 9ABCDEF01
+    vendor: cisco
+    platform: cisco_ios
+    role: router
+    site: lab-a
+
+  - hostname: core-r2
+    mgmt_ip: 10.0.0.2
+    vendor: cisco
+    platform: cisco_ios
+    role: router
+    site: lab-a

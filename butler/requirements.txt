@@ -1,0 +1,6 @@
+flask
+waitress
+netmiko
+jinja2
+pyyaml
+requests
