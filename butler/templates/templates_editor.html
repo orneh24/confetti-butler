@@ -48,6 +48,20 @@ button.primary { border-color: var(--blue); color: var(--blue); }
 .field label { display: block; font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px; }
 .editor-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 .CodeMirror { flex: 1 1 auto; height: auto; font-size: 12px; }
+/* Recolour CodeMirror's default theme from the shared palette, so the editor
+   follows the dark/light toggle instead of staying a white box. */
+.CodeMirror { background: var(--bg); color: var(--text); font-family: inherit; }
+.CodeMirror-gutters { background: var(--bg-card); border-right: 1px solid var(--border); }
+.CodeMirror-linenumber { color: var(--text-dim); }
+.CodeMirror-cursor { border-left-color: var(--text); }
+.CodeMirror-selected, .CodeMirror-focused .CodeMirror-selected { background: var(--bg-hover); }
+.CodeMirror-line::selection, .CodeMirror-line > span::selection, .CodeMirror-line > span > span::selection { background: var(--border); }
+.cm-s-default .cm-comment    { color: var(--text-dim); font-style: italic; }
+.cm-s-default .cm-variable-2 { color: var(--cyan); }
+.cm-s-default .cm-keyword    { color: var(--blue); }
+.cm-s-default .cm-number     { color: var(--yellow); }
+.cm-s-default .cm-string     { color: var(--green); }
+.CodeMirror-matchingbracket  { color: var(--green) !important; }
 .toolbar { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
 .toolbar .msg { font-size: 11px; color: var(--text-dim); }
 .warn-list { list-style: none; font-size: 11px; }
