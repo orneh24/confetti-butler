@@ -1,6 +1,7 @@
 # lab-butler — Build Handoff
 
-Point-in-time record of the initial build, 2026-09-14/15. Read `CLAUDE.md` at the repo root first —
+Point-in-time record of the initial build, 2026-09-14/15, plus a follow-up session on 2026-09-27
+(see "Follow-up session" below). Read `CLAUDE.md` at the repo root first —
 it's the architecture reference and carries the numbered "do not regress" constraints. This file is
 the narrative of how the build went: what was done, what was verified against real hardware, what
 wasn't, and what to check before trusting any of it further.
@@ -23,7 +24,7 @@ IOS-XE 17.3.8a at `192.0.2.10`, credentials supplied directly by the user for th
 | 4 | Syslog receiver | Built, verified (UDP send, parsing, query-time device correlation) |
 | 5 | IPAM (overlap/duplicate-IP detection) | Built, verified with synthetic overlap scenarios |
 | 6 | Config templates + pull delivery + editor | Built, verified live — **bug found and fixed**, see below |
-| 7 | LLDP chassis self-registration, BGP/OSPF parsers | Built; parsers verified live, resolution logic verified with synthetic multi-device data (this lab has only one router, so live cross-device LLDP resolution couldn't be exercised) |
+| 7 | LLDP/BGP/OSPF parsers and neighbor resolution | Built; chassis self-registration **replaced 2026-09-27** by advertised-mgmt-IP matching, then verified live across two routers (see follow-up session) |
 | 8 | Topology (vis.js graph, ghost nodes) | Built, verified with synthetic topology data |
 | 9 | Remaining seed sources (sweep, vCenter, mesh-flux import) | Sweep and mesh-flux import verified live; **vCenter built but not verified** — no vCenter instance was reachable |
 | 10 | Packaging (build-template.sh, OpenRC, firstboot) | Built, shell-syntax-checked (`sh -n`); **never run on a real Alpine VM** |
@@ -57,21 +58,47 @@ constraints" section.
 - **Packaging** (`build-template.sh` and the OpenRC/firstboot scripts). Syntax-valid, structurally
   mirrors mesh-flux's own build script closely, but has not been run against a real Alpine install —
   same caveat mesh-flux's own build docs carried at this stage of that project.
-- **Cross-device LLDP/BGP/OSPF resolution** in a real multi-device lab. The resolution logic
-  (`remote_device_id` / `peer_device_id` lookups) is verified correct against synthetic data seeded
-  directly into SQLite, but this session only had one real router available, which had LLDP disabled
-  and no BGP/OSPF peers configured — so the live end-to-end path (two real devices, one polls the
-  other's neighbor table, the resolution actually fires) has not been exercised.
+- ~~**Cross-device LLDP/BGP/OSPF resolution** in a real multi-device lab.~~ Resolved 2026-09-27:
+  lab-rtr-b and lab-rtr-c resolve to each other over LLDP in both directions, and live OSPF
+  (FULL) and BGP (Established/Active) adjacencies parse correctly. BGP/OSPF peer resolution to a
+  *known device* is still unexercised — no peer IP matched a device's mgmt IP in this lab.
 - ~~**`show lldp entry local`'s success-path output.**~~ Resolved 2026-09-27: with LLDP enabled
   (lab-rtr-b, IOS-XE 17.3.2) the command returns 0 entries. It looks up a neighbor named "local".
   The command was dropped, and LLDP neighbors now resolve by advertised management IP. That was
   verified live: lab-rtr-b's neighbor LAB-RTR-C resolved to its device row via `192.0.2.167`.
 
+## Follow-up session (2026-09-27)
+
+Three routers in the dev inventory: `lab-rtr-a` (192.0.2.10, IOS-XE 17.3.8a),
+`lab-rtr-b` (192.0.2.171, 17.3.2) and `lab-rtr-c` (192.0.2.167, IOS-XE 3.11 / 15.4). Main
+changes, all verified live unless noted:
+
+- **LLDP:** `show lldp entry local` dropped (it looks up a neighbor *named* "local"; IOS-XE has no
+  command showing a device its own chassis ID). Neighbors now resolve by advertised mgmt IP. Older
+  IOS omits `Local Intf:` from the detail output, so the brief table fills it in.
+- **Security:** template rendering moved to Jinja2's `SandboxedEnvironment` — the unsandboxed one
+  allowed shell commands on the server through the unauthenticated template API.
+- **Poller:** one SSH session per poll (~1.2s, was 10–15s); vanished interfaces, neighbors and
+  peers are deleted; a device can no longer get stuck in `'running'`.
+- **Conflicts:** Dismiss route and button; an identical open conflict is not re-inserted.
+- **UI:** device page Edit and Credentials forms (secrets never returned by the API); dark/light
+  theme toggle; one shared palette in `static/theme.css`; topology keeps its layout on refresh and
+  draws each LLDP link once, with one ghost node per peer IP.
+- **Other:** device delete cleans up `poll_history` and neighbor references; PUT records new
+  identifiers as aliases; credential saves are partial.
+- **Renamed:** sibling project lab-tester → mesh-flux (route `/api/discover/meshflux`, module
+  `collectors/meshflux.py`). Project skills moved from `skills/` to `.claude/skills/` so Claude Code
+  loads them; new `lab-butler-dev-run` skill covers running locally on Windows.
+
 ## Housekeeping
 
-- **Not a git repository yet.** Nothing built this session has been committed anywhere.
+- **Git:** repository initialised 2026-09-27 on `main`, no remote. `butler.db*` and `butler.env` are
+  gitignored (plaintext credentials). `.gitattributes` pins `.sh`, `.initd`, `.py` and
+  `requirements.txt` to LF — the machine's system-wide `core.autocrlf=true` would otherwise check
+  shell scripts out with CRLF, which breaks them on Alpine (same rule as mesh-flux).
 - Local Python dependencies for development were installed into the ambient environment on this
-  machine (`pyyaml`, `netmiko`, `requests` — `flask`/`waitress`/`jinja2` were already present). The
+  machine (`pyyaml`, `netmiko`, `requests`, and `pyflakes` for linting — `flask`/`waitress`/`jinja2` were
+  already present). The
   Alpine package list `build-template.sh` installs is the authoritative list for a real deployment;
   it has not been cross-checked against the live Alpine package index (see constraint 3 in
   `CLAUDE.md` and the `py3-paramiko`/`netmiko` note in `build-template.sh` itself).
