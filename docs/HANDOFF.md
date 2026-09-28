@@ -1,7 +1,7 @@
 # lab-butler — Build Handoff
 
-Point-in-time record of the initial build, 2026-09-14/15, plus a follow-up session on 2026-09-27
-(see "Follow-up session" below). Read `CLAUDE.md` at the repo root first —
+Point-in-time record of the initial build, 2026-09-14/15, plus follow-up sessions on 2026-09-27
+and 2026-09-28 (see the "Follow-up session" sections below). Read `CLAUDE.md` at the repo root first —
 it's the architecture reference and carries the numbered "do not regress" constraints. This file is
 the narrative of how the build went: what was done, what was verified against real hardware, what
 wasn't, and what to check before trusting any of it further.
@@ -99,6 +99,24 @@ whole history and are kept outside the repo. Main changes, all verified live unl
 - **Renamed:** sibling project lab-tester → mesh-flux (route `/api/discover/meshflux`, module
   `collectors/meshflux.py`). Project skills moved from `skills/` to `.claude/skills/` so Claude Code
   loads them; new `lab-butler-dev-run` skill covers running locally on Windows.
+
+## Follow-up session (2026-09-28)
+
+- **Dashboard** (`templates/dashboard.html`, commit `72f654e`): the Clock and System cards are now
+  one System card. A new full-width Syslog box shows the last 15 messages with the same filters as
+  `/syslog`, using the existing `/api/syslog?limit=15` — no server change. Verified by sending 20
+  test messages to the dev server's UDP 5514: the limit, severity and search filters returned the
+  expected counts. **Not checked in a browser.**
+- **RESTCONF tried on lab-rtr-a** (read-only, not part of the app). The user enabled it by hand
+  (`aaa new-model`, `aaa authentication login default local`, `aaa authorization exec default local`,
+  `restconf`) and left it **unsaved**, so a reload removes it. Findings:
+  - `ietf-interfaces:interfaces` gives config only (name, IP, `enabled`), not live up/down state.
+  - `Cisco-IOS-XE-interfaces-oper:interfaces/interface` gives live admin/oper status and IP. Its
+    status names differ from the CLI (`if-oper-state-ready` = up, `if-oper-state-no-pass` = down),
+    and unassigned interfaces show `0.0.0.0`.
+  - Same data as `show ip interface brief` over SSH and lab-butler's `/api/devices/<id>/interfaces`.
+    RESTCONF adds no new data, only structured output, and lab-rtr-c (IOS-XE 3.11) has no RESTCONF.
+    The poller stays SSH-only; no RESTCONF path was added.
 
 ## Housekeeping
 
