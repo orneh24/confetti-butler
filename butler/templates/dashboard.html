@@ -57,6 +57,26 @@ a:hover { text-decoration: underline; }
 .v.bad { color: var(--red); }
 .v.unknown { color: var(--gray); }
 .note { color: var(--text-dim); font-size: 11px; margin-top: 10px; }
+.card.wide { grid-column: 1 / -1; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.card-head h2 { margin-bottom: 0; }
+.card-head a { font-size: 11px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.filters select, .filters input[type=text] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 8px; border-radius: 4px; font-family: inherit; font-size: 12px;
+}
+.count { color: var(--text-dim); font-size: 11px; margin-left: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 10px; }
+.sev0, .sev1, .sev2, .sev3 { color: var(--red); }
+.sev4 { color: var(--yellow); }
+.sev5, .sev6 { color: var(--text); }
+.sev7 { color: var(--text-dim); }
+.sev-null { color: var(--gray); }
+.mono { white-space: pre-wrap; word-break: break-word; }
+.empty { color: var(--text-dim); padding: 12px 0; }
 </style>
 </head>
 <body>
@@ -76,16 +96,38 @@ a:hover { text-decoration: underline; }
 </div>
 <div class="container">
     <div class="card">
-        <h2>Clock</h2>
+        <h2>System</h2>
         <div id="time-body"><div class="kv"><span class="k">loading</span></div></div>
+        <div id="system-body"><div class="kv"><span class="k">loading</span></div></div>
     </div>
     <div class="card">
         <h2>Services</h2>
         <div id="services-body"><div class="kv"><span class="k">loading</span></div></div>
     </div>
-    <div class="card">
-        <h2>System</h2>
-        <div id="system-body"><div class="kv"><span class="k">loading</span></div></div>
+    <div class="card wide">
+        <div class="card-head"><h2>Syslog — last 15</h2><a href="/syslog">view all</a></div>
+        <div class="filters">
+            <select id="f-minutes">
+                <option value="15">last 15m</option>
+                <option value="60" selected>last 60m</option>
+                <option value="360">last 6h</option>
+                <option value="1440">last 24h</option>
+            </select>
+            <select id="f-host"><option value="">all hosts</option></select>
+            <select id="f-severity">
+                <option value="">all severities</option>
+                <option value="3">error or worse</option>
+                <option value="4">warning or worse</option>
+                <option value="6">info or worse</option>
+            </select>
+            <input type="text" id="f-q" placeholder="search message...">
+            <span class="count" id="row-count"></span>
+        </div>
+        <table>
+            <thead><tr><th>Time</th><th>Host</th><th>Sev</th><th>Mnemonic</th><th>Message</th></tr></thead>
+            <tbody id="syslog-rows"></tbody>
+        </table>
+        <div class="empty" id="syslog-empty" style="display:none">no messages in this window</div>
     </div>
 </div>
 <script>
@@ -162,8 +204,83 @@ function poll() {
     });
 }
 
-poll();
-setInterval(poll, 15000);
+// Syslog box — same filters and rendering as syslog.html, capped at 15 rows.
+var SYSLOG_LIMIT = 15;
+var SEV_NAMES = {0: 'emerg', 1: 'alert', 2: 'crit', 3: 'err', 4: 'warn', 5: 'notice', 6: 'info', 7: 'debug'};
+
+function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s === null || s === undefined ? '' : String(s);
+    return d.innerHTML;
+}
+
+function loadSources() {
+    fetch('/api/syslog/sources').then(function (r) { return r.json(); }).then(function (list) {
+        var sel = document.getElementById('f-host');
+        var current = sel.value;
+        var html = '<option value="">all hosts</option>';
+        for (var i = 0; i < list.length; i++) {
+            html += '<option value="' + esc(list[i].name) + '">' + esc(list[i].name) + ' (' + list[i].count + ')</option>';
+        }
+        sel.innerHTML = html;
+        sel.value = current;
+    });
+}
+
+function loadSyslog() {
+    var params = ['limit=' + SYSLOG_LIMIT];
+    params.push('minutes=' + document.getElementById('f-minutes').value);
+    var host = document.getElementById('f-host').value;
+    if (host) { params.push('host=' + encodeURIComponent(host)); }
+    var sev = document.getElementById('f-severity').value;
+    if (sev !== '') { params.push('severity=' + sev); }
+    var q = document.getElementById('f-q').value.trim();
+    if (q) { params.push('q=' + encodeURIComponent(q)); }
+
+    fetch('/api/syslog?' + params.join('&')).then(function (r) { return r.json(); }).then(function (list) {
+        var rows = '';
+        for (var i = 0; i < list.length; i++) {
+            var m = list[i];
+            var sevCls = m.severity === null || m.severity === undefined ? 'sev-null' : 'sev' + m.severity;
+            var sevLabel = m.severity === null || m.severity === undefined ? '' : (m.severity + ' ' + (SEV_NAMES[m.severity] || ''));
+            var hostCell = m.host || m.source_ip;
+            if (m.device_id) {
+                hostCell = '<a href="/devices/' + m.device_id + '">' + esc(hostCell) + '</a>';
+            } else {
+                hostCell = esc(hostCell);
+            }
+            rows += '<tr>' +
+                '<td>' + new Date(m.received_at).toLocaleString() + '</td>' +
+                '<td>' + hostCell + '</td>' +
+                '<td class="' + sevCls + '">' + esc(sevLabel) + '</td>' +
+                '<td>' + esc(m.mnemonic || '') + '</td>' +
+                '<td class="mono">' + esc(m.message) + '</td>' +
+                '</tr>';
+        }
+        document.getElementById('syslog-rows').innerHTML = rows;
+        document.getElementById('syslog-empty').style.display = list.length ? 'none' : 'block';
+        document.getElementById('row-count').textContent = list.length + ' shown';
+    }).catch(function () {
+        document.getElementById('row-count').textContent = 'request failed';
+    });
+}
+
+document.getElementById('f-minutes').addEventListener('change', loadSyslog);
+document.getElementById('f-host').addEventListener('change', loadSyslog);
+document.getElementById('f-severity').addEventListener('change', loadSyslog);
+document.getElementById('f-q').addEventListener('input', function () {
+    clearTimeout(window._q_timer);
+    window._q_timer = setTimeout(loadSyslog, 300);
+});
+
+function pollAll() {
+    poll();
+    loadSources();
+    loadSyslog();
+}
+
+pollAll();
+setInterval(pollAll, 15000);
 </script>
 </body>
 </html>
