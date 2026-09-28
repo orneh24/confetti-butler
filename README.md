@@ -29,7 +29,7 @@ templates that a router pulls for itself. lab-butler never writes to a device.
   its config itself:
   `copy http://<butler>/configs/<device-key>.cfg running-config`.
 - **Syslog.** A UDP receiver, with each message linked to the device that sent it.
-- Dark and light theme.
+- Five colour themes (Dark, Light, Catppuccin Mocha, Gruvbox, Terminal green), or Shuffle, which switches between them at random every 5-10 minutes.
 
 Built for Cisco IOS / IOS-XE, and tested against CSR1000v routers on IOS-XE 17.3 and 3.11.
 

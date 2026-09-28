@@ -183,6 +183,8 @@ butler/
                           per extra theme; pages must not define their own :root colours
   static/theme.js        — THEMES list + header dropdown (saved in localStorage), themeColor() for
                           JS colours; add a theme = one block in theme.css + one THEMES entry
+                          "Shuffle" (a mode, not a palette) rotates them every 5-10 min; its pick and
+                          next-change time live in lab-butler-theme-shuffle so every page stays in step
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — firstboot.initd, login-setup.sh
