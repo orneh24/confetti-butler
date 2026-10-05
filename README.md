@@ -7,10 +7,26 @@ A companion server for the routers in a network lab. It polls each router over S
 neighbors and BGP/OSPF peers drawn as a topology graph, and syslog. It also renders config
 templates that a router pulls for itself. lab-butler never writes to a device.
 
-![Tour of lab-butler: devices, a device page, topology with a BGP filter, IPAM findings, a template preview with a security warning, syslog, an identity conflict, and the light theme](docs/img/lab-butler-demo.gif)
+![Tour of lab-butler: devices, a device page, topology with a BGP filter, IPAM findings, a template preview with security warnings, syslog, an identity conflict, then the colour themes, the four layouts and the Confetti button](docs/img/lab-butler-demo.gif)
 
 *Mock data from a made-up lab, using documentation-range addresses. See
 [Running locally](#running-locally).*
+
+## Themes and layouts
+
+The look follows the hub UI of the sibling project
+[confetti-traffic](https://github.com/orneh24/confetti-traffic). Both pickers are in the header
+and the choice is saved in your browser.
+
+![The dashboard in four themes: Light, Terminal green, Confetti Night and Neon Streamers](docs/img/themes.png)
+
+![The dashboard in four layouts: Classic, Modern, Retro 95 and Amber CRT](docs/img/layouts.png)
+
+- **Themes:** Dark, Light, Dracula, Monokai, High Contrast, Terminal green, Confetti Night and
+  Neon Streamers. **Shuffle** switches between them at random every 5-10 minutes.
+- **Layouts:** Classic, Modern (side menu and summary tiles on the dashboard), Retro 95 and
+  Amber CRT. Retro 95 and Amber CRT bring their own colours, so the theme picker is disabled
+  while one is on.
 
 ## What it does
 
@@ -29,7 +45,7 @@ templates that a router pulls for itself. lab-butler never writes to a device.
   its config itself:
   `copy http://<butler>/configs/<device-key>.cfg running-config`.
 - **Syslog.** A UDP receiver, with each message linked to the device that sent it.
-- Five colour themes (Dark, Light, Catppuccin Mocha, Gruvbox, Terminal green), or Shuffle, which switches between them at random every 5-10 minutes.
+- **Look.** Eight colour themes (or Shuffle) and four layouts. See [Themes and layouts](#themes-and-layouts).
 
 Built for Cisco IOS / IOS-XE, and tested against CSR1000v routers on IOS-XE 17.3 and 3.11.
 

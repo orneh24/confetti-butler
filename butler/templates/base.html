@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lab-butler — {% block title %}{% endblock %}</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/theme.css">
+<link rel="stylesheet" href="/static/layout.css">
+<script src="/static/theme.js"></script>
+{% block head %}{% endblock %}
+</head>
+{# The page list lives here once. The current page is picked from the URL, so
+   /devices/5 counts as Devices. #}
+{% set pages = [('/', 'Dashboard'), ('/devices', 'Devices'), ('/conflicts', 'Conflicts'), ('/ipam', 'IPAM'),
+                ('/templates', 'Templates'), ('/topology', 'Topology'), ('/syslog', 'Syslog')] %}
+{% set here = '/' if request.path == '/' else '/' + request.path.strip('/').split('/')[0] %}
+<body class="{% block body_class %}{% endblock %}">
+
+<!-- Modern layout only: a menu down the left side. Hidden in the others. -->
+<nav class="side-nav" aria-label="Pages">
+    <div class="side-brand"><span class="side-mark"></span>Lab Butler</div>
+    {% for path, label in pages %}
+    {% if path == here %}<span class="side-link current">{{ label }}</span>
+    {% else %}<a class="side-link" href="{{ path }}">{{ label }}</a>{% endif %}
+    {% endfor %}
+</nav>
+
+<div class="header">
+    <div class="header-left">
+        <h1>NETWORK LAB BUTLER</h1>
+        <span class="page-title" id="page-title">{% block page_title %}{{ self.title() }}{% endblock %}</span>
+        {% for path, label in pages %}
+        {% if path == here %}<span class="btn-nav-current">{{ label }}</span>
+        {% else %}<a href="{{ path }}" class="btn-nav">{{ label }}</a>{% endif %}
+        {% endfor %}
+    </div>
+    <div class="status">
+        <span class="dot" id="health-dot"></span><span id="health-text">checking...</span>
+        <select id="theme-select" class="btn-nav theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
+        <select id="layout-select" class="btn-nav theme-select" aria-label="Layout" onchange="setLayout(this.value)"></select>
+    </div>
+</div>
+
+{% block kpis %}{% endblock %}
+
+<div class="page">
+{% block content %}{% endblock %}
+</div>
+
+<div class="page-footer">
+    <a class="btn-small" href="https://isitdns.com/" target="_blank" rel="noopener noreferrer">Is it DNS..?</a>
+    <button class="btn-small" type="button" onclick="confettiBlast(this)">Confetti!</button>
+</div>
+
+<!-- Retro 95 layout only: taskbar with a Start menu (a plain <details>, no
+     script) and a clock. The Start menu also holds the footer's two buttons,
+     which that layout hides. -->
+<div class="taskbar">
+    <details class="start">
+        <summary><span class="start-flag"></span>Start</summary>
+        <div class="start-menu">
+            <div class="start-band"><b>Butler</b>95</div>
+            <div class="start-items">
+                {% for path, label in pages %}<a href="{{ path }}">{{ label }}</a>
+                {% endfor %}
+                <hr>
+                <a href="https://isitdns.com/" target="_blank" rel="noopener noreferrer">Is it DNS..?</a>
+                <button type="button" onclick="confettiBlast(this)">Confetti!</button>
+            </div>
+        </div>
+    </details>
+    {% for path, label in pages %}{% if path == here %}<span class="btn-nav-current">{{ label }}</span>{% endif %}{% endfor %}
+    <span class="tray" id="tray-clock"></span>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

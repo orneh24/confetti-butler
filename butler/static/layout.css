@@ -1,0 +1,625 @@
+/* Structure for every page (base.html) and the four layouts. Colours come
+   from theme.css, loaded first. Classic is everything down to the "Layouts"
+   marker; each other layout is CSS keyed on :root[data-layout=NAME] plus a few
+   elements only it shows (.side-nav, .kpi-row, .taskbar — hidden in Classic).
+   Retro 95 and Amber CRT bring their own colours, so they must stay AFTER all
+   theme rules: they beat Neon's .section:nth-child colours only by coming later. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.5;
+}
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Header */
+.header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+.header-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--cyan);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    margin-right: 6px;
+}
+.page-title { display: none; }
+.header .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+.header .status .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--gray);
+    margin-right: 2px;
+}
+.header .status .dot.up { background: var(--green); animation: pulse 2s infinite; }
+.header .status .dot.down { background: var(--red); }
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.btn-nav {
+    display: inline-block;
+    background: var(--bg-hover);
+    border: 1px solid var(--cyan);
+    color: var(--cyan);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 18px;
+    padding: 4px 12px;
+    border-radius: 0;
+    text-decoration: none;
+}
+.btn-nav:hover { background: var(--cyan); color: var(--bg); text-decoration: none; }
+/* The current page's own nav button: same shape, permanently "active" and not
+   a link — it marks where you are, not somewhere you can go. */
+.btn-nav-current {
+    display: inline-block;
+    background: var(--cyan);
+    border: 1px solid var(--cyan);
+    color: var(--bg);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 18px;
+    padding: 4px 12px;
+    border-radius: 0;
+    cursor: default;
+}
+.theme-select { cursor: pointer; }
+.theme-select option { background: var(--bg-card); color: var(--text); }
+
+/* Page body. Full-height pages (topology, template editor) fill the viewport
+   and let their own content scroll. */
+body.full-height { height: 100vh; display: flex; flex-direction: column; }
+.page { min-width: 0; }
+body.full-height .page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.container {
+    display: grid;
+    gap: 16px;
+    padding: 16px 24px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    align-items: start;
+}
+.container.stack { grid-template-columns: minmax(0, 1fr); }
+.container.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    overflow: hidden;
+    min-width: 0;
+}
+.section.wide { grid-column: 1 / -1; }
+.section-header {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.section-header a { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.section-body { padding: 8px 10px; overflow: auto; }
+.page-footer { flex: 0 0 auto; text-align: center; padding: 8px 0 12px; }
+.page-footer .btn-small { margin: 0 3px; }
+.side-nav, .kpi-row, .taskbar { display: none; }
+
+/* Shared bits */
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 10px; }
+tbody tr:hover td { background: var(--bg-hover); }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 12px; }
+.kv .k { color: var(--text-dim); }
+.v.ok { color: var(--green); }
+.v.bad { color: var(--red); }
+.v.unknown { color: var(--gray); }
+.note, .hint { color: var(--text-dim); font-size: 11px; }
+.empty { color: var(--text-dim); padding: 8px 0; font-size: 12px; }
+.msg.ok { color: var(--green); }
+.msg.err { color: var(--red); }
+.pill { display: inline-block; padding: 1px 6px; border-radius: 0; font-size: 11px; }
+.pill.ok, .pill.up { background: var(--green-bg); color: var(--green); }
+.pill.bad { background: var(--red-bg); color: var(--red); }
+.pill.running { background: var(--yellow-bg); color: var(--yellow); }
+.pill.idle, .pill.node { background: var(--bg-hover); color: var(--text-dim); }
+input[type=text], input[type=number], input[type=password], input:not([type]), select, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 6px;
+    border-radius: 0;
+    font-family: inherit;
+    font-size: 12px;
+}
+button, .btn-small {
+    display: inline-block;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 0;
+    cursor: pointer;
+}
+button:hover, .btn-small:hover { color: var(--text); border-color: var(--blue); text-decoration: none; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { border-color: var(--blue); color: var(--blue); }
+
+/* ------------------------------------------------------------------
+   Layouts
+   ------------------------------------------------------------------ */
+
+/* Modern: menu on the left, summary tiles on top (dashboard), rounded cards.
+   Colours come from the theme, so every theme works here. */
+:root[data-layout="modern"] body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    min-height: 100vh;
+    /* The menu is sticky and one screen tall; paint its column (and border)
+       down the whole page so a long page doesn't show it ending. */
+    background: linear-gradient(to right, var(--bg-card) 209px, var(--border) 209px 210px, var(--bg) 210px);
+}
+:root[data-layout="modern"] body.full-height { height: 100vh; }
+:root[data-layout="modern"] .side-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    grid-column: 1;
+    grid-row: 1 / 5;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 18px 12px;
+}
+:root[data-layout="modern"] .side-brand {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 15px; font-weight: 700; color: var(--text);
+    margin: 0 6px 18px;
+}
+:root[data-layout="modern"] .side-mark {
+    width: 28px; height: 28px; border-radius: 8px; flex: none;
+    background: conic-gradient(from 30deg, var(--red), var(--yellow), var(--green), var(--blue), var(--cyan), var(--red));
+}
+:root[data-layout="modern"] .side-link {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 10px; border-radius: 8px;
+    color: var(--text-dim); text-decoration: none;
+}
+:root[data-layout="modern"] a.side-link:hover { background: var(--bg-hover); color: var(--text); }
+:root[data-layout="modern"] .side-link.current { background: var(--bg-hover); color: var(--text); font-weight: 600; }
+:root[data-layout="modern"] .header {
+    grid-column: 2;
+    grid-row: 1;
+    background: transparent;
+    border-bottom: none;
+    padding: 20px 26px 4px;
+}
+/* The menu carries the product name, so the page title becomes the heading. */
+:root[data-layout="modern"] .header h1 { display: none; }
+:root[data-layout="modern"] .page-title { display: inline; font-size: 22px; font-weight: 700; color: var(--text); }
+:root[data-layout="modern"] .header-left .btn-nav,
+:root[data-layout="modern"] .header-left .btn-nav-current { display: none; }
+:root[data-layout="modern"] .header .status { font-size: 12px; }
+:root[data-layout="modern"] .theme-select,
+:root[data-layout="modern"] .btn-nav { border-radius: 8px; }
+:root[data-layout="modern"] .kpi-row {
+    grid-column: 2;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+    padding: 14px 26px 0;
+}
+:root[data-layout="modern"] .kpi {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 16px;
+    min-width: 0;
+}
+:root[data-layout="modern"] .kpi-label { font-size: 12px; color: var(--text-dim); }
+:root[data-layout="modern"] .kpi-value { font-size: 24px; font-weight: 700; line-height: 1.3; }
+:root[data-layout="modern"] .kpi-sub {
+    font-size: 12px; color: var(--text-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+:root[data-layout="modern"] .kpi-value.bad { color: var(--red); }
+:root[data-layout="modern"] .kpi-value.good { color: var(--green); }
+:root[data-layout="modern"] .kpi-value.warn { color: var(--yellow); }
+:root[data-layout="modern"] .page { grid-column: 2; grid-row: 3; }
+:root[data-layout="modern"] .container { padding: 18px 26px 26px; gap: 18px; }
+:root[data-layout="modern"] .section { border-radius: 14px; }
+:root[data-layout="modern"] .section-header {
+    padding: 12px 16px;
+    font-size: 14px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text);
+}
+:root[data-layout="modern"] .section-body { padding: 10px 16px 14px; }
+:root[data-layout="modern"] button,
+:root[data-layout="modern"] .btn-small { border-radius: 7px; padding: 3px 10px; }
+:root[data-layout="modern"] input[type=text],
+:root[data-layout="modern"] input[type=number],
+:root[data-layout="modern"] input[type=password],
+:root[data-layout="modern"] input:not([type]),
+:root[data-layout="modern"] select,
+:root[data-layout="modern"] textarea { border-radius: 6px; padding: 4px 8px; }
+:root[data-layout="modern"] .pill { border-radius: 10px; }
+/* Same card colour for every box: the Classic zebra reads as noise in a
+   grid. The zebra rule sets --bg-card from --bg-card-alt, so make the two equal. */
+:root[data-layout="modern"] { --bg-card-alt: var(--bg-card); }
+:root[data-layout="modern"] .page-footer { grid-column: 2; grid-row: 4; padding: 6px 0 12px; }
+@media (max-width: 1100px) {
+    :root[data-layout="modern"] body { grid-template-columns: minmax(0, 1fr); background: var(--bg); }
+    :root[data-layout="modern"] .side-nav { display: none; }
+    :root[data-layout="modern"] .header,
+    :root[data-layout="modern"] .kpi-row,
+    :root[data-layout="modern"] .page,
+    :root[data-layout="modern"] .page-footer { grid-column: 1; }
+    :root[data-layout="modern"] .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    :root[data-layout="modern"] .header-left .btn-nav,
+    :root[data-layout="modern"] .header-left .btn-nav-current { display: inline-block; }
+}
+
+/* Retro 95: every panel a Windows 95 window on a teal desktop, with a taskbar
+   and Start menu. It brings its own colours, so the theme picker is disabled
+   while it is on and this block overrides every theme variable. */
+:root[data-layout="retro95"],
+:root[data-layout="retro95"] .section:nth-child(n) {
+    --bg:        #ffffff;
+    --bg-card:   #c0c0c0;
+    --bg-card-alt: #c0c0c0;
+    --bg-hover:  #dcdcdc;
+    --bg-muted:  #d4d4d4;
+    --bg-code:   #ffffff;
+    --stripe:    #f2f2f2;
+    --border:    #808080;
+    --border-soft: #dcdcdc;
+    --badge-bg:  #ffffff;
+    --badge-border: #808080;
+    --text:      #000000;
+    --text-dim:  #404040;
+    --green:     #007a00;
+    --green-bg:  #c8f0c8;
+    --red:       #c00000;
+    --red-bg:    #ffd0d0;
+    --yellow:    #806000;
+    --yellow-bg: #fff4b0;
+    --gray:      #a0a0a0;
+    --blue:      #0000cc;
+    --cyan:      #000080;
+    color-scheme: light;
+}
+:root[data-layout="retro95"] body {
+    font-family: "Microsoft Sans Serif", "MS Sans Serif", Tahoma, Verdana, sans-serif;
+    font-size: 12px;
+    background: #008080;
+    padding-bottom: 36px; /* room for the taskbar */
+}
+:root[data-layout="retro95"] .header::before { display: none; }
+:root[data-layout="retro95"] .header {
+    background: #c0c0c0;
+    background-image: none;
+    margin: 8px 8px 0;
+    padding: 3px 6px 3px 3px;
+    border: 1px solid;
+    border-color: #dfdfdf #000 #000 #dfdfdf;
+    box-shadow: inset 1px 1px #fff, inset -1px -1px #808080;
+    gap: 4px;
+}
+/* The page title becomes an application title bar. */
+:root[data-layout="retro95"] .header h1 {
+    font-size: 12px; font-weight: 700; letter-spacing: 0; color: #fff;
+    background: linear-gradient(90deg, #000080, #1084d0);
+    padding: 3px 10px;
+}
+:root[data-layout="retro95"] .header .status { color: #000; font-size: 11px; }
+:root[data-layout="retro95"] .section {
+    border: 1px solid;
+    border-color: #dfdfdf #000 #000 #dfdfdf;
+    box-shadow: inset 1px 1px #fff, inset -1px -1px #808080;
+    padding: 2px;
+}
+:root[data-layout="retro95"] .section-header {
+    background: linear-gradient(90deg, #000080, #1084d0);
+    color: #fff;
+    padding: 2px 3px 2px 6px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+    border-bottom: none;
+}
+:root[data-layout="retro95"] .section-header a { color: #fff; text-decoration: underline; }
+:root[data-layout="retro95"] .section-body { padding: 6px 4px 4px; }
+/* White sunken fields for the lists and grids inside a window. */
+:root[data-layout="retro95"] table {
+    background: #fff;
+    border: 2px solid;
+    border-color: #808080 #fff #fff #808080;
+}
+:root[data-layout="retro95"] th {
+    background: #c0c0c0;
+    color: #000;
+    border: 1px solid;
+    border-color: #fff #808080 #808080 #fff;
+}
+:root[data-layout="retro95"] .pill { border: 1px solid #000; }
+:root[data-layout="retro95"] .pill.ok, :root[data-layout="retro95"] .pill.up { background: #00c000; color: #000; }
+:root[data-layout="retro95"] .pill.bad { background: #ff0000; color: #fff; }
+:root[data-layout="retro95"] .pill.running { background: #ffff00; color: #000; }
+/* Buttons raised, fields sunken, the current page pressed in. */
+:root[data-layout="retro95"] button,
+:root[data-layout="retro95"] .btn-small,
+:root[data-layout="retro95"] .btn-nav {
+    background: #c0c0c0;
+    color: #000;
+    border: 2px solid;
+    border-color: #fff #404040 #404040 #fff;
+    border-radius: 0;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 400;
+}
+:root[data-layout="retro95"] button:active,
+:root[data-layout="retro95"] .btn-small:active,
+:root[data-layout="retro95"] .btn-nav:active,
+:root[data-layout="retro95"] .btn-nav-current {
+    background: #d4d4d4;
+    color: #000;
+    border: 2px solid;
+    border-color: #404040 #fff #fff #404040;
+    border-radius: 0;
+    font-weight: 400;
+}
+:root[data-layout="retro95"] .btn-nav:hover { background: #c0c0c0; color: #000; }
+:root[data-layout="retro95"] select,
+:root[data-layout="retro95"] input,
+:root[data-layout="retro95"] textarea {
+    background: #fff;
+    color: #000;
+    border: 2px solid;
+    border-color: #808080 #fff #fff #808080;
+    border-radius: 0;
+    font-family: inherit;
+}
+:root[data-layout="retro95"] .theme-select:disabled { color: #808080; text-shadow: 1px 1px #fff; cursor: default; }
+:root[data-layout="retro95"] .container { padding: 8px; gap: 8px; }
+/* Full-height pages (topology, template editor) become one big window. */
+:root[data-layout="retro95"] body.full-height .page {
+    margin: 8px 8px 0;
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #808080 #fff #fff #808080;
+}
+:root[data-layout="retro95"] .page-footer { display: none; } /* both buttons live in the Start menu */
+/* Taskbar and Start menu (Retro 95 only). */
+:root[data-layout="retro95"] .taskbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: 32px;
+    padding: 2px 4px;
+    background: #c0c0c0;
+    border-top: 2px solid #fff;
+    box-shadow: 0 -1px #dfdfdf;
+    z-index: 50;
+    font-size: 12px;
+}
+:root[data-layout="retro95"] .taskbar .btn-nav-current { padding: 3px 10px; height: 24px; display: inline-flex; align-items: center; }
+:root[data-layout="retro95"] .start { position: relative; }
+:root[data-layout="retro95"] .start > summary {
+    list-style: none;
+    cursor: pointer;
+    font-weight: 700;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px;
+    height: 24px;
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #fff #404040 #404040 #fff;
+}
+:root[data-layout="retro95"] .start > summary::-webkit-details-marker { display: none; }
+:root[data-layout="retro95"] .start[open] > summary { border-color: #404040 #fff #fff #404040; }
+:root[data-layout="retro95"] .start-flag {
+    width: 14px; height: 14px; display: inline-block;
+    background: conic-gradient(#f00 0 25%, #0a0 0 50%, #ff0 0 75%, #00f 0);
+    border: 1px solid #000;
+}
+:root[data-layout="retro95"] .start-menu {
+    position: absolute;
+    bottom: 30px; left: 0;
+    display: flex;
+    min-width: 200px;
+    background: #c0c0c0;
+    border: 1px solid;
+    border-color: #dfdfdf #000 #000 #dfdfdf;
+    box-shadow: inset 1px 1px #fff, inset -1px -1px #808080;
+    padding: 2px;
+}
+:root[data-layout="retro95"] .start-band {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    background: linear-gradient(0deg, #000080, #1084d0);
+    color: #c0c0c0;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 6px 3px;
+}
+:root[data-layout="retro95"] .start-band b { color: #fff; }
+:root[data-layout="retro95"] .start-items { display: flex; flex-direction: column; flex: 1; padding: 2px 0; }
+:root[data-layout="retro95"] .start-items a,
+:root[data-layout="retro95"] .start-items button {
+    display: block; text-align: left;
+    padding: 6px 14px; color: #000;
+    background: none; border: none; font: inherit; cursor: pointer;
+}
+:root[data-layout="retro95"] .start-items a:hover,
+:root[data-layout="retro95"] .start-items button:hover { background: #000080; color: #fff; text-decoration: none; }
+:root[data-layout="retro95"] .start-items hr { border: none; border-top: 1px solid #808080; border-bottom: 1px solid #fff; margin: 3px 2px; }
+:root[data-layout="retro95"] .tray {
+    margin-left: auto;
+    padding: 3px 10px;
+    border: 1px solid;
+    border-color: #808080 #fff #fff #808080;
+}
+
+/* Amber CRT: a monochrome amber terminal with scanlines and glow. Brings its
+   own colours (theme picker disabled), so like Retro 95 it must stay after all
+   theme rules. One hue means status can't rely on colour alone: a bad pill is
+   inverted (dark on hot amber), a running one is bright and underlined.
+   Local monospace fonts only: the server may be offline. */
+:root[data-layout="amber"],
+:root[data-layout="amber"] .section:nth-child(n) {
+    --bg:        #120a00;
+    --bg-card:   #170d00;
+    --bg-card-alt: #170d00;
+    --bg-hover:  #2a1a00;
+    --bg-muted:  #241600;
+    --bg-code:   #0d0700;
+    --stripe:    #1c1100;
+    --border:    #7a5400;
+    --border-soft: #3d2a00;
+    --badge-bg:  #241600;
+    --badge-border: #7a5400;
+    --text:      #ffb000;
+    --text-dim:  #b37b00;
+    --green:     #ffb000;
+    --green-bg:  #2a1a00;
+    --red:       #ff6a1a;
+    --red-bg:    #3a1400;
+    --yellow:    #ffe08a;
+    --yellow-bg: #332400;
+    --gray:      #4a3300;
+    --blue:      #ffc94d;
+    --cyan:      #ffc94d;
+    color-scheme: dark;
+}
+:root[data-layout="amber"] body {
+    font-family: "VT323", "Fixedsys Excelsior", "Consolas", "Lucida Console", "Courier New", monospace;
+    background: radial-gradient(ellipse at 50% 40%, #221400 0%, #120a00 60%, #070400 100%) fixed;
+    text-shadow: 0 0 4px rgba(255, 176, 0, .55);
+}
+/* Scanlines over the whole screen; clicks pass through. */
+:root[data-layout="amber"] body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 60;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px);
+}
+:root[data-layout="amber"] ::selection { background: #ffb000; color: #120a00; text-shadow: none; }
+:root[data-layout="amber"] * { scrollbar-color: #7a5400 #120a00; }
+:root[data-layout="amber"] .header::before { display: none; }
+:root[data-layout="amber"] .header {
+    background: transparent;
+    background-image: none;
+    border-bottom: 1px solid #7a5400;
+    padding: 14px 24px 10px;
+}
+:root[data-layout="amber"] .header h1 {
+    font-size: 28px; font-weight: 700; letter-spacing: 3px; color: #ffb000;
+    text-shadow: 0 0 6px rgba(255, 176, 0, .9), 0 0 20px rgba(255, 140, 0, .5);
+}
+:root[data-layout="amber"] .header h1::before { content: "> "; }
+:root[data-layout="amber"] .header .status { color: #b37b00; text-transform: uppercase; }
+:root[data-layout="amber"] .header .status .dot.up { background: #ffb000; box-shadow: 0 0 6px #ffb000; }
+/* Boxes: double-line borders, the title cut into the top edge. */
+:root[data-layout="amber"] .section {
+    background: transparent;
+    border: 3px double #7a5400;
+    overflow: visible;
+}
+:root[data-layout="amber"] .section-header {
+    border-bottom: 1px dashed #3d2a00;
+    color: #ffb000;
+    letter-spacing: 2px;
+}
+:root[data-layout="amber"] .section-header > span:first-child::before { content: "\2524 "; color: #7a5400; }
+:root[data-layout="amber"] .section-header > span:first-child::after { content: " \251C"; color: #7a5400; }
+:root[data-layout="amber"] th { background: #120a00; color: #b37b00; }
+:root[data-layout="amber"] .pill { background: transparent; color: #ffb000; text-shadow: inherit; }
+:root[data-layout="amber"] .pill.ok, :root[data-layout="amber"] .pill.up { background: #2a1a00; }
+:root[data-layout="amber"] .pill.running { background: #2a1a00; color: #ffe08a; text-decoration: underline; }
+:root[data-layout="amber"] .pill.bad,
+:root[data-layout="amber"] .v.bad,
+:root[data-layout="amber"] .msg.err { background: #ff8c1a; color: #120a00; text-shadow: none; padding: 0 4px; }
+:root[data-layout="amber"] button,
+:root[data-layout="amber"] .btn-small,
+:root[data-layout="amber"] .btn-nav,
+:root[data-layout="amber"] .btn-nav-current {
+    background: transparent;
+    color: #ffb000;
+    border: 1px solid #7a5400;
+    border-radius: 0;
+    font-family: inherit;
+    text-transform: uppercase;
+    text-shadow: inherit;
+}
+:root[data-layout="amber"] button:hover,
+:root[data-layout="amber"] .btn-small:hover,
+:root[data-layout="amber"] .btn-nav:hover,
+:root[data-layout="amber"] .btn-nav-current {
+    background: #ffb000; color: #120a00; text-shadow: none; text-decoration: none;
+}
+:root[data-layout="amber"] select,
+:root[data-layout="amber"] input,
+:root[data-layout="amber"] textarea {
+    background: transparent;
+    color: #ffb000;
+    border: none;
+    border-bottom: 1px solid #7a5400;
+    border-radius: 0;
+    font-family: inherit;
+    text-shadow: inherit;
+}
+:root[data-layout="amber"] select option { background: #120a00; color: #ffb000; }
+:root[data-layout="amber"] .theme-select:disabled { color: #4a3300; border-color: #3d2a00; }
+/* A prompt with a blinking cursor under the footer buttons. */
+:root[data-layout="amber"] .page-footer::after {
+    content: "butler@lab:~$ \2588";
+    display: block;
+    margin-top: 10px;
+    color: #b37b00;
+    animation: amber-blink 1s steps(1) infinite;
+}
+@keyframes amber-blink { 50% { color: transparent; text-shadow: none; } }
+@media (prefers-reduced-motion: reduce) {
+    :root[data-layout="amber"] .page-footer::after { animation: none; }
+    .header .status .dot.up { animation: none; }
+}

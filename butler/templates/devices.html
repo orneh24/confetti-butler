@@ -1,137 +1,62 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lab-butler — Devices</title>
-<link rel="icon" href="/favicon.ico" type="image/svg+xml">
-<link rel="stylesheet" href="/static/theme.css">
-<script src="/static/theme.js"></script>
+{% extends "base.html" %}
+{% block title %}Devices{% endblock %}
+{% block head %}
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 13px;
-    line-height: 1.5;
-}
-a { color: var(--blue); text-decoration: none; }
-a:hover { text-decoration: underline; }
-.header {
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); letter-spacing: 0.5px; }
-.nav { display: flex; gap: 18px; }
-.nav a { color: var(--text-dim); font-size: 12px; }
-.nav a:hover { color: var(--text); text-decoration: none; }
-.nav a.active { color: var(--cyan); }
-.container { padding: 16px 24px; }
-.card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 16px;
-}
-.card h2 { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 11px; }
-tr:hover td { background: var(--bg-hover); }
-.pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
-.pill.up { background: var(--green-bg); color: var(--green); }
-.pill.idle { background: var(--bg-hover); color: var(--text-dim); }
-.pill.running { background: var(--yellow-bg); color: var(--yellow); }
-.pill.node { background: var(--bg-hover); color: var(--text-dim); }
 form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-input[type=text] {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 5px 8px;
-    border-radius: 4px;
-    font-family: inherit;
-    font-size: 12px;
-}
-button {
-    background: var(--bg-hover);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 5px 12px;
-    border-radius: 4px;
-    font-family: inherit;
-    font-size: 12px;
-    cursor: pointer;
-}
-button:hover { border-color: var(--blue); }
 .msg { font-size: 12px; margin-top: 8px; }
-.msg.ok { color: var(--green); }
-.msg.err { color: var(--red); }
-.empty { color: var(--text-dim); padding: 12px 0; }
 </style>
-</head>
-<body>
-<div class="header">
-    <h1>lab-butler</h1>
-    <nav class="nav">
-        <a href="/">Dashboard</a>
-        <a href="/devices" class="active">Devices</a>
-        <a href="/conflicts">Conflicts</a>
-        <a href="/ipam">IPAM</a>
-        <a href="/templates">Templates</a>
-        <a href="/topology">Topology</a>
-        <a href="/syslog">Syslog</a>
-        <select id="theme-select" class="theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
-    </nav>
-</div>
-<div class="container">
-    <div class="card">
-        <h2>Add device</h2>
-        <form class="inline" id="add-form">
-            <input type="text" name="hostname" placeholder="hostname">
-            <input type="text" name="mgmt_ip" placeholder="mgmt ip">
-            <input type="text" name="serial" placeholder="serial (optional)">
-            <input type="text" name="site" placeholder="site (optional)">
-            <button type="submit">Add</button>
-        </form>
-        <div class="msg" id="add-msg"></div>
+{% endblock %}
+{% block content %}
+<div class="container stack">
+    <div class="section">
+        <div class="section-header"><span>Add device</span></div>
+        <div class="section-body">
+            <form class="inline" id="add-form">
+                <input type="text" name="hostname" placeholder="hostname">
+                <input type="text" name="mgmt_ip" placeholder="mgmt ip">
+                <input type="text" name="serial" placeholder="serial (optional)">
+                <input type="text" name="site" placeholder="site (optional)">
+                <button type="submit">Add</button>
+            </form>
+            <div class="msg" id="add-msg"></div>
+        </div>
     </div>
-    <div class="card">
-        <h2>Discover</h2>
-        <form class="inline" id="sweep-form" style="margin-bottom:8px">
-            <input type="text" name="cidr" placeholder="CIDR, e.g. 10.0.0.0/24" style="width:220px">
-            <button type="submit">Sweep (SSH port scan)</button>
-        </form>
-        <form class="inline" id="meshflux-form" style="margin-bottom:8px">
-            <input type="text" name="hub_url" placeholder="mesh-flux hub URL" style="width:220px">
-            <button type="submit">Import mesh-flux nodes</button>
-        </form>
-        <form class="inline" id="seedfile-form">
-            <input type="text" name="path" placeholder="seed/devices.yaml" style="width:220px">
-            <button type="submit">Load seed file</button>
-        </form>
-        <div class="msg" id="discover-msg"></div>
+    <div class="section">
+        <div class="section-header"><span>Discover</span></div>
+        <div class="section-body">
+            <form class="inline" id="sweep-form" style="margin-bottom:8px">
+                <input type="text" name="cidr" placeholder="CIDR, e.g. 10.0.0.0/24" style="width:220px">
+                <button type="submit">Sweep (SSH port scan)</button>
+            </form>
+            <form class="inline" id="meshflux-form" style="margin-bottom:8px">
+                <input type="text" name="hub_url" placeholder="mesh-flux hub URL" style="width:220px">
+                <button type="submit">Import mesh-flux nodes</button>
+            </form>
+            <form class="inline" id="seedfile-form">
+                <input type="text" name="path" placeholder="seed/devices.yaml" style="width:220px">
+                <button type="submit">Load seed file</button>
+            </form>
+            <div class="msg" id="discover-msg"></div>
+        </div>
     </div>
-    <div class="card">
-        <h2>Devices</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Hostname</th><th>Role</th><th>Mgmt IP</th><th>Site</th>
-                    <th>Key</th><th>Poll</th><th>Last seen</th><th></th>
-                </tr>
-            </thead>
-            <tbody id="device-rows"></tbody>
-        </table>
-        <div class="empty" id="device-empty" style="display:none">No devices yet — add one above, or POST /api/discover/seedfile.</div>
+    <div class="section">
+        <div class="section-header"><span>Devices</span></div>
+        <div class="section-body">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Hostname</th><th>Role</th><th>Mgmt IP</th><th>Site</th>
+                        <th>Key</th><th>Poll</th><th>Last seen</th><th></th>
+                    </tr>
+                </thead>
+                <tbody id="device-rows"></tbody>
+            </table>
+            <div class="empty" id="device-empty" style="display:none">No devices yet — add one above, or POST /api/discover/seedfile.</div>
+        </div>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
 <script>
 function esc(s) {
     var d = document.createElement('div');
@@ -257,5 +182,4 @@ document.getElementById('seedfile-form').addEventListener('submit', function (ev
 
 loadDevices();
 </script>
-</body>
-</html>
+{% endblock %}

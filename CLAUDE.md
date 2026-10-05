@@ -177,14 +177,27 @@ butler/
     rendering.py         — Jinja2 template rendering + safety checks
     collectors/          — ssh.py, sweep.py, vcenter.py, meshflux.py, seedfile.py
     parsers/ios.py        — Cisco IOS/IOS-XE show-command regex parsers
-  templates/            — dashboard, devices, device, conflicts, ipam, templates_editor,
-                          topology, syslog (Jinja2 HTML — see constraint 7 re: {% raw %})
+  templates/            — base.html (head, header/nav, theme + layout pickers, footer, Retro taskbar,
+                          written once) + dashboard, devices, device, conflicts, ipam, templates_editor,
+                          topology, syslog, each `{% extends "base.html" %}` and holding only its own
+                          content/CSS/JS (Jinja2 HTML — see constraint 7 re: {% raw %}). The look is
+                          copied from confetti-traffic's hub UI; keep the two in step by hand.
   static/theme.css       — the ONE place colours live: dark :root + one :root[data-theme=NAME] block
-                          per extra theme; pages must not define their own :root colours
-  static/theme.js        — THEMES list + header dropdown (saved in localStorage), themeColor() for
-                          JS colours; add a theme = one block in theme.css + one THEMES entry
-                          "Shuffle" (a mode, not a palette) rotates them every 5-10 min; its pick and
-                          next-change time live in lab-butler-theme-shuffle so every page stays in step
+                          per extra theme (Dark, Light, Dracula, Monokai, High Contrast, Terminal green,
+                          Confetti Night, Neon Streamers); also the header confetti strip and Neon's
+                          per-card colours. Pages must not define their own :root colours
+  static/layout.css      — Classic structure (.header, .section, tables, buttons) + the four layouts:
+                          Classic, Modern (side menu, KPI tiles on the dashboard), Retro 95, Amber CRT.
+                          Loaded AFTER theme.css on purpose: Retro 95 and Amber bring their own colours
+                          and beat Neon's per-card rules only by coming later. Pages use
+                          .section > .section-header + .section-body, not their own card CSS
+  static/theme.js        — THEMES + LAYOUTS lists and the two header dropdowns (lab-butler-theme,
+                          lab-butler-layout in localStorage), themeColor() for JS colours (a layout
+                          change fires 'themechange' too), confettiBlast(), the header health dot
+                          (pollHealth; a page may define window.onHealth). Add a theme = one block in
+                          theme.css + one THEMES entry. "Shuffle" (a mode, not a palette) rotates them
+                          every 5-10 min; its pick and next-change time live in lab-butler-theme-shuffle
+                          so every page stays in step. Retro 95 / Amber disable the theme picker
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — firstboot.initd, login-setup.sh

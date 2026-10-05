@@ -1,55 +1,25 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lab-butler — Templates</title>
-<link rel="icon" href="/favicon.ico" type="image/svg+xml">
-<link rel="stylesheet" href="/static/theme.css">
-<script src="/static/theme.js"></script>
+{% extends "base.html" %}
+{% block title %}Templates{% endblock %}
+{% block body_class %}full-height{% endblock %}
+{% block head %}
 <link rel="stylesheet" href="/static/vendor/codemirror/codemirror.min.css">
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
-body {
-    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
-    background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5;
-    display: flex; flex-direction: column;
-}
-a { color: var(--blue); text-decoration: none; }
-.header {
-    background: var(--bg-card); border-bottom: 1px solid var(--border);
-    padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto;
-}
-.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); }
-.nav { display: flex; gap: 18px; }
-.nav a { color: var(--text-dim); font-size: 12px; }
-.nav a.active { color: var(--cyan); }
 .layout { flex: 1 1 auto; display: grid; grid-template-columns: 220px 1fr 320px; min-height: 0; }
 .col { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
 .col:last-child { border-right: none; }
 .pad { padding: 12px; }
 h2 { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
 .tlist { list-style: none; }
-.tlist li { padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.tlist li { padding: 6px 8px; cursor: pointer; font-size: 12px; }
 .tlist li:hover { background: var(--bg-hover); }
 .tlist li.active { background: var(--bg-hover); color: var(--cyan); }
-input[type=text], select, textarea {
-    background: var(--bg); border: 1px solid var(--border); color: var(--text);
-    padding: 5px 8px; border-radius: 4px; font-family: inherit; font-size: 12px; width: 100%;
-}
-button {
-    background: var(--bg-hover); border: 1px solid var(--border); color: var(--text);
-    padding: 5px 10px; border-radius: 4px; font-family: inherit; font-size: 12px; cursor: pointer;
-}
-button:hover { border-color: var(--blue); }
-button.primary { border-color: var(--blue); color: var(--blue); }
+.col input[type=text], .col select, .col textarea { width: 100%; }
 .field { margin-bottom: 8px; }
 .field label { display: block; font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px; }
 .editor-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 .CodeMirror { flex: 1 1 auto; height: auto; font-size: 12px; }
 /* Recolour CodeMirror's default theme from the shared palette, so the editor
-   follows the dark/light toggle instead of staying a white box. */
+   follows the theme and layout instead of staying a white box. */
 .CodeMirror { background: var(--bg); color: var(--text); font-family: inherit; }
 .CodeMirror-gutters { background: var(--bg-card); border-right: 1px solid var(--border); }
 .CodeMirror-linenumber { color: var(--text-dim); }
@@ -65,28 +35,14 @@ button.primary { border-color: var(--blue); color: var(--blue); }
 .toolbar { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
 .toolbar .msg { font-size: 11px; color: var(--text-dim); }
 .warn-list { list-style: none; font-size: 11px; }
-.warn-list li { padding: 6px 8px; margin-bottom: 4px; border-radius: 4px; background: var(--yellow-bg); color: var(--yellow); }
+.warn-list li { padding: 6px 8px; margin-bottom: 4px; background: var(--yellow-bg); color: var(--yellow); }
 .warn-list li.danger { background: var(--red-bg); color: var(--red); }
-pre.preview { font-size: 11px; white-space: pre-wrap; word-break: break-word; background: var(--bg); padding: 8px; border-radius: 4px; max-height: 240px; overflow-y: auto; }
+pre.preview { font-size: 11px; white-space: pre-wrap; word-break: break-word; background: var(--bg-code); padding: 8px; max-height: 240px; overflow-y: auto; }
 .varrow { display: flex; gap: 4px; margin-bottom: 4px; }
 .varrow input { font-size: 11px; }
-.empty { color: var(--text-dim); font-size: 12px; padding: 8px 0; }
 </style>
-</head>
-<body>
-<div class="header">
-    <h1>lab-butler</h1>
-    <nav class="nav">
-        <a href="/">Dashboard</a>
-        <a href="/devices">Devices</a>
-        <a href="/conflicts">Conflicts</a>
-        <a href="/ipam">IPAM</a>
-        <a href="/templates" class="active">Templates</a>
-        <a href="/topology">Topology</a>
-        <a href="/syslog">Syslog</a>
-        <select id="theme-select" class="theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
-    </nav>
-</div>
+{% endblock %}
+{% block content %}
 <div class="layout">
     <div class="col">
         <div class="pad">
@@ -122,6 +78,8 @@ pre.preview { font-size: 11px; white-space: pre-wrap; word-break: break-word; ba
         </div>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
 <script src="/static/vendor/codemirror/codemirror.min.js"></script>
 <script src="/static/vendor/codemirror/addon/mode/simple.min.js"></script>
 <script>
@@ -333,5 +291,4 @@ loadList();
 loadDevices();
 {% endraw %}
 </script>
-</body>
-</html>
+{% endblock %}

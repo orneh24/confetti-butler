@@ -1,135 +1,72 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lab-butler</title>
-<link rel="icon" href="/favicon.ico" type="image/svg+xml">
-<link rel="stylesheet" href="/static/theme.css">
-<script src="/static/theme.js"></script>
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block head %}
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 13px;
-    line-height: 1.5;
-}
-a { color: var(--blue); text-decoration: none; }
-a:hover { text-decoration: underline; }
-.header {
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); letter-spacing: 0.5px; }
-.nav { display: flex; gap: 18px; }
-.nav a { color: var(--text-dim); font-size: 12px; }
-.nav a:hover { color: var(--text); text-decoration: none; }
-.nav a.active { color: var(--cyan); }
-.header .status { font-size: 11px; color: var(--text-dim); }
-.header .status .dot {
-    display: inline-block;
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--gray);
-    margin-right: 6px;
-    vertical-align: middle;
-}
-.header .status .dot.up { background: var(--green); }
-.header .status .dot.down { background: var(--red); }
-.container { padding: 16px 24px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-.card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-}
-.card h2 { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
-.kv { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
-.kv .k { color: var(--text-dim); }
-.kv .v { color: var(--text); }
-.v.ok { color: var(--green); }
-.v.bad { color: var(--red); }
-.v.unknown { color: var(--gray); }
-.note { color: var(--text-dim); font-size: 11px; margin-top: 10px; }
-.card.wide { grid-column: 1 / -1; }
-.card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-.card-head h2 { margin-bottom: 0; }
-.card-head a { font-size: 11px; }
-.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
-.filters select, .filters input[type=text] {
-    background: var(--bg); border: 1px solid var(--border); color: var(--text);
-    padding: 5px 8px; border-radius: 4px; font-family: inherit; font-size: 12px;
-}
-.count { color: var(--text-dim); font-size: 11px; margin-left: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 10px; }
+.note { margin-top: 10px; }
 .sev0, .sev1, .sev2, .sev3 { color: var(--red); }
 .sev4 { color: var(--yellow); }
 .sev5, .sev6 { color: var(--text); }
 .sev7 { color: var(--text-dim); }
 .sev-null { color: var(--gray); }
 .mono { white-space: pre-wrap; word-break: break-word; }
-.empty { color: var(--text-dim); padding: 12px 0; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.count { color: var(--text-dim); font-size: 11px; margin-left: auto; }
 </style>
-</head>
-<body>
-<div class="header">
-    <h1>lab-butler</h1>
-    <nav class="nav">
-        <a href="/" class="active">Dashboard</a>
-        <a href="/devices">Devices</a>
-        <a href="/conflicts">Conflicts</a>
-        <a href="/ipam">IPAM</a>
-        <a href="/templates">Templates</a>
-        <a href="/topology">Topology</a>
-        <a href="/syslog">Syslog</a>
-        <select id="theme-select" class="theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
-    </nav>
-    <div class="status"><span class="dot" id="health-dot"></span><span id="health-text">checking...</span></div>
+{% endblock %}
+{% block kpis %}
+<!-- Modern layout only: the summary before the detail. Filled by renderKpis()
+     from data the page already polls. Hidden in the other layouts. -->
+<div class="kpi-row" id="kpi-row">
+    <div class="kpi"><div class="kpi-label">Devices</div><div class="kpi-value" id="kpi-dev">&ndash;</div><div class="kpi-sub" id="kpi-dev-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Poll failing</div><div class="kpi-value" id="kpi-fail">&ndash;</div><div class="kpi-sub" id="kpi-fail-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Open conflicts</div><div class="kpi-value" id="kpi-conf">&ndash;</div><div class="kpi-sub" id="kpi-conf-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Syslog errors (1 h)</div><div class="kpi-value" id="kpi-sys">&ndash;</div><div class="kpi-sub" id="kpi-sys-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Server</div><div class="kpi-value" id="kpi-srv">&ndash;</div><div class="kpi-sub" id="kpi-srv-sub"></div></div>
 </div>
+{% endblock %}
+{% block content %}
 <div class="container">
-    <div class="card">
-        <h2>System</h2>
-        <div id="time-body"><div class="kv"><span class="k">loading</span></div></div>
-        <div id="system-body"><div class="kv"><span class="k">loading</span></div></div>
-    </div>
-    <div class="card">
-        <h2>Services</h2>
-        <div id="services-body"><div class="kv"><span class="k">loading</span></div></div>
-    </div>
-    <div class="card wide">
-        <div class="card-head"><h2>Syslog — last 15</h2><a href="/syslog">view all</a></div>
-        <div class="filters">
-            <select id="f-minutes">
-                <option value="15">last 15m</option>
-                <option value="60" selected>last 60m</option>
-                <option value="360">last 6h</option>
-                <option value="1440">last 24h</option>
-            </select>
-            <select id="f-host"><option value="">all hosts</option></select>
-            <select id="f-severity">
-                <option value="">all severities</option>
-                <option value="3">error or worse</option>
-                <option value="4">warning or worse</option>
-                <option value="6">info or worse</option>
-            </select>
-            <input type="text" id="f-q" placeholder="search message...">
-            <span class="count" id="row-count"></span>
+    <div class="section">
+        <div class="section-header"><span>System</span></div>
+        <div class="section-body">
+            <div id="time-body"><div class="kv"><span class="k">loading</span></div></div>
+            <div id="system-body"><div class="kv"><span class="k">loading</span></div></div>
         </div>
-        <table>
-            <thead><tr><th>Time</th><th>Host</th><th>Sev</th><th>Mnemonic</th><th>Message</th></tr></thead>
-            <tbody id="syslog-rows"></tbody>
-        </table>
-        <div class="empty" id="syslog-empty" style="display:none">no messages in this window</div>
+    </div>
+    <div class="section">
+        <div class="section-header"><span>Services</span></div>
+        <div class="section-body" id="services-body"><div class="kv"><span class="k">loading</span></div></div>
+    </div>
+    <div class="section wide">
+        <div class="section-header"><span>Syslog — last 15</span><a href="/syslog">view all</a></div>
+        <div class="section-body">
+            <div class="filters">
+                <select id="f-minutes">
+                    <option value="15">last 15m</option>
+                    <option value="60" selected>last 60m</option>
+                    <option value="360">last 6h</option>
+                    <option value="1440">last 24h</option>
+                </select>
+                <select id="f-host"><option value="">all hosts</option></select>
+                <select id="f-severity">
+                    <option value="">all severities</option>
+                    <option value="3">error or worse</option>
+                    <option value="4">warning or worse</option>
+                    <option value="6">info or worse</option>
+                </select>
+                <input type="text" id="f-q" placeholder="search message...">
+                <span class="count" id="row-count"></span>
+            </div>
+            <table>
+                <thead><tr><th>Time</th><th>Host</th><th>Sev</th><th>Mnemonic</th><th>Message</th></tr></thead>
+                <tbody id="syslog-rows"></tbody>
+            </table>
+            <div class="empty" id="syslog-empty" style="display:none">no messages in this window</div>
+        </div>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
 <script>
 function kv(k, v, cls) {
     return '<div class="kv"><span class="k">' + k + '</span><span class="v' +
@@ -158,12 +95,11 @@ function renderTime(data) {
     document.getElementById('time-body').innerHTML = html;
 }
 
-function renderHealth(data) {
-    var dot = document.getElementById('health-dot');
-    var text = document.getElementById('health-text');
-    dot.className = 'dot up';
-    text.textContent = 'up since ' + (data.uptime_s ? Math.floor(data.uptime_s / 60) + 'm' : 'unknown');
-
+// Called by theme.js's pollHealth() on every page; data is null when the
+// server is unreachable. The header dot and text are handled there.
+window.onHealth = function (data) {
+    renderKpiServer(data);
+    if (!data) { return; }
     var services = '';
     for (var name in data.services) {
         if (!data.services.hasOwnProperty(name)) { continue; }
@@ -192,15 +128,42 @@ function renderHealth(data) {
         system += kv('disk', 'unknown', 'unknown');
     }
     document.getElementById('system-body').innerHTML = system;
+};
+
+// Summary tiles, shown by the Modern layout only (hidden by CSS elsewhere).
+function setKpi(id, value, cls, sub) {
+    var v = document.getElementById('kpi-' + id);
+    v.textContent = value;
+    v.className = 'kpi-value' + (cls ? ' ' + cls : '');
+    document.getElementById('kpi-' + id + '-sub').textContent = sub || '';
+}
+
+function renderKpiServer(data) {
+    if (!data) { setKpi('srv', 'down', 'bad', 'unreachable'); return; }
+    var bad = !data.syslog_listening || !data.poller_running;
+    setKpi('srv', bad ? 'degraded' : 'up', bad ? 'warn' : 'good',
+        !data.syslog_listening ? 'syslog listener down' : (!data.poller_running ? 'poller down' : 'poller + syslog running'));
+}
+
+function loadKpis() {
+    fetch('/api/devices').then(function (r) { return r.json(); }).then(function (list) {
+        var failing = list.filter(function (d) { return d.fail_count > 0; });
+        var nodes = list.filter(function (d) { return d.role === 'node'; }).length;
+        setKpi('dev', list.length, '', (list.length - nodes) + ' polled, ' + nodes + ' nodes');
+        setKpi('fail', failing.length, failing.length ? 'bad' : 'good',
+            failing.slice(0, 3).map(function (d) { return d.hostname; }).join(', '));
+    });
+    fetch('/api/conflicts').then(function (r) { return r.json(); }).then(function (list) {
+        setKpi('conf', list.length, list.length ? 'warn' : 'good', list.length ? 'see Conflicts' : 'none');
+    });
+    fetch('/api/syslog?minutes=60&severity=3&limit=500').then(function (r) { return r.json(); }).then(function (list) {
+        setKpi('sys', list.length >= 500 ? '500+' : list.length, list.length ? 'bad' : 'good', 'error or worse');
+    });
 }
 
 function poll() {
     fetch('/api/time').then(function (r) { return r.json(); }).then(renderTime).catch(function () {
         document.getElementById('time-body').innerHTML = kv('error', 'request failed', 'bad');
-    });
-    fetch('/api/health').then(function (r) { return r.json(); }).then(renderHealth).catch(function () {
-        document.getElementById('health-dot').className = 'dot down';
-        document.getElementById('health-text').textContent = 'unreachable';
     });
 }
 
@@ -275,6 +238,7 @@ document.getElementById('f-q').addEventListener('input', function () {
 
 function pollAll() {
     poll();
+    loadKpis();
     loadSources();
     loadSyslog();
 }
@@ -282,5 +246,4 @@ function pollAll() {
 pollAll();
 setInterval(pollAll, 15000);
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,56 +1,18 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lab-butler — Topology</title>
-<link rel="icon" href="/favicon.ico" type="image/svg+xml">
-<link rel="stylesheet" href="/static/theme.css">
-<script src="/static/theme.js"></script>
+{% extends "base.html" %}
+{% block title %}Topology{% endblock %}
+{% block body_class %}full-height{% endblock %}
+{% block head %}
 <link rel="stylesheet" href="/static/vendor/vis-network/vis-network.min.css">
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
-body {
-    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
-    background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5;
-    display: flex; flex-direction: column;
-}
-a { color: var(--blue); text-decoration: none; }
-.header {
-    background: var(--bg-card); border-bottom: 1px solid var(--border);
-    padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto;
-}
-.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); }
-.nav { display: flex; gap: 18px; }
-.nav a { color: var(--text-dim); font-size: 12px; }
-.nav a.active { color: var(--cyan); }
-.filters { padding: 10px 24px; display: flex; gap: 8px; align-items: center; background: var(--bg-card); border-bottom: 1px solid var(--border); flex: 0 0 auto; }
-button {
-    background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-dim);
-    padding: 5px 12px; border-radius: 4px; font-family: inherit; font-size: 12px; cursor: pointer;
-}
+.filters { padding: 10px 24px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--bg-card); border-bottom: 1px solid var(--border); flex: 0 0 auto; }
 button.active { border-color: var(--cyan); color: var(--cyan); }
-.legend { margin-left: auto; display: flex; gap: 14px; font-size: 11px; color: var(--text-dim); align-items: center; }
-.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-#net { flex: 1 1 auto; min-height: 0; }
-.empty { padding: 24px; color: var(--text-dim); }
+.legend { margin-left: auto; display: flex; gap: 14px; font-size: 11px; color: var(--text-dim); align-items: center; flex-wrap: wrap; }
+.legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+#net { flex: 1 1 auto; min-height: 0; background: var(--bg); }
+#net .empty { padding: 24px; }
 </style>
-</head>
-<body>
-<div class="header">
-    <h1>lab-butler</h1>
-    <nav class="nav">
-        <a href="/">Dashboard</a>
-        <a href="/devices">Devices</a>
-        <a href="/conflicts">Conflicts</a>
-        <a href="/ipam">IPAM</a>
-        <a href="/templates">Templates</a>
-        <a href="/topology" class="active">Topology</a>
-        <a href="/syslog">Syslog</a>
-        <select id="theme-select" class="theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
-    </nav>
-</div>
+{% endblock %}
+{% block content %}
 <div class="filters">
     <button class="active" data-layer="" onclick="setLayer('', this)">All</button>
     <button data-layer="lldp" onclick="setLayer('lldp', this)">LLDP</button>
@@ -63,6 +25,8 @@ button.active { border-color: var(--cyan); color: var(--cyan); }
     </span>
 </div>
 <div id="net"></div>
+{% endblock %}
+{% block scripts %}
 <script src="/static/vendor/vis-network/vis-network.min.js"></script>
 <script>
 var network = null;
@@ -164,5 +128,4 @@ load();
 setInterval(load, 20000);
 document.addEventListener('themechange', load);
 </script>
-</body>
-</html>
+{% endblock %}

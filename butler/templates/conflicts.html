@@ -1,60 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lab-butler — Conflicts</title>
-<link rel="icon" href="/favicon.ico" type="image/svg+xml">
-<link rel="stylesheet" href="/static/theme.css">
-<script src="/static/theme.js"></script>
+{% extends "base.html" %}
+{% block title %}Conflicts{% endblock %}
+{% block head %}
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
-    background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5;
-}
-a { color: var(--blue); text-decoration: none; }
-.header {
-    background: var(--bg-card); border-bottom: 1px solid var(--border);
-    padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;
-}
-.header h1 { font-size: 16px; font-weight: 600; color: var(--cyan); }
-.nav { display: flex; gap: 18px; }
-.nav a { color: var(--text-dim); font-size: 12px; }
-.nav a.active { color: var(--cyan); }
-.container { padding: 16px 24px; }
-.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
-.card h2 { font-size: 12px; color: var(--yellow); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-.kv { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
-.kv .k { color: var(--text-dim); }
-pre { font-size: 11px; color: var(--text-dim); background: var(--bg); padding: 8px; border-radius: 4px; overflow-x: auto; margin-top: 6px; }
-form.inline { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
-input[type=text] { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 4px; font-family: inherit; font-size: 12px; width: 80px; }
-button { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); padding: 5px 12px; border-radius: 4px; font-family: inherit; font-size: 12px; cursor: pointer; }
-button:hover { border-color: var(--blue); }
-.empty { color: var(--text-dim); padding: 12px 0; }
+pre { font-size: 11px; color: var(--text-dim); background: var(--bg-code); padding: 8px; overflow-x: auto; margin-top: 6px; }
+form.inline { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+form.inline input[type=text] { width: 120px; }
 .msg { font-size: 11px; margin-top: 6px; }
-.msg.ok { color: var(--green); }
-.msg.err { color: var(--red); }
 </style>
-</head>
-<body>
-<div class="header">
-    <h1>lab-butler</h1>
-    <nav class="nav">
-        <a href="/">Dashboard</a>
-        <a href="/devices">Devices</a>
-        <a href="/conflicts" class="active">Conflicts</a>
-        <a href="/ipam">IPAM</a>
-        <a href="/templates">Templates</a>
-        <a href="/topology">Topology</a>
-        <a href="/syslog">Syslog</a>
-        <select id="theme-select" class="theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
-    </nav>
-</div>
-<div class="container" id="list">
+{% endblock %}
+{% block content %}
+<div class="container stack" id="list">
     <div class="empty">loading...</div>
 </div>
+{% endblock %}
+{% block scripts %}
 <script>
 function esc(s) {
     var d = document.createElement('div');
@@ -110,8 +69,9 @@ function render(list) {
     var html = '';
     for (var i = 0; i < list.length; i++) {
         var c = list[i];
-        html += '<div class="card">' +
-            '<h2>conflict #' + c.id + ' — ' + esc(c.source) + '</h2>' +
+        html += '<div class="section">' +
+            '<div class="section-header"><span>conflict #' + c.id + ' — ' + esc(c.source) + '</span></div>' +
+            '<div class="section-body">' +
             '<div class="kv"><span class="k">seen</span><span>' + esc(c.seen_at) + '</span></div>' +
             '<div class="kv"><span class="k">matched device ids</span><span>' + esc(c.device_ids) + '</span></div>' +
             '<div class="kv"><span class="k">detail</span><span>' + esc(c.detail) + '</span></div>' +
@@ -123,7 +83,7 @@ function render(list) {
             '<button type="button" onclick="dismissConflict(' + c.id + ', this)" title="Mark resolved without merging — e.g. a single-device conflict you have checked">Dismiss</button>' +
             '<span class="msg"></span>' +
             '</form>' +
-            '</div>';
+            '</div></div>';
     }
     el.innerHTML = html;
 }
@@ -134,5 +94,4 @@ function load() {
 
 load();
 </script>
-</body>
-</html>
+{% endblock %}

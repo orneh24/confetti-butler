@@ -86,7 +86,8 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   keeps its layout on refresh and draws each LLDP link once, with one ghost node per peer IP; the
   IPAM page's missing Topology nav link is back.
 - **Themes:** one shared palette in `static/theme.css`, picked from a header dropdown
-  (`static/theme.js`): Dark, Light, Catppuccin Mocha, Gruvbox and Terminal green. Gruvbox uses its
+  (`static/theme.js`): Dark, Light, Catppuccin Mocha, Gruvbox and Terminal green (since replaced by
+  eight confetti-traffic palettes, 2026-10-05, see below). Gruvbox uses its
   aqua-green for "ok" and Terminal green uses amber for warnings, so ok/warning/failure stay
   distinct. The template editor (CodeMirror) is recoloured from the same palette. The same themes
   were added to mesh-flux's hub pages. Verified in headless Chrome (Playwright): each theme applies,
@@ -117,6 +118,29 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   - Same data as `show ip interface brief` over SSH and lab-butler's `/api/devices/<id>/interfaces`.
     RESTCONF adds no new data, only structured output, and lab-rtr-c (IOS-XE 3.11) has no RESTCONF.
     The poller stays SSH-only; no RESTCONF path was added.
+
+## Follow-up session (2026-10-05)
+
+- **UI restyled to match confetti-traffic's hub UI.** All eight pages now `{% extends "base.html" %}`
+  (header, nav, pickers, footer and Retro taskbar written once). New `static/layout.css` holds the
+  Classic structure and four layouts (Classic, Modern, Retro 95, Amber CRT); `theme.css` now has
+  confetti's eight palettes (Catppuccin and Gruvbox dropped), the header confetti strip and Neon's
+  per-card colours. `theme.js` gained the layout picker, `confettiBlast()` and a header health dot
+  that polls `/api/health` on every page. Modern shows five KPI tiles on the dashboard only, built
+  from existing APIs — no backend change. Header title is `NETWORK LAB BUTLER`.
+- Verified in Chrome against a dev server on a temp DB with two fake devices: every page returns 200
+  with no console errors; Dark and Neon in Classic; all four layouts on the dashboard; Modern on the
+  template editor; Retro 95 and Amber on topology (graph recoloured on layout change). Not checked:
+  every theme × layout pair, Modern below 1100px, Shuffle across tabs, the Start menu, and a real
+  poll or conflict showing in the KPI tiles.
+- **README images re-recorded** for the new UI: `docs/img/lab-butler-demo.gif` (tour, themes, layouts,
+  the Confetti button) plus `themes.png` and `layouts.png` (2×2 collages of the dashboard). Recorded
+  with Playwright against a **mock lab** on a scratch database (3 routers, `192.0.2.0/24` and
+  `10.0.x.x` addresses, fake serials `9SIMLAB000x`, one identity conflict, an overlap and a duplicate
+  IP in IPAM) — no real lab data. The seed and capture scripts are not in the repo.
+- The header status reads `up` (not `up since unknown`) when the server reports no uptime, as on Windows.
+- Old saved `catppuccin` / `gruvbox` choices fall back to Dark (unknown names are ignored).
+- Flask caches templates outside debug mode, so restart the server after editing a template.
 
 ## Housekeeping
 

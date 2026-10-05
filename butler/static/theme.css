@@ -1,15 +1,21 @@
 /* The one palette for every page. Dark is the default; any other theme is
    <html data-theme="NAME">, set by theme.js (the list of names lives there).
-   Pages must not define their own :root colours — copies drift (some pages
-   once lacked --green-bg). Light is mesh-flux's light palette; the others
-   follow the published Catppuccin Mocha, Gruvbox and a green-CRT look. */
+   Pages must not define their own :root colours — copies drift. The palettes,
+   header confetti and Neon rules are copied from confetti-traffic's hub
+   dashboard; layout.css (loaded after this file) holds structure and layouts. */
 :root {
     --bg:        #0d1117;
     --bg-card:   #161b22;
     --bg-hover:  #1c2128;
+    --bg-muted:  #21262d;
+    --bg-code:   #010409;
+    --stripe:    #0e1217;
     --border:    #30363d;
-    --text:      #c9d1d9;
-    --text-dim:  #8b949e;
+    --border-soft: #21262d;
+    --badge-bg:  #1a2332;
+    --badge-border: #253040;
+    --text:      #f0f6fc;
+    --text-dim:  #bcc5cf;
     --green:     #3fb950;
     --green-bg:  #0f2d1a;
     --red:       #f85149;
@@ -24,7 +30,13 @@
     --bg:        #d9dee4;
     --bg-card:   #e5e9ee;
     --bg-hover:  #d3d9e0;
+    --bg-muted:  #d3d9e0;
+    --bg-code:   #dde2e8;
+    --stripe:    #dde2e8;
     --border:    #b6bfca;
+    --border-soft: #d3d9e0;
+    --badge-bg:  #ddf4ff;
+    --badge-border: #b6e3ff;
     --text:      #000000;
     --text-dim:  #252b32;
     --green:     #1a7f37;
@@ -37,49 +49,90 @@
     --blue:      #0969da;
     --cyan:      #0b7a75;
 }
-
-/* Catppuccin Mocha */
-:root[data-theme="catppuccin"] {
-    --bg:        #1e1e2e;
-    --bg-card:   #262637;
-    --bg-hover:  #313244;
-    --border:    #45475a;
-    --text:      #cdd6f4;
-    --text-dim:  #a6adc8;
-    --green:     #a6e3a1;
-    --green-bg:  #2b3b31;
-    --red:       #f38ba8;
-    --red-bg:    #4a2838;
-    --yellow:    #f9e2af;
-    --yellow-bg: #443d33;
-    --gray:      #585b70;
-    --blue:      #89b4fa;
-    --cyan:      #94e2d5;
+/* Dracula */
+:root[data-theme="dracula"] {
+    --bg:        #282a36;
+    --bg-card:   #2f3142;
+    --bg-hover:  #383a4d;
+    --bg-muted:  #383a4d;
+    --bg-code:   #1e1f29;
+    --stripe:    #2b2d3b;
+    --border:    #44475a;
+    --border-soft: #383a4d;
+    --badge-bg:  #2f2b45;
+    --badge-border: #5a4f86;
+    --text:      #f8f8f2;
+    --text-dim:  #a9acc6;
+    --green:     #50fa7b;
+    --green-bg:  #23402f;
+    --red:       #ff5555;
+    --red-bg:    #4a2530;
+    --yellow:    #f1fa8c;
+    --yellow-bg: #44452f;
+    --gray:      #6272a4;
+    --blue:      #bd93f9;
+    --cyan:      #8be9fd;
 }
-/* Gruvbox (dark) */
-:root[data-theme="gruvbox"] {
-    --bg:        #282828;
-    --bg-card:   #32302f;
-    --bg-hover:  #3c3836;
-    --border:    #504945;
-    --text:      #ebdbb2;
-    --text-dim:  #bdae93;
-    --green:     #8ec07c;
-    --green-bg:  #2c3d2e;
-    --red:       #fb4934;
-    --red-bg:    #4a2320;
-    --yellow:    #fabd2f;
-    --yellow-bg: #4a3d1e;
-    --gray:      #665c54;
-    --blue:      #83a598;
-    --cyan:      #b8bb26;
+/* Monokai -- military green: olive drab backgrounds, Monokai accents */
+:root[data-theme="monokai"] {
+    --bg:        #22261a;
+    --bg-card:   #2b3021;
+    --bg-hover:  #363d29;
+    --bg-muted:  #363d29;
+    --bg-code:   #1a1d14;
+    --stripe:    #272c1d;
+    --border:    #4b5337;
+    --border-soft: #363d29;
+    --badge-bg:  #2f3a22;
+    --badge-border: #5b6b3a;
+    --text:      #f8f8f2;
+    --text-dim:  #bcc0a2;
+    --green:     #a6e22e;
+    --green-bg:  #33401c;
+    --red:       #f92672;
+    --red-bg:    #4a1f33;
+    --yellow:    #e6db74;
+    --yellow-bg: #44402a;
+    --gray:      #5e664a;
+    --blue:      #66d9ef;
+    --cyan:      #66d9ef;
 }
-/* Terminal green — mostly one hue by design; red and amber stay distinct so "down" still reads. */
+/* High Contrast — pure black, full-strength colours, for legibility */
+:root[data-theme="contrast"] {
+    --bg:        #000000;
+    --bg-card:   #0a0a0a;
+    --bg-hover:  #1a1a1a;
+    --bg-muted:  #1a1a1a;
+    --bg-code:   #000000;
+    --stripe:    #0d0d0d;
+    --border:    #ffffff;
+    --border-soft: #555555;
+    --badge-bg:  #000000;
+    --badge-border: #ffffff;
+    --text:      #ffffff;
+    --text-dim:  #e0e0e0;
+    --green:     #00ff66;
+    --green-bg:  #003318;
+    --red:       #ff3b3b;
+    --red-bg:    #3a0000;
+    --yellow:    #ffdd00;
+    --yellow-bg: #332b00;
+    --gray:      #b0b0b0;
+    --blue:      #4db8ff;
+    --cyan:      #00ffff;
+}
+/* Terminal green — mostly one hue by design; red and amber stay distinct so failures still read */
 :root[data-theme="terminal"] {
     --bg:        #050805;
     --bg-card:   #0a120a;
     --bg-hover:  #112011;
+    --bg-muted:  #112011;
+    --bg-code:   #020402;
+    --stripe:    #081008;
     --border:    #1f4a1f;
+    --border-soft: #112011;
+    --badge-bg:  #0d2412;
+    --badge-border: #1f4a1f;
     --text:      #33ff66;
     --text-dim:  #22aa44;
     --green:     #66ff99;
@@ -92,19 +145,126 @@
     --blue:      #00e676;
     --cyan:      #7dffb0;
 }
-
-.theme-select {
-    background: var(--bg-hover);
-    border: 1px solid var(--cyan);
-    color: var(--cyan);
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 16px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    cursor: pointer;
+/* Confetti Night — navy with a gold accent */
+:root[data-theme="confetti-night"] {
+    --bg:        #0f1222;
+    --bg-card:   #171c34;
+    --bg-hover:  #1e2442;
+    --bg-muted:  #20264a;
+    --bg-code:   #0a0d1a;
+    --stripe:    #12162a;
+    --border:    #2b3256;
+    --border-soft: #20264a;
+    --badge-bg:  #1d2346;
+    --badge-border: #333b6b;
+    --text:      #e8eaf6;
+    --text-dim:  #a3a9cf;
+    --green:     #2fbf71;
+    --green-bg:  #0f2d20;
+    --red:       #ff5d73;
+    --red-bg:    #3a1420;
+    --yellow:    #ffb347;
+    --yellow-bg: #33240f;
+    --gray:      #3a4170;
+    --blue:      #4cc9f0;
+    --cyan:      #ffd166;
 }
-.theme-select:hover, .theme-select:focus { border-color: var(--text); outline: none; }
-.theme-select option { background: var(--bg-card); color: var(--text); }
-.nav { align-items: center; }
+/* Neon Streamers — near-black with neon accents; glowing streaks in the header */
+:root[data-theme="neon"] {
+    --bg:        #050608;
+    --bg-card:   #0d1014;
+    --bg-hover:  #151a20;
+    --bg-muted:  #161b22;
+    --bg-code:   #030405;
+    --stripe:    #0a0c10;
+    --border:    #263040;
+    --border-soft: #161b22;
+    --badge-bg:  #0f1e2a;
+    --badge-border: #1f6f8a;
+    --text:      #ffffff;
+    --text-dim:  #c4d0dc;
+    --green:     #39ff14;
+    --green-bg:  #0b2a18;
+    --red:       #ff2052;
+    --red-bg:    #3a0d1c;
+    --yellow:    #fff200;
+    --yellow-bg: #2e2a05;
+    --gray:      #2e3a48;
+    --blue:      #00f0ff;
+    --cyan:      #ff2d95;
+}
+
+/* Header confetti, every theme but Neon (which has its own streaks). The
+   shapes are a mask; their colours are stripes of the theme's own variables,
+   so each theme gets confetti in its palette and a new theme needs nothing
+   here. Pieces sit in 26px columns, so none spans two colours. Same rule in
+   all three pages. */
+:root:not([data-theme="neon"]) .header { position: relative; isolation: isolate; }
+:root:not([data-theme="neon"]) .header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: .8;
+    background: repeating-linear-gradient(90deg,
+        var(--yellow) 0 26px, var(--red) 26px 52px, var(--green) 52px 78px,
+        var(--blue) 78px 104px, var(--cyan) 104px 130px);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='390' height='60'%3E%3Cpath d='M7 15 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Crect x='38' y='40' width='3' height='7' rx='1' transform='rotate(-56 39 43)'/%3E%3Crect x='89' y='11' width='5' height='5' transform='rotate(31 91 13)'/%3E%3Crect x='115' y='11' width='5' height='5' transform='rotate(61 117 13)'/%3E%3Crect x='142' y='42' width='3' height='7' rx='1' transform='rotate(-49 143 45)'/%3E%3Crect x='168' y='31' width='3' height='7' rx='1' transform='rotate(-68 169 34)'/%3E%3Crect x='193' y='14' width='5' height='5' transform='rotate(-6 195 16)'/%3E%3Crect x='220' y='13' width='3' height='8' rx='1' transform='rotate(66 221 17)'/%3E%3Crect x='246' y='42' width='3' height='7' rx='1' transform='rotate(-32 247 45)'/%3E%3Crect x='272' y='10' width='3' height='8' rx='1' transform='rotate(64 273 14)'/%3E%3Crect x='298' y='40' width='3' height='10' rx='1' transform='rotate(29 299 45)'/%3E%3Crect x='324' y='35' width='3' height='8' rx='1' transform='rotate(12 325 39)'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='650' height='60'%3E%3Cpolygon points='10,42 17,44 12,49' transform='rotate(-4 13 45)'/%3E%3Cpolygon points='62,34 69,36 64,41' transform='rotate(-7 65 37)'/%3E%3Crect x='116' y='32' width='3' height='8' rx='1' transform='rotate(-38 117 36)'/%3E%3Cpolygon points='166,48 173,50 168,55' transform='rotate(-61 169 51)'/%3E%3Cpolygon points='244,50 251,52 246,57' transform='rotate(9 247 53)'/%3E%3Crect x='323' y='11' width='5' height='5' transform='rotate(-11 325 13)'/%3E%3Cpath d='M371 52 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Cpath d='M449 51 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Crect x='480' y='35' width='3' height='7' rx='1' transform='rotate(10 481 38)'/%3E%3Cpath d='M527 24 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Crect x='558' y='31' width='3' height='8' rx='1' transform='rotate(47 559 35)'/%3E%3Crect x='584' y='41' width='3' height='10' rx='1' transform='rotate(-9 585 46)'/%3E%3Cpath d='M631 32 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='390' height='60'%3E%3Cpath d='M7 15 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Crect x='38' y='40' width='3' height='7' rx='1' transform='rotate(-56 39 43)'/%3E%3Crect x='89' y='11' width='5' height='5' transform='rotate(31 91 13)'/%3E%3Crect x='115' y='11' width='5' height='5' transform='rotate(61 117 13)'/%3E%3Crect x='142' y='42' width='3' height='7' rx='1' transform='rotate(-49 143 45)'/%3E%3Crect x='168' y='31' width='3' height='7' rx='1' transform='rotate(-68 169 34)'/%3E%3Crect x='193' y='14' width='5' height='5' transform='rotate(-6 195 16)'/%3E%3Crect x='220' y='13' width='3' height='8' rx='1' transform='rotate(66 221 17)'/%3E%3Crect x='246' y='42' width='3' height='7' rx='1' transform='rotate(-32 247 45)'/%3E%3Crect x='272' y='10' width='3' height='8' rx='1' transform='rotate(64 273 14)'/%3E%3Crect x='298' y='40' width='3' height='10' rx='1' transform='rotate(29 299 45)'/%3E%3Crect x='324' y='35' width='3' height='8' rx='1' transform='rotate(12 325 39)'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='650' height='60'%3E%3Cpolygon points='10,42 17,44 12,49' transform='rotate(-4 13 45)'/%3E%3Cpolygon points='62,34 69,36 64,41' transform='rotate(-7 65 37)'/%3E%3Crect x='116' y='32' width='3' height='8' rx='1' transform='rotate(-38 117 36)'/%3E%3Cpolygon points='166,48 173,50 168,55' transform='rotate(-61 169 51)'/%3E%3Cpolygon points='244,50 251,52 246,57' transform='rotate(9 247 53)'/%3E%3Crect x='323' y='11' width='5' height='5' transform='rotate(-11 325 13)'/%3E%3Cpath d='M371 52 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Cpath d='M449 51 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Crect x='480' y='35' width='3' height='7' rx='1' transform='rotate(10 481 38)'/%3E%3Cpath d='M527 24 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Crect x='558' y='31' width='3' height='8' rx='1' transform='rotate(47 559 35)'/%3E%3Crect x='584' y='41' width='3' height='10' rx='1' transform='rotate(-9 585 46)'/%3E%3Cpath d='M631 32 q3 -4 6 0 t6 0' stroke='black' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");
+    -webkit-mask-size: 390px 60px, 650px 60px;
+    mask-size: 390px 60px, 650px 60px;
+    -webkit-mask-position: 0 0, 52px 3px;
+    mask-position: 0 0, 52px 3px;
+}
+/* Neon header: glowing streaks instead of confetti, as background layers
+   only. Odd tile sizes keep the repeat from lining up. */
+:root[data-theme="neon"] .header {
+    border-bottom-color: #ff2d95;
+    background-image:
+        radial-gradient(1.5px 7px, #ff8c00 0 60%, transparent 100%),
+        radial-gradient(1.5px 8px, #39ff14 0 60%, transparent 100%),
+        radial-gradient(1.5px 6px, #00f0ff 0 60%, transparent 100%),
+        radial-gradient(1.5px 7px, #fff200 0 60%, transparent 100%),
+        radial-gradient(1.5px 8px, #ff2d95 0 60%, transparent 100%);
+    background-size: 103px 43px, 139px 57px, 167px 39px, 119px 51px, 157px 47px;
+    background-position: 13px 9px, 53px 21px, 91px 5px, 29px 27px, 71px 15px;
+}
+/* Neon boxes: each box a bright colour, cycling five. Inside a box the palette
+   flips to dark text and deep status colours, and the fills become tints, so
+   everything still reads against the bright background. */
+:root[data-theme="neon"] .section {
+    --text:      #000000;
+    --text-dim:  #1f1f1f;
+    --bg:        rgba(255,255,255,.35);
+    --bg-hover:  rgba(0,0,0,.10);
+    --bg-muted:  rgba(0,0,0,.14);
+    --bg-code:   rgba(0,0,0,.12);
+    --stripe:    rgba(0,0,0,.05);
+    --border:    rgba(0,0,0,.45);
+    --border-soft: rgba(0,0,0,.20);
+    --row-line:  rgba(0,0,0,.20);
+    --badge-bg:  rgba(255,255,255,.45);
+    --badge-border: rgba(0,0,0,.45);
+    --green:     #00661a;
+    --green-bg:  rgba(0,102,26,.15);
+    --red:       #a50018;
+    --red-bg:    rgba(165,0,24,.15);
+    --yellow:    #6b4f00;
+    --yellow-bg: rgba(107,79,0,.15);
+    --blue:      #003f9e;
+    --cyan:      #004e5a;
+    --gray:      rgba(0,0,0,.30);
+    --bg-card:   #ff9f1c;
+}
+:root[data-theme="neon"] .section:nth-child(5n+2) { --bg-card: #00e5ff; }
+:root[data-theme="neon"] .section:nth-child(5n+3) { --bg-card: #b6ff00; }
+:root[data-theme="neon"] .section:nth-child(5n+4) { --bg-card: #ff7ac8; }
+:root[data-theme="neon"] .section:nth-child(5n+5) { --bg-card: #ffe600; }
+/* Zebra boxes: every other box a shade lighter (darker in Light), mixed from
+   each theme's own card and text colours. Set as --bg-card, so sticky table
+   headers inside match the box. Neon colours its boxes itself. */
+:root { --bg-card-alt: color-mix(in srgb, var(--bg-card), var(--text) 6%); }
+:root:not([data-theme="neon"]) .container > .section:nth-child(even) {
+    --bg-card: var(--bg-card-alt);
+}
