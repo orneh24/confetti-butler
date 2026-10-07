@@ -155,6 +155,23 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   the route is registered. **Not tested:** a live import against a real confetti-traffic hub.
 - "meshflux" now appears only in that migration, the CLAUDE.md history note and this file.
 
+## Follow-up session (2026-10-08)
+
+- **lab-butler renamed to confetti-butler.** Chosen to show the link to confetti-traffic while keeping
+  "butler"; checked free on GitHub, PyPI, npm, Docker Hub and Alpine. `BUTLER_*` env vars,
+  `butler.db`, `butler.env` and the `butler/` folder keep their names.
+- **Renamed:** install paths (`/opt`, `/var/lib`, `/etc` + `confetti-butler`), OpenRC services
+  `confetti-butler` and `confetti-butler-firstboot`, the `/etc/profile.d` login script, the health
+  check's default service name, the UI title and header (`CONFETTI BUTLER`), both project skills
+  (`confetti-butler-hub-api`, `confetti-butler-dev-run`), the README GIF and the docs.
+- **Saved theme and layout carry over:** `static/theme.js` copies the old `lab-butler-theme` and
+  `lab-butler-layout` localStorage values to the new keys once.
+- **An already deployed VM is not migrated.** It still has `/opt/lab-butler`, `/var/lib/lab-butler`,
+  the `lab-butler` service and a `BUTLER_HEALTH_SERVICES` line naming it. Rebuild from the template,
+  or move the paths and services by hand and update that line in `butler.env`.
+- Earlier entries above still say lab-butler; that was the name then.
+- **Not tested:** `build-template.sh` and the OpenRC scripts were only syntax-checked, not run on Alpine.
+
 ## Housekeeping
 
 - **Git:** repository initialised 2026-09-27 on `main`, public at

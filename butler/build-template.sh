@@ -1,5 +1,5 @@
 #!/bin/sh
-# build-template.sh — Build the lab-butler golden template on a fresh Alpine
+# build-template.sh — Build the confetti-butler golden template on a fresh Alpine
 # install. Run as root after booting the Alpine ISO and completing
 # setup-alpine. Mirrors confetti-traffic/hub/confettictl-build-template.sh closely — same
 # infra (chrony, lldpd, open-vm-tools, dropbear, OpenRC, guestinfo
@@ -25,8 +25,8 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-INSTALL_DIR="/opt/lab-butler"
-DB_DIR="/var/lib/lab-butler"
+INSTALL_DIR="/opt/confetti-butler"
+DB_DIR="/var/lib/confetti-butler"
 LAB_ROOT_PASSWORD="${LAB_ROOT_PASSWORD:-lab123}"
 
 # -------------------------------------------------------------------
@@ -46,7 +46,7 @@ die() {
 # -------------------------------------------------------------------
 [ "$(id -u)" -eq 0 ] || die "Must run as root"
 
-log "=== lab-butler template builder ==="
+log "=== confetti-butler template builder ==="
 
 # -------------------------------------------------------------------
 # 1. Enable community repository
@@ -94,14 +94,14 @@ log "Packages installed"
 
 rc-update add open-vm-tools default
 
-# lab-butler stamps every poll and syslog message with its own receipt
+# confetti-butler stamps every poll and syslog message with its own receipt
 # time, and the syslog page pins correlation windows around it — same
 # reasoning as the hub's clock being the mesh reference.
 rc-update add chronyd default
 
 # LLDP neighbor discovery — always-on infrastructure, not a poll target
 # itself (devices are polled over SSH; lldpd here is for troubleshooting
-# lab-butler's own VM placement, same role it plays on confetti-traffic's VMs).
+# confetti-butler's own VM placement, same role it plays on confetti-traffic's VMs).
 rc-update add lldpd default
 
 # -------------------------------------------------------------------
@@ -173,10 +173,10 @@ fi
 # -------------------------------------------------------------------
 log "Creating configuration"
 cat > "$INSTALL_DIR/butler.env" <<'ENVEOF'
-# lab-butler environment configuration.
+# confetti-butler environment configuration.
 # Edit these values after cloning if needed.
 
-BUTLER_DB_PATH=/var/lib/lab-butler/butler.db
+BUTLER_DB_PATH=/var/lib/confetti-butler/butler.db
 BUTLER_PORT=80
 
 # --- Syslog receiver -------------------------------------------------
@@ -207,7 +207,7 @@ BUTLER_SNMP_COMMUNITY=public
 BUTLER_SNMP_VERSION=2c
 
 # --- Self-health (/api/health) ------------------------------------------
-BUTLER_HEALTH_SERVICES=lab-butler,chronyd,dropbear,open-vm-tools,lldpd
+BUTLER_HEALTH_SERVICES=confetti-butler,chronyd,dropbear,open-vm-tools,lldpd
 BUTLER_HEALTH_SERVICE_TIMEOUT_S=3
 ENVEOF
 
@@ -215,19 +215,19 @@ ENVEOF
 # 7. Create OpenRC init script
 # -------------------------------------------------------------------
 log "Creating OpenRC init script"
-cat > /etc/init.d/lab-butler <<'INITEOF'
+cat > /etc/init.d/confetti-butler <<'INITEOF'
 #!/sbin/openrc-run
 
-name="lab-butler"
-description="lab-butler device inventory, IPAM, templates and topology"
+name="confetti-butler"
+description="confetti-butler device inventory, IPAM, templates and topology"
 
-directory="/opt/lab-butler"
+directory="/opt/confetti-butler"
 command="/usr/bin/python3"
-command_args="/opt/lab-butler/serve.py"
+command_args="/opt/confetti-butler/serve.py"
 command_background="yes"
-pidfile="/run/lab-butler.pid"
-output_log="/var/log/lab-butler.log"
-error_log="/var/log/lab-butler.log"
+pidfile="/run/confetti-butler.pid"
+output_log="/var/log/confetti-butler.log"
+error_log="/var/log/confetti-butler.log"
 
 # Load environment from butler.env.
 #
@@ -237,43 +237,43 @@ error_log="/var/log/lab-butler.log"
 # at runtime instead; see confetti-traffic's hub init script (confettid-hub) for the same note,
 # this is the identical constraint.
 start_pre() {
-    if [ -f /opt/lab-butler/butler.env ]; then
+    if [ -f /opt/confetti-butler/butler.env ]; then
         while IFS= read -r line; do
             case "$line" in
                 \#*|"") continue ;;
                 *=*) export "$line" ;;
             esac
-        done < /opt/lab-butler/butler.env
+        done < /opt/confetti-butler/butler.env
     fi
 
-    checkpath --directory --mode 0700 /var/lib/lab-butler
+    checkpath --directory --mode 0700 /var/lib/confetti-butler
 }
 
 depend() {
     need net
-    after firewall lab-butler-firstboot
+    after firewall confetti-butler-firstboot
 }
 INITEOF
 
-chmod +x /etc/init.d/lab-butler
+chmod +x /etc/init.d/confetti-butler
 
 # First-boot autoconfiguration from guestinfo — same pattern as the hub's
 # confettid-hub-firstboot: stands down without both required keys rather
 # than blocking boot on a prompt nobody can answer from an OpenRC start().
-cp -f "${SCRIPT_DIR}/services/firstboot.initd" /etc/init.d/lab-butler-firstboot
-chmod +x /etc/init.d/lab-butler-firstboot
+cp -f "${SCRIPT_DIR}/services/firstboot.initd" /etc/init.d/confetti-butler-firstboot
+chmod +x /etc/init.d/confetti-butler-firstboot
 
 # Invite an unconfigured VM to run butler-setup.sh at first interactive
 # login, where a real tty is guaranteed.
-cp -f "${SCRIPT_DIR}/services/login-setup.sh" /etc/profile.d/lab-butler-setup.sh
+cp -f "${SCRIPT_DIR}/services/login-setup.sh" /etc/profile.d/confetti-butler-setup.sh
 
 # -------------------------------------------------------------------
 # 8. Enable services
 # -------------------------------------------------------------------
 log "Enabling services"
 
-rc-update add lab-butler default
-rc-update add lab-butler-firstboot default
+rc-update add confetti-butler default
+rc-update add confetti-butler-firstboot default
 
 apk add --no-cache dropbear
 rc-update add dropbear default
@@ -287,12 +287,12 @@ log "Creating first-boot instructions"
 cat > /etc/motd <<'MOTDEOF'
 
   ┌───────────────────────────────────────────────┐
-  │         lab-butler VM                         │
+  │         confetti-butler VM                         │
   │                                               │
   │  Dashboard: http://<this-vm-ip>/              │
-  │  Config:    /opt/lab-butler/butler.env        │
-  │  DB:        /var/lib/lab-butler/butler.db     │
-  │  Logs:      rc-service lab-butler status      │
+  │  Config:    /opt/confetti-butler/butler.env        │
+  │  DB:        /var/lib/confetti-butler/butler.db     │
+  │  Logs:      rc-service confetti-butler status      │
   │                                               │
   │  Not configured yet? Log in and run:          │
   │    butler-setup.sh                            │
@@ -362,7 +362,7 @@ rm -f "$DB_DIR/butler.db"
 
 # Remove any setup stamp left from build-time testing, or every clone would
 # consider itself already configured and skip butler-setup.sh.
-rm -f /etc/lab-butler/.setup-done
+rm -f /etc/confetti-butler/.setup-done
 
 rm -f "${SCRIPT_DIR}/build-template.sh"
 

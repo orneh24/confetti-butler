@@ -1,6 +1,6 @@
 #!/bin/sh
-# Foreground launcher for lab-butler (manual runs and debugging).
-# In production the OpenRC service lab-butler runs serve.py directly.
+# Foreground launcher for confetti-butler (manual runs and debugging).
+# In production the OpenRC service confetti-butler runs serve.py directly.
 
 cd "$(dirname "$0")" || exit 1
 

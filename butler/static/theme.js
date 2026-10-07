@@ -18,7 +18,7 @@ var THEMES = [
 // "Shuffle" is a mode, not a palette: it shows a random palette from THEMES
 // and moves to a different one every 5-10 minutes. The saved choice is
 // 'shuffle'; the palette on screen and when it next changes live under
-// lab-butler-theme-shuffle, so every page shows the same one and a reload
+// confetti-butler-theme-shuffle, so every page shows the same one and a reload
 // does not reshuffle early.
 var SHUFFLE_MIN_MS = 5 * 60 * 1000;
 var SHUFFLE_MAX_MS = 10 * 60 * 1000;
@@ -42,13 +42,13 @@ function currentTheme() {
 function shuffleStep() {
     var now = Date.now();
     var st = null;
-    try { st = JSON.parse(localStorage.getItem('lab-butler-theme-shuffle')); } catch (e) {}
+    try { st = JSON.parse(localStorage.getItem('confetti-butler-theme-shuffle')); } catch (e) {}
     if (!st || !themeKnown(st.theme) || !(st.until > now)) {
         var avoid = st && themeKnown(st.theme) ? st.theme : currentTheme();
         var pick;
         do { pick = THEMES[Math.floor(Math.random() * THEMES.length)][0]; } while (pick === avoid);
         st = { theme: pick, until: now + SHUFFLE_MIN_MS + Math.random() * (SHUFFLE_MAX_MS - SHUFFLE_MIN_MS) };
-        try { localStorage.setItem('lab-butler-theme-shuffle', JSON.stringify(st)); } catch (e) {}
+        try { localStorage.setItem('confetti-butler-theme-shuffle', JSON.stringify(st)); } catch (e) {}
     }
     applyTheme(st.theme);
     clearTimeout(shuffleTimer);
@@ -59,8 +59,21 @@ function shuffleStep() {
     }, Math.max(1000, st.until - now));
 }
 
+// The project was called lab-butler until 2026-10-08: carry a saved theme and
+// layout over to the new keys once, so nobody's choice resets.
 try {
-    var savedTheme = localStorage.getItem('lab-butler-theme');
+    ['theme', 'layout'].forEach(function (k) {
+        var old = localStorage.getItem('lab-butler-' + k);
+        if (old !== null && localStorage.getItem('confetti-butler-' + k) === null) {
+            localStorage.setItem('confetti-butler-' + k, old);
+        }
+        localStorage.removeItem('lab-butler-' + k);
+    });
+    localStorage.removeItem('lab-butler-theme-shuffle');
+} catch (e) {}
+
+try {
+    var savedTheme = localStorage.getItem('confetti-butler-theme');
     if (savedTheme === 'shuffle') { shuffling = true; shuffleStep(); }
     else applyTheme(savedTheme);
 } catch (e) {}
@@ -70,12 +83,12 @@ function setTheme(name) {
     shuffling = (name === 'shuffle');
     if (shuffling) {
         // A fresh pick now, not the tail of an earlier shuffle.
-        try { localStorage.removeItem('lab-butler-theme-shuffle'); } catch (e) {}
+        try { localStorage.removeItem('confetti-butler-theme-shuffle'); } catch (e) {}
         shuffleStep();
     } else {
         applyTheme(name);
     }
-    try { localStorage.setItem('lab-butler-theme', shuffling ? 'shuffle' : currentTheme()); } catch (e) {}
+    try { localStorage.setItem('confetti-butler-theme', shuffling ? 'shuffle' : currentTheme()); } catch (e) {}
     syncThemeSelect();
     document.dispatchEvent(new Event('themechange'));
 }
@@ -117,11 +130,11 @@ function applyLayout(name) {
     if (!known || name === 'classic') document.documentElement.removeAttribute('data-layout');
     else document.documentElement.setAttribute('data-layout', name);
 }
-try { applyLayout(localStorage.getItem('lab-butler-layout')); } catch (e) {}
+try { applyLayout(localStorage.getItem('confetti-butler-layout')); } catch (e) {}
 
 function setLayout(name) {
     applyLayout(name);
-    try { localStorage.setItem('lab-butler-layout', document.documentElement.getAttribute('data-layout') || 'classic'); } catch (e) {}
+    try { localStorage.setItem('confetti-butler-layout', document.documentElement.getAttribute('data-layout') || 'classic'); } catch (e) {}
     syncLayoutSelect();
     document.dispatchEvent(new Event('themechange'));
 }

@@ -1,13 +1,13 @@
-# lab-butler
+# confetti-butler
 
 > **AI disclaimer:** This project was created using [Claude Code](https://claude.com/claude-code).
 
 A companion server for the routers in a network lab. It polls each router over SSH (read-only
 `show` commands) and shows what is in use right now: interfaces and addresses (IPAM), LLDP
 neighbors and BGP/OSPF peers drawn as a topology graph, and syslog. It also renders config
-templates that a router pulls for itself. lab-butler never writes to a device.
+templates that a router pulls for itself. confetti-butler never writes to a device.
 
-![Tour of lab-butler: devices, a device page, topology with a BGP filter, IPAM findings, a template preview with security warnings, syslog, an identity conflict, then the colour themes, the four layouts and the Confetti button](docs/img/lab-butler-demo.gif)
+![Tour of confetti-butler: devices, a device page, topology with a BGP filter, IPAM findings, a template preview with security warnings, syslog, an identity conflict, then the colour themes, the four layouts and the Confetti button](docs/img/confetti-butler-demo.gif)
 
 *Mock data from a made-up lab, using documentation-range addresses. See
 [Running locally](#running-locally).*
@@ -33,7 +33,7 @@ and the choice is saved in your browser.
 - **Devices.** Add routers by hand, by a subnet sweep (SSH port scan), from a YAML seed file, or
   import the test nodes from [confetti-traffic](https://github.com/orneh24/confetti-traffic). The same router seen by two sources lands
   on one device. When the identifiers disagree (the same IP now answers with a different serial),
-  lab-butler raises a conflict instead of guessing.
+  confetti-butler raises a conflict instead of guessing.
 - **Polling.** Every few minutes it logs in once per router and reads version, interfaces, LLDP,
   BGP and OSPF. Anything a router stops reporting drops out of the app.
 - **IPAM.** Addresses come from the routers' own interfaces. It flags subnets that partly overlap
@@ -73,7 +73,7 @@ vCenter discovery is also not yet tested against a real vCenter.
 - Credentials are stored in plain text in `butler.db`. Keep the file private; it is gitignored.
 - The web UI and API have no login. Run it on a lab network only.
 - `/configs/*.cfg` is unauthenticated by design, because a router can't log in to fetch it.
-  Keep secrets out of templates and use `{{ vars.* }}` instead. lab-butler warns when a
+  Keep secrets out of templates and use `{{ vars.* }}` instead. confetti-butler warns when a
   template contains a literal secret.
 
 ## More

@@ -1,13 +1,13 @@
 ---
-name: lab-butler-hub-api
-description: lab-butler's own HTTP contract — device identity/merge rule, poller scheduling, config-template rendering and pull delivery, IPAM, topology, and syslog correlation. Read before changing app/app.py, identity.py, poller.py, rendering.py, or any schema in db.py.
-origin: lab-butler
+name: confetti-butler-hub-api
+description: confetti-butler's own HTTP contract — device identity/merge rule, poller scheduling, config-template rendering and pull delivery, IPAM, topology, and syslog correlation. Read before changing app/app.py, identity.py, poller.py, rendering.py, or any schema in db.py.
+origin: confetti-butler
 ---
 
-# lab-butler Hub API
+# confetti-butler Hub API
 
-The HTTP contract, schema, and data-flow rules for lab-butler's server. Mirrors
-`confetti-hub-api`'s role for its own project — this is the reference for lab-butler's own
+The HTTP contract, schema, and data-flow rules for confetti-butler's server. Mirrors
+`confetti-hub-api`'s role for its own project — this is the reference for confetti-butler's own
 routes and internals, not for network devices in general (see the other five skills for that).
 
 ## When to Activate

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lab-butler — {% block title %}{% endblock %}</title>
+<title>confetti-butler — {% block title %}{% endblock %}</title>
 <link rel="icon" href="/favicon.ico" type="image/svg+xml">
 <link rel="stylesheet" href="/static/theme.css">
 <link rel="stylesheet" href="/static/layout.css">
@@ -19,7 +19,7 @@
 
 <!-- Modern layout only: a menu down the left side. Hidden in the others. -->
 <nav class="side-nav" aria-label="Pages">
-    <div class="side-brand"><span class="side-mark"></span>Lab Butler</div>
+    <div class="side-brand"><span class="side-mark"></span>Confetti Butler</div>
     {% for path, label in pages %}
     {% if path == here %}<span class="side-link current">{{ label }}</span>
     {% else %}<a class="side-link" href="{{ path }}">{{ label }}</a>{% endif %}
@@ -28,7 +28,7 @@
 
 <div class="header">
     <div class="header-left">
-        <h1>NETWORK LAB BUTLER</h1>
+        <h1>CONFETTI BUTLER</h1>
         <span class="page-title" id="page-title">{% block page_title %}{{ self.title() }}{% endblock %}</span>
         {% for path, label in pages %}
         {% if path == here %}<span class="btn-nav-current">{{ label }}</span>

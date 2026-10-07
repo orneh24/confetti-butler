@@ -11,15 +11,16 @@ CSR1000v routers initially; other vendors later.
 
 This is a companion project to `../confetti-traffic` (a separate repo, network connectivity test
 harness; formerly mesh-flux — the import route, `collectors/confetti.py` and the `confetti` `source`
-value were renamed from `meshflux` on 2026-10-07; `db.init_db` migrates old rows).
+value were renamed from `meshflux` on 2026-10-07; `db.init_db` migrates old rows). This project
+was called lab-butler until 2026-10-08.
 The split is deliberate: confetti-traffic treats the network between its nodes as *"an opaque path it
-tests, not something it configures."* confetti-traffic owns *is the path healthy*; lab-butler owns *what
+tests, not something it configures."* confetti-traffic owns *is the path healthy*; confetti-butler owns *what
 are the devices, how are they addressed, how are they connected, and how do they get configured*.
-lab-butler's six vendor/protocol reference skills under `.claude/skills/` were evicted from
+confetti-butler's six vendor/protocol reference skills under `.claude/skills/` were evicted from
 confetti-traffic (then lab-tester) on 2026-09-14, when it was re-scoped to hub + node only — they are
-lab-butler's domain knowledge now, not leftovers.
+confetti-butler's domain knowledge now, not leftovers.
 
-**Config delivery is pull-only.** lab-butler never writes to a device. It renders a Jinja2 template
+**Config delivery is pull-only.** confetti-butler never writes to a device. It renders a Jinja2 template
 against a device's own polled facts and serves it as plain text; the operator runs `copy
 http://butler/configs/<key>.cfg running-config` from the device's own console. SSH is used only for
 read-only `show` commands. This is a v1 scope decision, not a permanent architectural limit — do not
@@ -32,19 +33,19 @@ add a config-push path without it being asked for explicitly.
 - Runs:
   - Flask API served by **waitress**, not the Flask dev server (single-threaded — the poller's own
     requests, a device's config pull, and the dashboard would queue behind each other)
-  - SQLite database (WAL mode) at `/var/lib/lab-butler/butler.db`
+  - SQLite database (WAL mode) at `/var/lib/confetti-butler/butler.db`
   - Web UI on port 80
   - A background **poller** thread pool (device SSH polling — see below)
   - UDP syslog receiver on port 514, in a daemon thread — its own receiver, deliberately not shared
     with confetti-traffic's hub syslog listener
-- Installed to `/opt/lab-butler/`, started by OpenRC service `lab-butler`
+- Installed to `/opt/confetti-butler/`, started by OpenRC service `confetti-butler`
 - Entrypoint is `serve.py` — reads `BUTLER_PORT` at runtime. Do not move the port into the init
   script's `command_args`: OpenRC expands that at parse time, before `start_pre` sources
   `butler.env`, so the setting would be ignored (same constraint as confetti-traffic's hub).
 
 ### The poller — server-initiated pull
 
-The inverse of confetti-traffic's node-initiated push: lab-butler dials out to devices over SSH rather than
+The inverse of confetti-traffic's node-initiated push: confetti-butler dials out to devices over SSH rather than
 waiting for them to report in. One daemon thread (`app/poller.py`), started by `serve.py` beside
 `syslog_server.start()`, same idempotent shape — `start()` returns quietly if already running.
 
@@ -144,7 +145,7 @@ NULL there is the expected common case, not a bug.
 `app/syslog_server.py` is a near-verbatim port of confetti-traffic's hub syslog receiver — same RFC3164
 parsing, same never-discard/fail-soft philosophy, same hazards (constraints 4, 5, 6 below). One
 addition: `GET /api/syslog` resolves `device_id` **at query time** by joining `source_ip`/`host`
-against `device_aliases`, never stamped at insert — lab-butler has the IP-to-device map confetti-traffic
+against `device_aliases`, never stamped at insert — confetti-butler has the IP-to-device map confetti-traffic
 deliberately lacks, and resolving at query time means a device added or re-addressed after a message
 arrives still correlates retroactively.
 
@@ -194,20 +195,20 @@ butler/
                           Loaded AFTER theme.css on purpose: Retro 95 and Amber bring their own colours
                           and beat Neon's per-card rules only by coming later. Pages use
                           .section > .section-header + .section-body, not their own card CSS
-  static/theme.js        — THEMES + LAYOUTS lists and the two header dropdowns (lab-butler-theme,
-                          lab-butler-layout in localStorage), themeColor() for JS colours (a layout
+  static/theme.js        — THEMES + LAYOUTS lists and the two header dropdowns (confetti-butler-theme,
+                          confetti-butler-layout in localStorage), themeColor() for JS colours (a layout
                           change fires 'themechange' too), confettiBlast(), the header health dot
                           (pollHealth; a page may define window.onHealth). Add a theme = one block in
                           theme.css + one THEMES entry. "Shuffle" (a mode, not a palette) rotates them
-                          every 5-10 min; its pick and next-change time live in lab-butler-theme-shuffle
+                          every 5-10 min; its pick and next-change time live in confetti-butler-theme-shuffle
                           so every page stays in step. Retro 95 / Amber disable the theme picker
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — firstboot.initd, login-setup.sh
   scripts/ — butler-setup.sh
 .claude/skills/  — 6 vendor/protocol reference skills (this app's domain knowledge) +
-           lab-butler-hub-api (this app's own HTTP contract, mirroring confetti-hub-api) +
-           lab-butler-dev-run (running it locally on Windows)
+           confetti-butler-hub-api (this app's own HTTP contract, mirroring confetti-hub-api) +
+           confetti-butler-dev-run (running it locally on Windows)
 ```
 
 ## Design Decisions
@@ -221,7 +222,7 @@ butler/
   defaults and the `net-snmp-tools` install in `build-template.sh` exist.
 - **Credentials**: env defaults (`BUTLER_SSH_*`, `BUTLER_SNMP_*`) + a per-device `credentials` table
   override. Plaintext in v1 — `butler.db` must be `0600` (`checkpath --directory --mode 0700` on
-  `/var/lib/lab-butler` in the OpenRC service is the current mitigation; the file itself should be
+  `/var/lib/confetti-butler` in the OpenRC service is the current mitigation; the file itself should be
   tightened too if this ever holds a real credential).
 - **Keep code simplistic to avoid over-engineering.** Same principle as confetti-traffic, same reasoning:
   a network engineer reading this at 2am should be able to follow it without decoding an abstraction.

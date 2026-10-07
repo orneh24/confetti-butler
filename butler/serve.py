@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Production entrypoint for the lab-butler server.
+"""Production entrypoint for the confetti-butler server.
 
 Reads BUTLER_PORT at runtime, so changing it in butler.env actually takes
 effect (OpenRC expands command_args at parse time, before start_pre sources
@@ -61,7 +61,7 @@ def main():
         app.run(host=host, port=port, threaded=True)
         return
 
-    sys.stderr.write(f"lab-butler listening on {host}:{port}\n")
+    sys.stderr.write(f"confetti-butler listening on {host}:{port}\n")
     serve(app, host=host, port=port, threads=8)
 
 

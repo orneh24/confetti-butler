@@ -1,6 +1,6 @@
 """Server-initiated device poller.
 
-The inverse of confetti-traffic's node-initiated push: lab-butler dials out to
+The inverse of confetti-traffic's node-initiated push: confetti-butler dials out to
 devices over SSH rather than waiting for them to report in. One daemon
 thread, started by serve.py beside syslog_server.start() with the same
 idempotent shape — start() returns quietly if already running, and a bug

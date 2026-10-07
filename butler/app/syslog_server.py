@@ -1,4 +1,4 @@
-"""UDP syslog receiver for lab-butler.
+"""UDP syslog receiver for confetti-butler.
 
 Listens on UDP/514 in a daemon thread and stores parsed messages in the same
 SQLite database as everything else, so a message can later be joined against
@@ -12,7 +12,7 @@ lossy and anything on the segment can inject into it — this is a
 troubleshooting aid, never an audit trail. Ported near-verbatim from
 confetti-traffic's hub/app/syslog_server.py; the parsing logic and every hazard
 it guards against (constraints 17, 18, 20 in confetti-traffic's CLAUDE.md) are
-identical here — lab-butler has a syslog listener as a second writer
+identical here — confetti-butler has a syslog listener as a second writer
 against the same database exactly as confetti-traffic's hub does.
 """
 

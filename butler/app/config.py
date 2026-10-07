@@ -1,4 +1,4 @@
-"""Configuration for the lab-butler server."""
+"""Configuration for the confetti-butler server."""
 
 import os
 
@@ -52,7 +52,7 @@ DEFAULT_SNMP_VERSION = os.environ.get("BUTLER_SNMP_VERSION", "2c")
 # ---------------------------------------------------------------------------
 HEALTH_SERVICES = [
     s.strip() for s in os.environ.get(
-        "BUTLER_HEALTH_SERVICES", "lab-butler,chronyd,dropbear,open-vm-tools,lldpd"
+        "BUTLER_HEALTH_SERVICES", "confetti-butler,chronyd,dropbear,open-vm-tools,lldpd"
     ).split(",") if s.strip()
 ]
 HEALTH_SERVICE_TIMEOUT_S = int(os.environ.get("BUTLER_HEALTH_SERVICE_TIMEOUT_S", "3"))

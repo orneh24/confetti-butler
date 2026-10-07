@@ -1,4 +1,4 @@
-"""lab-butler — device inventory, IPAM, config templates, syslog, topology.
+"""confetti-butler — device inventory, IPAM, config templates, syslog, topology.
 
 Unlike confetti-traffic's hub/app/app.py, which keeps nearly everything in one
 file, a section that outgrows a screenful moves to its own module under app/

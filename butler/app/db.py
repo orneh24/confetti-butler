@@ -1,7 +1,7 @@
 """Database helpers shared by app.py, syslog_server.py, poller.py and identity.py.
 
 Split out of app.py (unlike confetti-traffic, which keeps these inline) because
-lab-butler's app.py is itself split into route modules, and several
+confetti-butler's app.py is itself split into route modules, and several
 non-Flask modules (the poller thread, the syslog listener, identity
 resolution) need a connection without importing Flask machinery.
 """

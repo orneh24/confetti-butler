@@ -1,5 +1,5 @@
 #!/bin/sh
-# butler-setup.sh — interactive first-time configuration for lab-butler.
+# butler-setup.sh — interactive first-time configuration for confetti-butler.
 #
 # Run automatically at first interactive login (see services/login-setup.sh)
 # when the VM hasn't been configured yet, or by hand at any time. Safe to
@@ -9,18 +9,18 @@
 
 set -eu
 
-CONF_DIR="/etc/lab-butler"
+CONF_DIR="/etc/confetti-butler"
 STAMP="${CONF_DIR}/.setup-done"
 
 mkdir -p "$CONF_DIR"
 
 if [ -f "$STAMP" ] && [ "${1:-}" != "--force" ]; then
-    echo "lab-butler already configured ($(cat "$STAMP"))."
+    echo "confetti-butler already configured ($(cat "$STAMP"))."
     echo "Re-run with --force to reconfigure."
     exit 0
 fi
 
-echo "=== lab-butler setup ==="
+echo "=== confetti-butler setup ==="
 echo
 
 CURRENT_IP=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | head -1)
@@ -75,5 +75,5 @@ date -u '+%Y-%m-%dT%H:%M:%SZ configured' > "$STAMP"
 
 echo
 echo "Static IP set. Dashboard: http://${IP_CIDR%/*}/"
-echo "Edit /opt/lab-butler/butler.env if the defaults don't suit, then:"
-echo "  rc-service lab-butler restart"
+echo "Edit /opt/confetti-butler/butler.env if the defaults don't suit, then:"
+echo "  rc-service confetti-butler restart"

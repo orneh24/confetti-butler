@@ -1,20 +1,20 @@
 #!/sbin/openrc-run
-# OpenRC service: auto-configure lab-butler's static IP from guestinfo on
+# OpenRC service: auto-configure confetti-butler's static IP from guestinfo on
 # first boot. Identical pattern to confetti-traffic's hub firstboot service — see
 # that file for the full reasoning; only names differ here.
 
-name="lab-butler-firstboot"
-description="Configure lab-butler static IP from VMware guestinfo on first boot"
+name="confetti-butler-firstboot"
+description="Configure confetti-butler static IP from VMware guestinfo on first boot"
 
 depend() {
     need net
     after open-vm-tools
-    before lab-butler
+    before confetti-butler
 }
 
 command_background="no"
 
-CONF_DIR="/etc/lab-butler"
+CONF_DIR="/etc/confetti-butler"
 STAMP="${CONF_DIR}/.setup-done"
 
 _guestinfo() {
@@ -27,7 +27,7 @@ _guestinfo() {
 
 start() {
     if [ -f "$STAMP" ]; then
-        einfo "lab-butler already configured; nothing to do"
+        einfo "confetti-butler already configured; nothing to do"
         return 0
     fi
 
@@ -43,7 +43,7 @@ start() {
         return 0
     fi
 
-    ebegin "Configuring lab-butler static IP from guestinfo"
+    ebegin "Configuring confetti-butler static IP from guestinfo"
     mkdir -p "$CONF_DIR"
     if set-static-ip "$_ip" "$_gw" && rc-service networking restart; then
         date -u '+%Y-%m-%dT%H:%M:%SZ configured (guestinfo)' > "$STAMP"

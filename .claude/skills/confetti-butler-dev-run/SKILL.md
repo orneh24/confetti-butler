@@ -1,12 +1,12 @@
 ---
-name: lab-butler-dev-run
-description: Run lab-butler locally on a Windows dev machine — start the server, add the lab CSR1000v, set its SSH credentials, and poll it. Use when asked to start, run, or test the app locally.
-origin: lab-butler
+name: confetti-butler-dev-run
+description: Run confetti-butler locally on a Windows dev machine — start the server, add the lab CSR1000v, set its SSH credentials, and poll it. Use when asked to start, run, or test the app locally.
+origin: confetti-butler
 ---
 
-# Running lab-butler locally
+# Running confetti-butler locally
 
-For the full route list see `lab-butler-hub-api`. This skill only covers the local dev loop.
+For the full route list see `confetti-butler-hub-api`. This skill only covers the local dev loop.
 
 ## Start the server
 

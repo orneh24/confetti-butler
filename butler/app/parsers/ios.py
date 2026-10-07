@@ -6,7 +6,7 @@ reminder that an Alpine package assumption can silently fail to hold — this
 avoids that dependency entirely, same choice confetti-traffic itself made
 everywhere (fping/traceroute/smbclient output, all regex).
 
-Device output is untrusted input (see lab-butler's own constraint on this):
+Device output is untrusted input (see confetti-butler's own constraint on this):
 every function here fails soft — an unrecognised or empty response returns
 an empty result, never an exception, so one bad command in a task list never
 takes down the rest of a device's poll cycle.
