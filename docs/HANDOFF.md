@@ -99,7 +99,7 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   identifiers as aliases; credential saves are partial.
 - **Renamed:** sibling project lab-tester → mesh-flux (route `/api/discover/meshflux`, module
   `collectors/meshflux.py`; the sibling has since become Pervium on 2026-09-27, then Confetti Traffic
-  on 2026-10-02, and these names were kept). Project skills moved from `skills/` to `.claude/skills/` so Claude Code
+  on 2026-10-02; these names were kept until 2026-10-07, see below). Project skills moved from `skills/` to `.claude/skills/` so Claude Code
   loads them; new `lab-butler-dev-run` skill covers running locally on Windows.
 
 ## Follow-up session (2026-09-28)
@@ -142,6 +142,18 @@ whole history and are kept outside the repo. Main changes, all verified live unl
 - The header status reads `up` (not `up since unknown`) when the server reports no uptime, as on Windows.
 - Old saved `catppuccin` / `gruvbox` choices fall back to Dark (unknown names are ignored).
 - Flask caches templates outside debug mode, so restart the server after editing a template.
+
+## Follow-up session (2026-10-07)
+
+- **meshflux renamed to confetti** (commit `8485ce2`): route `POST /api/discover/meshflux` →
+  `/api/discover/confetti`, `collectors/meshflux.py` → `collectors/confetti.py`, `source` value
+  `meshflux` → `confetti`, and the Devices page form id. Anything outside the repo still calling
+  the old route now gets a 404.
+- `db.init_db` migrates old rows: `device_sources` and `merge_conflicts` with `source='meshflux'`
+  become `confetti`. If a device already has a `confetti` row for the same hub URL, the old row is
+  dropped (primary key clash). Tested on a scratch DB with old rows, including that clash case;
+  the route is registered. **Not tested:** a live import against a real confetti-traffic hub.
+- "meshflux" now appears only in that migration, the CLAUDE.md history note and this file.
 
 ## Housekeeping
 
