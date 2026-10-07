@@ -28,7 +28,7 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
                 <input type="text" name="cidr" placeholder="CIDR, e.g. 10.0.0.0/24" style="width:220px">
                 <button type="submit">Sweep (SSH port scan)</button>
             </form>
-            <form class="inline" id="meshflux-form" style="margin-bottom:8px">
+            <form class="inline" id="confetti-form" style="margin-bottom:8px">
                 <input type="text" name="hub_url" placeholder="Confetti Traffic hub URL" style="width:220px">
                 <button type="submit">Import Confetti Traffic nodes</button>
             </form>
@@ -166,11 +166,11 @@ document.getElementById('sweep-form').addEventListener('submit', function (ev) {
     runDiscover('/api/discover/sweep', { cidr: cidr }, 'sweep');
 });
 
-document.getElementById('meshflux-form').addEventListener('submit', function (ev) {
+document.getElementById('confetti-form').addEventListener('submit', function (ev) {
     ev.preventDefault();
     var hubUrl = ev.target.hub_url.value.trim();
     if (!hubUrl) { return; }
-    runDiscover('/api/discover/meshflux', { hub_url: hubUrl }, 'Confetti Traffic import');
+    runDiscover('/api/discover/confetti', { hub_url: hubUrl }, 'Confetti Traffic import');
 });
 
 document.getElementById('seedfile-form').addEventListener('submit', function (ev) {

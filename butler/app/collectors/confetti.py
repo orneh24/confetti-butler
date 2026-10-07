@@ -34,7 +34,7 @@ def discover(conn, hub_url):
             fields["site"] = ep["group_name"]
 
         try:
-            device_id = identity.ingest(conn, candidates, fields, source="meshflux", ref=hub_url)
+            device_id = identity.ingest(conn, candidates, fields, source="confetti", ref=hub_url)
         except identity.Conflict as exc:
             conflicts.append({"endpoint": ep, "device_ids": exc.device_ids})
             continue

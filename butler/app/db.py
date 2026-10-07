@@ -261,6 +261,13 @@ def init_db():
     if "template_name" not in cols:
         db.execute("ALTER TABLE devices ADD COLUMN template_name TEXT REFERENCES templates(name)")
 
+    # Migration: the confetti-traffic import's source value was 'meshflux'
+    # (the sibling's old name). OR IGNORE + DELETE handles a device that
+    # already has a 'confetti' row for the same ref (primary key clash).
+    db.execute("UPDATE OR IGNORE device_sources SET source = 'confetti' WHERE source = 'meshflux'")
+    db.execute("DELETE FROM device_sources WHERE source = 'meshflux'")
+    db.execute("UPDATE merge_conflicts SET source = 'confetti' WHERE source = 'meshflux'")
+
     db.commit()
     db.close()
 

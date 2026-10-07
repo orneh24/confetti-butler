@@ -99,7 +99,7 @@ def ingest(conn, candidates, fields, source, ref=""):
         applied — a partial observation (e.g. a bare seed-file entry with
         just a hostname) never blanks a field a richer source already
         populated.
-    source: manual | sweep | vcenter | meshflux | seedfile | lldp
+    source: manual | sweep | vcenter | confetti | seedfile | lldp
     ref: a source-specific reference (filename, sweep CIDR, vCenter moref) —
         distinguishes repeat runs of the same source from each other.
 

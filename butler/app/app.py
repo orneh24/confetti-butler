@@ -19,7 +19,7 @@ from . import ipam
 from . import poller
 from . import rendering
 from . import syslog_server
-from .collectors import meshflux
+from .collectors import confetti
 from .collectors import seedfile
 from .collectors import sweep as sweep_collector
 from .collectors import vcenter as vcenter_collector
@@ -614,10 +614,10 @@ def api_discover_vcenter():
     return jsonify({"status": "ok", "device_ids": device_ids, "conflicts": conflicts})
 
 
-@app.route("/api/discover/meshflux", methods=["POST"])
-def api_discover_meshflux():
+@app.route("/api/discover/confetti", methods=["POST"])
+def api_discover_confetti():
     """Body: {"hub_url": "http://10.0.0.100"}. Imports confetti-traffic's node
-    fleet as role='node' devices — see collectors/meshflux.py."""
+    fleet as role='node' devices — see collectors/confetti.py."""
     data = request.get_json(force=True, silent=True) or {}
     hub_url = data.get("hub_url")
     if not hub_url:
@@ -625,7 +625,7 @@ def api_discover_meshflux():
 
     conn = db.get_db()
     try:
-        device_ids, conflicts = meshflux.discover(conn, hub_url)
+        device_ids, conflicts = confetti.discover(conn, hub_url)
     except Exception as exc:
         return jsonify({"error": "confetti-traffic hub request failed: {}".format(exc)}), 502
     conn.commit()

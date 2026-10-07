@@ -61,7 +61,7 @@ table (`device_aliases`, `device_sources`, `credentials`, `interfaces`, `templat
   `POST /api/conflicts/<id>/dismiss` (resolve without merging — the only way to clear a
   single-device conflict). An identical conflict already open is not re-inserted, only its
   `seen_at` is bumped
-- `POST /api/discover/{sweep,vcenter,seedfile,meshflux}` — all four return
+- `POST /api/discover/{sweep,vcenter,seedfile,confetti}` — all four return
   `{device_ids: [...], conflicts: [...]}` in the same shape
 
 **Templates:** `GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/<name>`,

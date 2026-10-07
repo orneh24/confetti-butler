@@ -10,8 +10,8 @@ config templates served for devices to pull, syslog, LLDP neighbor discovery, an
 CSR1000v routers initially; other vendors later.
 
 This is a companion project to `../confetti-traffic` (a separate repo, network connectivity test
-harness; formerly mesh-flux, which is why the `meshflux` route, collector module and `source` value
-keep that name).
+harness; formerly mesh-flux — the import route, `collectors/confetti.py` and the `confetti` `source`
+value were renamed from `meshflux` on 2026-10-07; `db.init_db` migrates old rows).
 The split is deliberate: confetti-traffic treats the network between its nodes as *"an opaque path it
 tests, not something it configures."* confetti-traffic owns *is the path healthy*; lab-butler owns *what
 are the devices, how are they addressed, how are they connected, and how do they get configured*.
@@ -159,7 +159,7 @@ box — that is what the identity ladder is for.
 | Subnet sweep | `POST /api/discover/sweep` | TCP connect to port 22 only — coarse on purpose; the poller's own `version` task does real identification next cycle |
 | vCenter | `POST /api/discover/vcenter` | vSphere REST API (`requests`, not `pyvmomi`) — **not live-verified**, no vCenter instance was reachable while this was built; confirm endpoint shapes before relying on it |
 | YAML seed file | `POST /api/discover/seedfile` | `seed/devices.yaml.sample` shows the shape |
-| confetti-traffic import | `POST /api/discover/meshflux` | `GET <hub_url>/endpoints`, imported as `role='node'`, `vendor='alpine'`, `platform='linux'` — never SSH-polled |
+| confetti-traffic import | `POST /api/discover/confetti` | `GET <hub_url>/endpoints`, imported as `role='node'`, `vendor='alpine'`, `platform='linux'` — never SSH-polled |
 
 ## Project Structure
 ```
@@ -178,7 +178,7 @@ butler/
     syslog_server.py    — UDP/514 receiver (ported from confetti-traffic)
     ipam.py              — overlap/duplicate-IP analysis
     rendering.py         — Jinja2 template rendering + safety checks
-    collectors/          — ssh.py, sweep.py, vcenter.py, meshflux.py, seedfile.py
+    collectors/          — ssh.py, sweep.py, vcenter.py, confetti.py, seedfile.py
     parsers/ios.py        — Cisco IOS/IOS-XE show-command regex parsers
   templates/            — base.html (head, header/nav, theme + layout pickers, footer, Retro taskbar,
                           written once) + dashboard, devices, device, conflicts, ipam, templates_editor,
@@ -294,7 +294,7 @@ butler/
     a brand-new device falls back to its key (`mgmt:<ip>`) as a display name instead, via
     `identity._create_device`.
 12. **confetti-traffic's imported nodes get explicit `vendor='alpine'`, `platform='linux'`** in
-    `collectors/meshflux.py` — passing empty strings there would fall through to
+    `collectors/confetti.py` — passing empty strings there would fall through to
     `identity._create_device`'s `cisco`/`cisco_ios` defaults for a brand-new device, mislabeling
     every imported Alpine VM as a Cisco router.
 13. **`GET /configs/<key>.cfg` is deliberately unauthenticated.** Do not add auth to "fix" this —
