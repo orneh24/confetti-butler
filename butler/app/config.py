@@ -7,7 +7,7 @@ PORT = int(os.environ.get("BUTLER_PORT", "80"))
 
 # The syslog listener (own thread) and the poller (its own thread pool) both
 # write to this same SQLite file alongside Flask request handlers — three
-# writers, one more than mesh-flux's hub ever had. WAL allows one writer at
+# writers, one more than confetti-traffic's hub ever had. WAL allows one writer at
 # a time; without a busy timeout on every connection, a burst from any one of
 # them makes another fail outright with "database is locked" instead of
 # waiting its turn.
@@ -39,7 +39,7 @@ POLL_HISTORY_RETENTION_HOURS = int(os.environ.get("BUTLER_POLL_HISTORY_RETENTION
 # ---------------------------------------------------------------------------
 # Default device credentials — a per-device row in the credentials table
 # overrides these. Never hardcode a real lab password here; this is a shared
-# default for an isolated lab, same posture as mesh-flux's root/lab123.
+# default for an isolated lab, same posture as confetti-traffic's default root password.
 # ---------------------------------------------------------------------------
 DEFAULT_SSH_USERNAME = os.environ.get("BUTLER_SSH_USERNAME", "admin")
 DEFAULT_SSH_PASSWORD = os.environ.get("BUTLER_SSH_PASSWORD", "")

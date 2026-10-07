@@ -4,7 +4,7 @@
 # Run automatically at first interactive login (see services/login-setup.sh)
 # when the VM hasn't been configured yet, or by hand at any time. Safe to
 # re-run; does nothing once configured unless you pass --force. Identical
-# pattern to mesh-flux's hub-setup.sh — only the static IP is handled here,
+# pattern to confetti-traffic's hub/scripts/confettictl-hub-setup.sh — only the static IP is handled here,
 # butler.env defaults are sane enough not to need a prompt.
 
 set -eu

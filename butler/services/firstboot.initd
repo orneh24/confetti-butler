@@ -1,6 +1,6 @@
 #!/sbin/openrc-run
 # OpenRC service: auto-configure lab-butler's static IP from guestinfo on
-# first boot. Identical pattern to mesh-flux's hub firstboot service — see
+# first boot. Identical pattern to confetti-traffic's hub firstboot service — see
 # that file for the full reasoning; only names differ here.
 
 name="lab-butler-firstboot"

@@ -1,6 +1,6 @@
-"""Import mesh-flux's node fleet as topology context.
+"""Import confetti-traffic's node fleet as topology context.
 
-GET <hub_url>/endpoints returns mesh-flux's Alpine test VMs, not managed
+GET <hub_url>/endpoints returns confetti-traffic's Alpine test VMs, not managed
 routers — imported with role='node' and vendor/platform set explicitly so
 they don't inherit this app's cisco/cisco_ios defaults for a brand-new
 device (see identity._create_device). role='node' is what makes

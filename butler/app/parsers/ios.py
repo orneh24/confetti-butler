@@ -1,9 +1,9 @@
 """Cisco IOS/IOS-XE 'show' output parsers.
 
 Pure regex, deliberately not netmiko's use_textfsm=True. TextFSM needs the
-ntc-templates package, and constraint 14 in mesh-flux's CLAUDE.md is a
+ntc-templates package, and constraint 14 in confetti-traffic's CLAUDE.md is a
 reminder that an Alpine package assumption can silently fail to hold — this
-avoids that dependency entirely, same choice mesh-flux itself made
+avoids that dependency entirely, same choice confetti-traffic itself made
 everywhere (fping/traceroute/smbclient output, all regex).
 
 Device output is untrusted input (see lab-butler's own constraint on this):
@@ -139,7 +139,7 @@ def _network(ip, prefix_len):
 # ---------------------------------------------------------------------------
 # show lldp neighbors detail
 #
-# Always on in mesh-flux's own VMs but frequently disabled on a router
+# Always on in confetti-traffic's own VMs but frequently disabled on a router
 # ("% LLDP is not enabled") — that is a normal device state, not a poll
 # failure, so this returns an empty list rather than treating it as an error.
 # The caller (poller.py) marks the task ok=True either way; only a

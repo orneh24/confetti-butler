@@ -9,12 +9,15 @@ config templates served for devices to pull, syslog, LLDP neighbor discovery, an
 (BGP/OSPF) monitoring, visualized as a topology graph. Infrastructure is ESXi 7.0 with Cisco
 CSR1000v routers initially; other vendors later.
 
-This is a companion project to `../mesh-flux` (a separate repo, network connectivity test harness).
-The split is deliberate: mesh-flux treats the network between its nodes as *"an opaque path it
-tests, not something it configures."* mesh-flux owns *is the path healthy*; lab-butler owns *what
+This is a companion project to `../confetti-traffic` (a separate repo, network connectivity test
+harness; formerly mesh-flux, which is why the `meshflux` route, collector module and `source` value
+keep that name).
+The split is deliberate: confetti-traffic treats the network between its nodes as *"an opaque path it
+tests, not something it configures."* confetti-traffic owns *is the path healthy*; lab-butler owns *what
 are the devices, how are they addressed, how are they connected, and how do they get configured*.
-lab-butler's six vendor/protocol reference skills under `.claude/skills/` were evicted from mesh-flux on
-2026-09-14 as "not mesh-flux-specific" — they are lab-butler's domain knowledge now, not leftovers.
+lab-butler's six vendor/protocol reference skills under `.claude/skills/` were evicted from
+confetti-traffic (then lab-tester) on 2026-09-14, when it was re-scoped to hub + node only — they are
+lab-butler's domain knowledge now, not leftovers.
 
 **Config delivery is pull-only.** lab-butler never writes to a device. It renders a Jinja2 template
 against a device's own polled facts and serves it as plain text; the operator runs `copy
@@ -33,15 +36,15 @@ add a config-push path without it being asked for explicitly.
   - Web UI on port 80
   - A background **poller** thread pool (device SSH polling — see below)
   - UDP syslog receiver on port 514, in a daemon thread — its own receiver, deliberately not shared
-    with mesh-flux's hub syslog listener
+    with confetti-traffic's hub syslog listener
 - Installed to `/opt/lab-butler/`, started by OpenRC service `lab-butler`
 - Entrypoint is `serve.py` — reads `BUTLER_PORT` at runtime. Do not move the port into the init
   script's `command_args`: OpenRC expands that at parse time, before `start_pre` sources
-  `butler.env`, so the setting would be ignored (same constraint as mesh-flux's hub).
+  `butler.env`, so the setting would be ignored (same constraint as confetti-traffic's hub).
 
 ### The poller — server-initiated pull
 
-The inverse of mesh-flux's node-initiated push: lab-butler dials out to devices over SSH rather than
+The inverse of confetti-traffic's node-initiated push: lab-butler dials out to devices over SSH rather than
 waiting for them to report in. One daemon thread (`app/poller.py`), started by `serve.py` beside
 `syslog_server.start()`, same idempotent shape — `start()` returns quietly if already running.
 
@@ -51,7 +54,7 @@ is never queued twice), and hand each to a `ThreadPoolExecutor` (`BUTLER_POLL_WO
 
 Per device, five tasks run independently, **each committing its own transaction**: `version`,
 `interfaces`, `lldp`, `bgp`, `ospf`. Partial failure is the normal case — an LLDP timeout must never
-discard interface data collected 200ms earlier. `role='node'` devices (mesh-flux's imported Alpine
+discard interface data collected 200ms earlier. `role='node'` devices (confetti-traffic's imported Alpine
 fleet) are never polled — `poller.py`'s device-selection query filters `role != 'node'`.
 
 All five tasks share **one SSH session** per poll (`ssh.run_tasks` is a generator, so each task still
@@ -66,7 +69,7 @@ A dead device backs off toward an hour instead of burning a worker every 5 minut
 
 Commands and parsers (`app/collectors/ssh.py`, `app/parsers/ios.py`) use **pure regex, not
 `use_textfsm=True`** — deliberately, to avoid a hard dependency on the `ntc-templates` package, whose
-Alpine availability is unverified (same caution as mesh-flux CLAUDE.md constraint 14). This was
+Alpine availability is unverified (same caution as confetti-traffic CLAUDE.md constraint 14). This was
 confirmed against a real IOS-XE 17.3 CSR1000v; see constraint 3 below for command-name gotchas found
 that way.
 
@@ -88,8 +91,8 @@ source, at preview time — a Jinja2 conditional can make a dangerous line appea
 
 ### Device identity and the merge rule
 
-Four independent ingest paths can all observe the same physical device: manual add, a subnet sweep,
-vCenter, a YAML seed file, and mesh-flux's `GET /endpoints`. `app/identity.py` is the **single place**
+Five independent ingest paths can all observe the same physical device: manual add, a subnet sweep,
+vCenter, a YAML seed file, and confetti-traffic's `GET /endpoints`. `app/identity.py` is the **single place**
 that decides whether an observation is a new device, an update to a known one, or an ambiguous
 collision — nothing else should `INSERT INTO devices` directly.
 
@@ -102,7 +105,7 @@ merging. That is the intended, safe failure mode — see constraint 1.
 
 Two entry points:
 - **`identity.ingest(conn, candidates, fields, source, ref)`** — used by every *discovery* path
-  (manual add, sweep, vCenter, seedfile, mesh-flux import). Looks up the device by alias-matching;
+  (manual add, sweep, vCenter, seedfile, confetti-traffic import). Looks up the device by alias-matching;
   ambiguity (>1 matched device, or a stronger identifier disagreeing with what's on file for the one
   matched device) writes a `merge_conflicts` row and raises `identity.Conflict` rather than guessing.
 - **`identity.observe(conn, device_id, candidates, fields, source, ref)`** — used by the *poller*,
@@ -138,16 +141,16 @@ NULL there is the expected common case, not a bug.
 
 ### Syslog
 
-`app/syslog_server.py` is a near-verbatim port of mesh-flux's hub syslog receiver — same RFC3164
-parsing, same never-discard/fail-soft philosophy, same hazards (constraints 2, 4, 6 below). One
+`app/syslog_server.py` is a near-verbatim port of confetti-traffic's hub syslog receiver — same RFC3164
+parsing, same never-discard/fail-soft philosophy, same hazards (constraints 4, 5, 6 below). One
 addition: `GET /api/syslog` resolves `device_id` **at query time** by joining `source_ip`/`host`
-against `device_aliases`, never stamped at insert — lab-butler has the IP-to-device map mesh-flux
+against `device_aliases`, never stamped at insert — lab-butler has the IP-to-device map confetti-traffic
 deliberately lacks, and resolving at query time means a device added or re-addressed after a message
 arrives still correlates retroactively.
 
 ## Seeding paths (device discovery)
 
-All four are meant to run together and land on the same `devices` row when they observe the same
+All five are meant to run together and land on the same `devices` row when they observe the same
 box — that is what the identity ladder is for.
 
 | Path | Route | Notes |
@@ -156,7 +159,7 @@ box — that is what the identity ladder is for.
 | Subnet sweep | `POST /api/discover/sweep` | TCP connect to port 22 only — coarse on purpose; the poller's own `version` task does real identification next cycle |
 | vCenter | `POST /api/discover/vcenter` | vSphere REST API (`requests`, not `pyvmomi`) — **not live-verified**, no vCenter instance was reachable while this was built; confirm endpoint shapes before relying on it |
 | YAML seed file | `POST /api/discover/seedfile` | `seed/devices.yaml.sample` shows the shape |
-| mesh-flux import | `POST /api/discover/meshflux` | `GET <hub_url>/endpoints`, imported as `role='node'`, `vendor='alpine'`, `platform='linux'` — never SSH-polled |
+| confetti-traffic import | `POST /api/discover/meshflux` | `GET <hub_url>/endpoints`, imported as `role='node'`, `vendor='alpine'`, `platform='linux'` — never SSH-polled |
 
 ## Project Structure
 ```
@@ -172,7 +175,7 @@ butler/
     db.py              — get_db / connect / init_db / sqlite_now / iso / sqlite_ts_arg / like_arg
     identity.py         — device identity ladder, ingest/observe/merge — see above
     poller.py           — background SSH polling scheduler
-    syslog_server.py    — UDP/514 receiver (ported from mesh-flux)
+    syslog_server.py    — UDP/514 receiver (ported from confetti-traffic)
     ipam.py              — overlap/duplicate-IP analysis
     rendering.py         — Jinja2 template rendering + safety checks
     collectors/          — ssh.py, sweep.py, vcenter.py, meshflux.py, seedfile.py
@@ -203,21 +206,24 @@ butler/
   services/ — firstboot.initd, login-setup.sh
   scripts/ — butler-setup.sh
 .claude/skills/  — 6 vendor/protocol reference skills (this app's domain knowledge) +
-           lab-butler-hub-api (this app's own HTTP contract, mirroring mesh-flux-hub-api)
+           lab-butler-hub-api (this app's own HTTP contract, mirroring confetti-hub-api) +
+           lab-butler-dev-run (running it locally on Windows)
 ```
 
 ## Design Decisions
-- **Mirror mesh-flux's stack exactly**: Flask + SQLite (WAL) + waitress, vanilla JS with no build
+- **Mirror confetti-traffic's stack exactly**: Flask + SQLite (WAL) + waitress, vanilla JS with no build
   step, Alpine golden image, OpenRC.
 - **Pull-only config delivery.** No Netmiko config-push path in v1 — see Architecture above.
-- **SNMP shells out to `net-snmp-tools`** (`snmpwalk`/`snmpget`), not a Python SNMP library —
-  `pysnmp` is heavy with a history of packaging breakage; `puresnmp` was considered and rejected for
-  the same "one more Alpine dependency to verify" reason that keeps `use_textfsm` out of the collector.
+- **SNMP is not polled in v1.** If added, it shells out to `net-snmp-tools` (`snmpwalk`/`snmpget`),
+  not a Python SNMP library — `pysnmp` is heavy with a history of packaging breakage; `puresnmp` was
+  considered and rejected for the same "one more Alpine dependency to verify" reason that keeps
+  `use_textfsm` out of the collector. Today only the `credentials` columns, the `BUTLER_SNMP_*`
+  defaults and the `net-snmp-tools` install in `build-template.sh` exist.
 - **Credentials**: env defaults (`BUTLER_SSH_*`, `BUTLER_SNMP_*`) + a per-device `credentials` table
   override. Plaintext in v1 — `butler.db` must be `0600` (`checkpath --directory --mode 0700` on
   `/var/lib/lab-butler` in the OpenRC service is the current mitigation; the file itself should be
   tightened too if this ever holds a real credential).
-- **Keep code simplistic to avoid over-engineering.** Same principle as mesh-flux, same reasoning:
+- **Keep code simplistic to avoid over-engineering.** Same principle as confetti-traffic, same reasoning:
   a network engineer reading this at 2am should be able to follow it without decoding an abstraction.
 
 ## Working style
@@ -248,17 +254,17 @@ butler/
    `Local Intf:` from `show lldp neighbors detail`; the collector then fetches the brief
    `show lldp neighbors` table for it (`ios.fill_lldp_local_if`). `show interfaces` is parsed with pure regex rather than
    `use_textfsm=True` for the same "don't assume an Alpine package is there" reason as constraint 14
-   in mesh-flux's CLAUDE.md — verified working against real hardware, not assumed.
+   in confetti-traffic's CLAUDE.md — verified working against real hardware, not assumed.
 4. **Timestamps: everything stores `db.sqlite_now()`'s `'YYYY-MM-DD HH:MM:SS'` form and converts with
-   `db.iso()` on the way out.** Identical trap to mesh-flux CLAUDE.md constraints 2/18 — string-
+   `db.iso()` on the way out.** Identical trap to confetti-traffic CLAUDE.md constraints 2/18 — string-
    comparing ISO-8601 against `datetime('now', ...)` lets `'T'` (0x54) sort above `' '` (0x20) and any
    same-day row passes any window. Applies to `devices.last_seen`/`next_poll_at`, `poll_history`,
    `syslog`, everything.
 5. **`busy_timeout` on every connection, no exceptions.** This database has **three** writers (Flask
    request handlers, the syslog listener thread, the poller's thread pool) — one more than
-   mesh-flux's hub ever had. `db.connect()` sets it before `journal_mode=WAL`, since `journal_mode`
+   confetti-traffic's hub ever had. `db.connect()` sets it before `journal_mode=WAL`, since `journal_mode`
    itself can contend and setting the timeout after it would leave that one statement unprotected.
-6. **The syslog listener must NOT set `allow_reuse_address`** — identical reasoning to mesh-flux
+6. **The syslog listener must NOT set `allow_reuse_address`** — identical reasoning to confetti-traffic
    CLAUDE.md constraint 20. Two processes silently splitting incoming datagrams between two databases
    is worse than a clean `EADDRINUSE` failure to start a second one.
 7. **Flask templates that embed literal JS containing `{{`/`}}`/`{%`/`%}` must be wrapped in
@@ -281,13 +287,13 @@ butler/
    `mgmt_ip`) would find zero existing aliases and create a duplicate device instead of updating the
    one just polled.
 10. **`role='node'` devices are never SSH-polled.** `poller.py`'s device-selection query filters
-    `WHERE ... role != 'node'` — mesh-flux's imported Alpine test VMs would fail every IOS `show`
+    `WHERE ... role != 'node'` — confetti-traffic's imported Alpine test VMs would fail every IOS `show`
     command if polled, and burn a worker doing it every cycle.
 11. **A subnet sweep's ingest passes no `hostname` field**, only the `mgmt_ip` candidate. A
     already-known device's real hostname must never be overwritten with a raw IP string on re-sweep —
     a brand-new device falls back to its key (`mgmt:<ip>`) as a display name instead, via
     `identity._create_device`.
-12. **mesh-flux's imported nodes get explicit `vendor='alpine'`, `platform='linux'`** in
+12. **confetti-traffic's imported nodes get explicit `vendor='alpine'`, `platform='linux'`** in
     `collectors/meshflux.py` — passing empty strings there would fall through to
     `identity._create_device`'s `cisco`/`cisco_ios` defaults for a brand-new device, mislabeling
     every imported Alpine VM as a Cisco router.

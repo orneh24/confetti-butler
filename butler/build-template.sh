@@ -1,7 +1,7 @@
 #!/bin/sh
 # build-template.sh — Build the lab-butler golden template on a fresh Alpine
 # install. Run as root after booting the Alpine ISO and completing
-# setup-alpine. Mirrors mesh-flux/hub/build-template.sh closely — same
+# setup-alpine. Mirrors confetti-traffic/hub/confettictl-build-template.sh closely — same
 # infra (chrony, lldpd, open-vm-tools, dropbear, OpenRC, guestinfo
 # first-boot), same structure. See that file's comments for the reasoning
 # behind each infra choice; this file only calls out what's different here.
@@ -65,7 +65,7 @@ fi
 #
 # py3-paramiko, py3-yaml and py3-requests are real Alpine community
 # packages Netmiko/the collectors need; py3-jinja2 too. netmiko itself is
-# NOT in Alpine's index (checked against the same discipline as mesh-flux
+# NOT in Alpine's index (checked against the same discipline as confetti-traffic
 # CLAUDE.md constraint 14 — verify, don't assume), so it's pip-installed
 # below alongside waitress, same fallback pattern as the hub's build script.
 # net-snmp-tools provides snmpwalk/snmpget for SNMP collection — shelling
@@ -101,7 +101,7 @@ rc-update add chronyd default
 
 # LLDP neighbor discovery — always-on infrastructure, not a poll target
 # itself (devices are polled over SSH; lldpd here is for troubleshooting
-# lab-butler's own VM placement, same role it plays on mesh-flux's VMs).
+# lab-butler's own VM placement, same role it plays on confetti-traffic's VMs).
 rc-update add lldpd default
 
 # -------------------------------------------------------------------
@@ -186,7 +186,7 @@ BUTLER_SYSLOG_PORT=514
 BUTLER_SYSLOG_MAX_ROWS=300000
 
 # Three writers share this database (Flask, the syslog listener thread,
-# the poller's thread pool) — one more than mesh-flux's hub. Without this,
+# the poller's thread pool) — one more than confetti-traffic's hub. Without this,
 # a burst on any one of them can fail another with "database is locked".
 BUTLER_BUSY_TIMEOUT_MS=5000
 
@@ -234,7 +234,7 @@ error_log="/var/log/lab-butler.log"
 # command_args is expanded when this script is PARSED, before start_pre
 # runs — interpolating ${BUTLER_PORT} here would freeze it at parse time
 # and ignore any later edit to butler.env. serve.py reads the port itself
-# at runtime instead; see mesh-flux's hub init script for the same note,
+# at runtime instead; see confetti-traffic's hub init script (confettid-hub) for the same note,
 # this is the identical constraint.
 start_pre() {
     if [ -f /opt/lab-butler/butler.env ]; then
@@ -258,7 +258,7 @@ INITEOF
 chmod +x /etc/init.d/lab-butler
 
 # First-boot autoconfiguration from guestinfo — same pattern as the hub's
-# mesh-flux-hub-firstboot: stands down without both required keys rather
+# confettid-hub-firstboot: stands down without both required keys rather
 # than blocking boot on a prompt nobody can answer from an OpenRC start().
 cp -f "${SCRIPT_DIR}/services/firstboot.initd" /etc/init.d/lab-butler-firstboot
 chmod +x /etc/init.d/lab-butler-firstboot

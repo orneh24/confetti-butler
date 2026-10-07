@@ -7,7 +7,7 @@ origin: lab-butler
 # lab-butler Hub API
 
 The HTTP contract, schema, and data-flow rules for lab-butler's server. Mirrors
-`mesh-flux-hub-api`'s role for its own project — this is the reference for lab-butler's own
+`confetti-hub-api`'s role for its own project — this is the reference for lab-butler's own
 routes and internals, not for network devices in general (see the other five skills for that).
 
 ## When to Activate
@@ -25,7 +25,7 @@ state, a history. A key only ever promotes upward, never demotes.
 
 Two entry points, not interchangeable:
 - `identity.ingest(conn, candidates, fields, source, ref)` — discovery paths (manual, sweep,
-  vCenter, seedfile, mesh-flux import). Resolves the device by alias-matching from scratch.
+  vCenter, seedfile, confetti-traffic import). Resolves the device by alias-matching from scratch.
 - `identity.observe(conn, device_id, candidates, fields, source, ref)` — the poller only. The
   device_id is already known (it dialed that device's own `mgmt_ip`), so this skips alias-matching
   and only guards against a hardware-identity field (`serial`/`vmuuid`) disagreeing with what's on
@@ -70,6 +70,7 @@ table (`device_aliases`, `device_sources`, `credentials`, `interfaces`, `templat
 `GET /configs/<device_key>.cfg` is the **pull endpoint** a device's console fetches — unauthenticated
 by design, plain text, 404 if the device or its assigned template doesn't exist, 500 if
 `StrictUndefined` catches an unset variable.
+`GET /configs/` is a plain-text index of the devices that have an assigned template.
 
 **IPAM:** `GET /api/ipam/{prefixes,addresses,findings}`, `POST /api/ipam/analyze` (rebuilds
 `ipam_findings` wholesale — not incremental)

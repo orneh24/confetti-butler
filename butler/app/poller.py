@@ -1,11 +1,11 @@
 """Server-initiated device poller.
 
-The inverse of mesh-flux's node-initiated push: lab-butler dials out to
+The inverse of confetti-traffic's node-initiated push: lab-butler dials out to
 devices over SSH rather than waiting for them to report in. One daemon
 thread, started by serve.py beside syslog_server.start() with the same
 idempotent shape — start() returns quietly if already running, and a bug
 inside one tick must never kill the poller permanently, matching
-mesh-flux's rule that a missing background service must never take down
+confetti-traffic's rule that a missing background service must never take down
 the piece that matters (the dashboard/API staying responsive).
 """
 
@@ -72,7 +72,7 @@ def _loop():
 
 def _tick(executor):
     """Claim due devices (mark them 'running' so a slow poll can't be
-    picked up twice — mesh-flux constraint 6's overlapping-cycle lock,
+    picked up twice — confetti-traffic constraint 6's overlapping-cycle lock,
     moved server-side) and hand each to the thread pool."""
     conn = db.connect()
     try:

@@ -1,7 +1,7 @@
 """Device identity resolution and merge.
 
-Four independent ingest paths (manual add, subnet sweep, vCenter, a YAML
-seed file, and mesh-flux's endpoint list) can all observe the same
+Five independent ingest paths (manual add, subnet sweep, vCenter, a YAML
+seed file, and confetti-traffic's endpoint list) can all observe the same
 physical device under different identifiers. This module is the one place
 that decides whether an observation is a new device, an update to a known
 one, or an ambiguous collision that needs a human — see the merge rule

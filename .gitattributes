@@ -1,7 +1,7 @@
 # Everything under butler/ that isn't a doc or image ends up on an Alpine VM,
 # parsed by a POSIX shell, OpenRC or Python, which do not tolerate a CRLF
 # shebang or config line. Pin these to LF regardless of the committer's local
-# core.autocrlf (same rule as mesh-flux), so a Windows checkout can't
+# core.autocrlf (same rule as confetti-traffic), so a Windows checkout can't
 # silently reintroduce CRLF into the stored blob.
 
 *.sh    text eol=lf

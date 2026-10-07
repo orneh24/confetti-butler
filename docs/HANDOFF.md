@@ -10,7 +10,7 @@ wasn't, and what to check before trusting any of it further.
 
 Designed and built lab-butler from nothing — a Flask/SQLite server for network device inventory,
 IPAM, pull-only config template delivery, syslog, and LLDP/BGP/OSPF topology visualization,
-companion to the sibling project `../mesh-flux`. All ten phases of the approved build plan were
+companion to the sibling project `../confetti-traffic`. All ten phases of the approved build plan were
 completed and, with one exception, verified against real hardware: a lab CSR1000v running
 IOS-XE 17.3.8a at `192.0.2.10`, credentials supplied directly by the user for this purpose.
 
@@ -26,7 +26,7 @@ IOS-XE 17.3.8a at `192.0.2.10`, credentials supplied directly by the user for th
 | 6 | Config templates + pull delivery + editor | Built, verified live — **bug found and fixed**, see below |
 | 7 | LLDP/BGP/OSPF parsers and neighbor resolution | Built; chassis self-registration **replaced 2026-09-27** by advertised-mgmt-IP matching, then verified live across two routers (see follow-up session) |
 | 8 | Topology (vis.js graph, ghost nodes) | Built, verified with synthetic topology data |
-| 9 | Remaining seed sources (sweep, vCenter, mesh-flux import) | Sweep and mesh-flux import verified live; **vCenter built but not verified** — no vCenter instance was reachable |
+| 9 | Remaining seed sources (sweep, vCenter, confetti-traffic import) | Sweep and confetti-traffic import verified live; **vCenter built but not verified** — no vCenter instance was reachable |
 | 10 | Packaging (build-template.sh, OpenRC, firstboot) | Built, shell-syntax-checked (`sh -n`); **never run on a real Alpine VM** |
 
 ## Two real bugs caught during verification
@@ -56,8 +56,8 @@ constraints" section.
   shape for 7.0. No live vCenter was reachable to confirm the actual endpoint responses, auth flow, or
   field names match.
 - **Packaging** (`build-template.sh` and the OpenRC/firstboot scripts). Syntax-valid, structurally
-  mirrors mesh-flux's own build script closely, but has not been run against a real Alpine install —
-  same caveat mesh-flux's own build docs carried at this stage of that project.
+  mirrors confetti-traffic's own build script closely, but has not been run against a real Alpine install —
+  same caveat confetti-traffic's own build docs carried at this stage of that project.
 - ~~**Cross-device LLDP/BGP/OSPF resolution** in a real multi-device lab.~~ Resolved 2026-09-27:
   lab-rtr-b and lab-rtr-c resolve to each other over LLDP in both directions, and live OSPF
   (FULL) and BGP (Established/Active) adjacencies parse correctly. BGP/OSPF peer resolution to a
@@ -90,7 +90,7 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   eight confetti-traffic palettes, 2026-10-05, see below). Gruvbox uses its
   aqua-green for "ok" and Terminal green uses amber for warnings, so ok/warning/failure stay
   distinct. The template editor (CodeMirror) is recoloured from the same palette. The same themes
-  were added to mesh-flux's hub pages. Verified in headless Chrome (Playwright): each theme applies,
+  were added to confetti-traffic's hub pages. Verified in headless Chrome (Playwright): each theme applies,
   survives a page change, no JS errors.
 - **README:** new, with a demo GIF (`docs/img/lab-butler-demo.gif`) recorded against a **mock lab**
   (documentation-range IPs, fake serials) on a scratch database — not real lab data. The seed
@@ -98,7 +98,8 @@ whole history and are kept outside the repo. Main changes, all verified live unl
 - **Other:** device delete cleans up `poll_history` and neighbor references; PUT records new
   identifiers as aliases; credential saves are partial.
 - **Renamed:** sibling project lab-tester → mesh-flux (route `/api/discover/meshflux`, module
-  `collectors/meshflux.py`). Project skills moved from `skills/` to `.claude/skills/` so Claude Code
+  `collectors/meshflux.py`; the sibling has since become Pervium on 2026-09-27, then Confetti Traffic
+  on 2026-10-02, and these names were kept). Project skills moved from `skills/` to `.claude/skills/` so Claude Code
   loads them; new `lab-butler-dev-run` skill covers running locally on Windows.
 
 ## Follow-up session (2026-09-28)
@@ -149,7 +150,7 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   replace real lab IPs, hostnames and a serial with placeholders — don't commit real lab details.
   `butler.db*` and `butler.env` are gitignored (plaintext credentials). `.gitattributes` pins `.sh`, `.initd`, `.py` and
   `requirements.txt` to LF — the machine's system-wide `core.autocrlf=true` would otherwise check
-  shell scripts out with CRLF, which breaks them on Alpine (same rule as mesh-flux).
+  shell scripts out with CRLF, which breaks them on Alpine (same rule as confetti-traffic).
 - Local Python dependencies for development were installed into the ambient environment on this
   machine (`pyyaml`, `netmiko`, `requests`, `pyflakes` for linting, `pillow` for resizing the README GIF —
   `flask`/`waitress`/`jinja2`/`playwright` were already present). The

@@ -1,11 +1,9 @@
 """lab-butler — device inventory, IPAM, config templates, syslog, topology.
 
-Phase 1 (this file, initially): skeleton — health/time/dashboard only.
-Later phases add device, IPAM, template, syslog and topology routes here.
-Unlike mesh-flux's single 911-line app.py, this file is expected to grow to
-several times that size, so once a section outgrows a screenful it moves to
-its own module under app/ (identity.py, ipam.py, rendering.py, poller.py,
-collectors/, parsers/) and app.py keeps only the @app.route wiring for it.
+Unlike confetti-traffic's hub/app/app.py, which keeps nearly everything in one
+file, a section that outgrows a screenful moves to its own module under app/
+(identity.py, ipam.py, rendering.py, poller.py, collectors/, parsers/) and
+app.py keeps only the @app.route wiring for it.
 """
 
 import os
@@ -41,9 +39,9 @@ def _close_db(exc):
 # ---------------------------------------------------------------------------
 # Clock
 #
-# Ported from mesh-flux's /api/time. Several later features here (syslog
+# Ported from confetti-traffic's /api/time. Several later features here (syslog
 # correlation, poll-history windows) depend on the server's clock being
-# disciplined, same reasoning as mesh-flux's hub.
+# disciplined, same reasoning as confetti-traffic's hub.
 # ---------------------------------------------------------------------------
 
 CHRONY_TIMEOUT_S = 3
@@ -130,7 +128,7 @@ def api_time():
 # ---------------------------------------------------------------------------
 # Self-health
 #
-# Ported from mesh-flux's /api/health. Same never-500 discipline: every
+# Ported from confetti-traffic's /api/health. Same never-500 discipline: every
 # metric and every service check is independently guarded, and this is
 # routinely exercised on a non-Alpine dev box where rc-service doesn't exist.
 # ---------------------------------------------------------------------------
@@ -618,7 +616,7 @@ def api_discover_vcenter():
 
 @app.route("/api/discover/meshflux", methods=["POST"])
 def api_discover_meshflux():
-    """Body: {"hub_url": "http://10.0.0.100"}. Imports mesh-flux's node
+    """Body: {"hub_url": "http://10.0.0.100"}. Imports confetti-traffic's node
     fleet as role='node' devices — see collectors/meshflux.py."""
     data = request.get_json(force=True, silent=True) or {}
     hub_url = data.get("hub_url")
@@ -644,7 +642,7 @@ def api_discover_meshflux():
 # after a message arrives still correlates retroactively. Rows are
 # attacker-controlled in the sense that anything on the segment can send
 # UDP/514 with no authentication, so they are rendered as text and never
-# interpreted — same posture as mesh-flux's syslog page.
+# interpreted — same posture as confetti-traffic's syslog page.
 # ---------------------------------------------------------------------------
 
 SYSLOG_MAX_LIMIT = 2000

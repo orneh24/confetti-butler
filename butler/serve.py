@@ -3,7 +3,7 @@
 
 Reads BUTLER_PORT at runtime, so changing it in butler.env actually takes
 effect (OpenRC expands command_args at parse time, before start_pre sources
-the env file — see mesh-flux's serve.py, same constraint here).
+the env file — see confetti-traffic's hub/serve.py, same constraint here).
 
 Serves through waitress when available. Flask's built-in server is
 single-threaded, which would queue the poller's and the dashboard's requests
@@ -26,7 +26,7 @@ def _start_background_services():
     in phase 3). Importing here rather than unconditionally at module load
     keeps this file stable across phases — no edit needed when either module
     is added, since both expose an idempotent start() that returns quietly
-    on failure (unavailable port, no devices yet), matching mesh-flux's
+    on failure (unavailable port, no devices yet), matching confetti-traffic's
     syslog_server.start() contract: a missing background service must never
     stop the server from serving requests, which is the job that matters.
     """

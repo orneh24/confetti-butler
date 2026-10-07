@@ -1,6 +1,6 @@
 """Database helpers shared by app.py, syslog_server.py, poller.py and identity.py.
 
-Split out of app.py (unlike mesh-flux, which keeps these inline) because
+Split out of app.py (unlike confetti-traffic, which keeps these inline) because
 lab-butler's app.py is itself split into route modules, and several
 non-Flask modules (the poller thread, the syslog listener, identity
 resolution) need a connection without importing Flask machinery.
@@ -28,7 +28,7 @@ def connect():
     so setting the timeout after it would leave that one statement
     unprotected. See config.BUSY_TIMEOUT_MS — this file has three writers
     (Flask, the syslog listener thread, the poller's thread pool), one more
-    than mesh-flux's hub ever had.
+    than confetti-traffic's hub ever had.
     """
     db = sqlite3.connect(config.DB_PATH)
     db.row_factory = sqlite3.Row
@@ -216,7 +216,7 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_adj_state ON adjacencies(state);
 
-        -- Append-only, age-pruned like mesh-flux's results table. One row
+        -- Append-only, age-pruned like confetti-traffic's results table. One row
         -- per poll task (version/interfaces/lldp/bgp/ospf), not per device —
         -- a device's LLDP task failing must not hide that its interfaces task
         -- just succeeded.
@@ -235,7 +235,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_poll_received ON poll_history(received_at);
         CREATE INDEX IF NOT EXISTS idx_poll_device ON poll_history(device_id, task);
 
-        -- Same shape as mesh-flux's syslog table. device_id is resolved at
+        -- Same shape as confetti-traffic's syslog table. device_id is resolved at
         -- query time against device_aliases, never stamped at insert — a
         -- device added or re-addressed after a message arrives should still
         -- retroactively correlate.
@@ -272,7 +272,7 @@ def sqlite_now():
     some other shape. Comparing that against datetime('now', ...) is a string
     comparison in which 'T' (0x54) sorts above ' ' (0x20), so any same-day
     row would pass any window. Every table here stamps its own timestamps in
-    this format instead, and filters on that. See mesh-flux CLAUDE.md
+    this format instead, and filters on that. See confetti-traffic CLAUDE.md
     constraints 2 and 18 — this bug bit them twice.
     """
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")

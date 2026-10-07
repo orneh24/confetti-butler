@@ -31,7 +31,7 @@ and the choice is saved in your browser.
 ## What it does
 
 - **Devices.** Add routers by hand, by a subnet sweep (SSH port scan), from a YAML seed file, or
-  import the test nodes from [mesh-flux](https://github.com/orneh24/mesh-flux). The same router seen by two sources lands
+  import the test nodes from [confetti-traffic](https://github.com/orneh24/confetti-traffic). The same router seen by two sources lands
   on one device. When the identifiers disagree (the same IP now answers with a different serial),
   lab-butler raises a conflict instead of guessing.
 - **Polling.** Every few minutes it logs in once per router and reads version, interfaces, LLDP,
@@ -65,7 +65,7 @@ page (Credentials), then click **Poll now**. The database is `butler.db` in the 
 ## Deploying
 
 `butler/build-template.sh` builds an Alpine Linux VM template (OpenRC service, waitress, port 80),
-following the same pattern as mesh-flux's hub. **It has not yet been run on a real Alpine VM.**
+following the same pattern as confetti-traffic's hub. **It has not yet been run on a real Alpine VM.**
 vCenter discovery is also not yet tested against a real vCenter.
 
 ## Security notes
