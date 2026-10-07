@@ -627,7 +627,7 @@ def api_discover_meshflux():
     try:
         device_ids, conflicts = meshflux.discover(conn, hub_url)
     except Exception as exc:
-        return jsonify({"error": "mesh-flux request failed: {}".format(exc)}), 502
+        return jsonify({"error": "confetti-traffic hub request failed: {}".format(exc)}), 502
     conn.commit()
     return jsonify({"status": "ok", "device_ids": device_ids, "conflicts": conflicts})
 

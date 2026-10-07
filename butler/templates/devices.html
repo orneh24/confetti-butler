@@ -29,8 +29,8 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
                 <button type="submit">Sweep (SSH port scan)</button>
             </form>
             <form class="inline" id="meshflux-form" style="margin-bottom:8px">
-                <input type="text" name="hub_url" placeholder="mesh-flux hub URL" style="width:220px">
-                <button type="submit">Import mesh-flux nodes</button>
+                <input type="text" name="hub_url" placeholder="Confetti Traffic hub URL" style="width:220px">
+                <button type="submit">Import Confetti Traffic nodes</button>
             </form>
             <form class="inline" id="seedfile-form">
                 <input type="text" name="path" placeholder="seed/devices.yaml" style="width:220px">
@@ -170,7 +170,7 @@ document.getElementById('meshflux-form').addEventListener('submit', function (ev
     ev.preventDefault();
     var hubUrl = ev.target.hub_url.value.trim();
     if (!hubUrl) { return; }
-    runDiscover('/api/discover/meshflux', { hub_url: hubUrl }, 'mesh-flux import');
+    runDiscover('/api/discover/meshflux', { hub_url: hubUrl }, 'Confetti Traffic import');
 });
 
 document.getElementById('seedfile-form').addEventListener('submit', function (ev) {
