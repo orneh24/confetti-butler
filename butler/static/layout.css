@@ -498,44 +498,66 @@ button.primary { border-color: var(--blue); color: var(--blue); }
     border-color: #808080 #fff #fff #808080;
 }
 
-/* Amber CRT: a monochrome amber terminal with scanlines and glow. Brings its
+/* The two CRT palettes; everything below reads these. Same values as
+   confetti-traffic's dashboard. */
+:root[data-layout="amber"] {
+    --crt-rgb: 255, 176, 0;      --crt-fail-rgb: 255, 140, 26;
+    --crt-bg: #120a00;  --crt-bg-hi: #221400;  --crt-bg-lo: #070400;
+    --crt-card: #170d00;  --crt-hover: #2a1a00;  --crt-muted: #241600;
+    --crt-code: #0d0700;  --crt-stripe: #1c1100;
+    --crt-line: #7a5400;  --crt-soft: #3d2a00;
+    --crt-hi: #ffb000;  --crt-mid: #b37b00;  --crt-gray: #4a3300;  --crt-accent: #ffc94d;
+    --crt-red: #ff6a1a;  --crt-red-bg: #3a1400;
+    --crt-slow: #ffe08a;  --crt-slow-bg: #332400;  --crt-fail: #ff8c1a;
+}
+:root[data-layout="greencrt"] {
+    --crt-rgb: 57, 255, 20;      --crt-fail-rgb: 140, 255, 77;
+    --crt-bg: #010d03;  --crt-bg-hi: #021c07;  --crt-bg-lo: #000502;
+    --crt-card: #021407;  --crt-hover: #032a0a;  --crt-muted: #031a09;
+    --crt-code: #010a02;  --crt-stripe: #021005;
+    --crt-line: #137a10;  --crt-soft: #0b4a0c;
+    --crt-hi: #39ff14;  --crt-mid: #22b80c;  --crt-gray: #1d4a1a;  --crt-accent: #7dff6a;
+    --crt-red: #ff5a3c;  --crt-red-bg: #3a1008;
+    --crt-slow: #d8ff8a;  --crt-slow-bg: #14300a;  --crt-fail: #8cff4d;
+}
+/* Amber CRT and Neon Green CRT: a monochrome terminal with scanlines and glow. Brings its
    own colours (theme picker disabled), so like Retro 95 it must stay after all
    theme rules. One hue means status can't rely on colour alone: a bad pill is
-   inverted (dark on hot amber), a running one is bright and underlined.
+   inverted (dark on the bright hue), a running one is bright and underlined.
    Local monospace fonts only: the server may be offline. */
-:root[data-layout="amber"],
-:root[data-layout="amber"] .section:nth-child(n) {
-    --bg:        #120a00;
-    --bg-card:   #170d00;
-    --bg-card-alt: #170d00;
-    --bg-hover:  #2a1a00;
-    --bg-muted:  #241600;
-    --bg-code:   #0d0700;
-    --stripe:    #1c1100;
-    --border:    #7a5400;
-    --border-soft: #3d2a00;
-    --badge-bg:  #241600;
-    --badge-border: #7a5400;
-    --text:      #ffb000;
-    --text-dim:  #b37b00;
-    --green:     #ffb000;
-    --green-bg:  #2a1a00;
-    --red:       #ff6a1a;
-    --red-bg:    #3a1400;
-    --yellow:    #ffe08a;
-    --yellow-bg: #332400;
-    --gray:      #4a3300;
-    --blue:      #ffc94d;
-    --cyan:      #ffc94d;
+:root:is([data-layout="amber"], [data-layout="greencrt"]),
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .section:nth-child(n) {
+    --bg:        var(--crt-bg);
+    --bg-card:   var(--crt-card);
+    --bg-card-alt: var(--crt-card);
+    --bg-hover:  var(--crt-hover);
+    --bg-muted:  var(--crt-muted);
+    --bg-code:   var(--crt-code);
+    --stripe:    var(--crt-stripe);
+    --border:    var(--crt-line);
+    --border-soft: var(--crt-soft);
+    --badge-bg:  var(--crt-muted);
+    --badge-border: var(--crt-line);
+    --text:      var(--crt-hi);
+    --text-dim:  var(--crt-mid);
+    --green:     var(--crt-hi);
+    --green-bg:  var(--crt-hover);
+    --red:       var(--crt-red);
+    --red-bg:    var(--crt-red-bg);
+    --yellow:    var(--crt-slow);
+    --yellow-bg: var(--crt-slow-bg);
+    --gray:      var(--crt-gray);
+    --blue:      var(--crt-accent);
+    --cyan:      var(--crt-accent);
     color-scheme: dark;
 }
-:root[data-layout="amber"] body {
+:root:is([data-layout="amber"], [data-layout="greencrt"]) body {
     font-family: "VT323", "Fixedsys Excelsior", "Consolas", "Lucida Console", "Courier New", monospace;
-    background: radial-gradient(ellipse at 50% 40%, #221400 0%, #120a00 60%, #070400 100%) fixed;
-    text-shadow: 0 0 4px rgba(255, 176, 0, .55);
+    background: radial-gradient(ellipse at 50% 40%, var(--crt-bg-hi) 0%, var(--crt-bg) 60%, var(--crt-bg-lo) 100%) fixed;
+    text-shadow: 0 0 4px rgba(var(--crt-rgb), .55);
 }
 /* Scanlines over the whole screen; clicks pass through. */
-:root[data-layout="amber"] body::after {
+:root:is([data-layout="amber"], [data-layout="greencrt"]) body::after {
     content: "";
     position: fixed;
     inset: 0;
@@ -543,83 +565,83 @@ button.primary { border-color: var(--blue); color: var(--blue); }
     z-index: 60;
     background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px);
 }
-:root[data-layout="amber"] ::selection { background: #ffb000; color: #120a00; text-shadow: none; }
-:root[data-layout="amber"] * { scrollbar-color: #7a5400 #120a00; }
-:root[data-layout="amber"] .header::before { display: none; }
-:root[data-layout="amber"] .header {
+:root:is([data-layout="amber"], [data-layout="greencrt"]) ::selection { background: var(--crt-hi); color: var(--crt-bg); text-shadow: none; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) * { scrollbar-color: var(--crt-line) var(--crt-bg); }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .header::before { display: none; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .header {
     background: transparent;
     background-image: none;
-    border-bottom: 1px solid #7a5400;
+    border-bottom: 1px solid var(--crt-line);
     padding: 14px 24px 10px;
 }
-:root[data-layout="amber"] .header h1 {
-    font-size: 28px; font-weight: 700; letter-spacing: 3px; color: #ffb000;
-    text-shadow: 0 0 6px rgba(255, 176, 0, .9), 0 0 20px rgba(255, 140, 0, .5);
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .header h1 {
+    font-size: 28px; font-weight: 700; letter-spacing: 3px; color: var(--crt-hi);
+    text-shadow: 0 0 6px rgba(var(--crt-rgb), .9), 0 0 20px rgba(var(--crt-fail-rgb), .5);
 }
-:root[data-layout="amber"] .header h1::before { content: "> "; }
-:root[data-layout="amber"] .header .status { color: #b37b00; text-transform: uppercase; }
-:root[data-layout="amber"] .header .status .dot.up { background: #ffb000; box-shadow: 0 0 6px #ffb000; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .header h1::before { content: "> "; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .header .status { color: var(--crt-mid); text-transform: uppercase; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .header .status .dot.up { background: var(--crt-hi); box-shadow: 0 0 6px var(--crt-hi); }
 /* Boxes: double-line borders, the title cut into the top edge. */
-:root[data-layout="amber"] .section {
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .section {
     background: transparent;
-    border: 3px double #7a5400;
+    border: 3px double var(--crt-line);
     overflow: visible;
 }
-:root[data-layout="amber"] .section-header {
-    border-bottom: 1px dashed #3d2a00;
-    color: #ffb000;
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .section-header {
+    border-bottom: 1px dashed var(--crt-soft);
+    color: var(--crt-hi);
     letter-spacing: 2px;
 }
-:root[data-layout="amber"] .section-header > span:first-child::before { content: "\2524 "; color: #7a5400; }
-:root[data-layout="amber"] .section-header > span:first-child::after { content: " \251C"; color: #7a5400; }
-:root[data-layout="amber"] th { background: #120a00; color: #b37b00; }
-:root[data-layout="amber"] .pill { background: transparent; color: #ffb000; text-shadow: inherit; }
-:root[data-layout="amber"] .pill.ok, :root[data-layout="amber"] .pill.up { background: #2a1a00; }
-:root[data-layout="amber"] .pill.running { background: #2a1a00; color: #ffe08a; text-decoration: underline; }
-:root[data-layout="amber"] .pill.bad,
-:root[data-layout="amber"] .v.bad,
-:root[data-layout="amber"] .msg.err { background: #ff8c1a; color: #120a00; text-shadow: none; padding: 0 4px; }
-:root[data-layout="amber"] button,
-:root[data-layout="amber"] .btn-small,
-:root[data-layout="amber"] .btn-nav,
-:root[data-layout="amber"] .btn-nav-current {
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .section-header > span:first-child::before { content: "\2524 "; color: var(--crt-line); }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .section-header > span:first-child::after { content: " \251C"; color: var(--crt-line); }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) th { background: var(--crt-bg); color: var(--crt-mid); }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .pill { background: transparent; color: var(--crt-hi); text-shadow: inherit; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .pill.ok, :root:is([data-layout="amber"], [data-layout="greencrt"]) .pill.up { background: var(--crt-hover); }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .pill.running { background: var(--crt-hover); color: var(--crt-slow); text-decoration: underline; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .pill.bad,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .v.bad,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .msg.err { background: var(--crt-fail); color: var(--crt-bg); text-shadow: none; padding: 0 4px; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) button,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .btn-small,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .btn-nav,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .btn-nav-current {
     background: transparent;
-    color: #ffb000;
-    border: 1px solid #7a5400;
+    color: var(--crt-hi);
+    border: 1px solid var(--crt-line);
     border-radius: 0;
     font-family: inherit;
     text-transform: uppercase;
     text-shadow: inherit;
 }
-:root[data-layout="amber"] button:hover,
-:root[data-layout="amber"] .btn-small:hover,
-:root[data-layout="amber"] .btn-nav:hover,
-:root[data-layout="amber"] .btn-nav-current {
-    background: #ffb000; color: #120a00; text-shadow: none; text-decoration: none;
+:root:is([data-layout="amber"], [data-layout="greencrt"]) button:hover,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .btn-small:hover,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .btn-nav:hover,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .btn-nav-current {
+    background: var(--crt-hi); color: var(--crt-bg); text-shadow: none; text-decoration: none;
 }
-:root[data-layout="amber"] select,
-:root[data-layout="amber"] input,
-:root[data-layout="amber"] textarea {
+:root:is([data-layout="amber"], [data-layout="greencrt"]) select,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) input,
+:root:is([data-layout="amber"], [data-layout="greencrt"]) textarea {
     background: transparent;
-    color: #ffb000;
+    color: var(--crt-hi);
     border: none;
-    border-bottom: 1px solid #7a5400;
+    border-bottom: 1px solid var(--crt-line);
     border-radius: 0;
     font-family: inherit;
     text-shadow: inherit;
 }
-:root[data-layout="amber"] select option { background: #120a00; color: #ffb000; }
-:root[data-layout="amber"] .theme-select:disabled { color: #4a3300; border-color: #3d2a00; }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) select option { background: var(--crt-bg); color: var(--crt-hi); }
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .theme-select:disabled { color: var(--crt-gray); border-color: var(--crt-soft); }
 /* A prompt with a blinking cursor under the footer buttons. */
-:root[data-layout="amber"] .page-footer::after {
+:root:is([data-layout="amber"], [data-layout="greencrt"]) .page-footer::after {
     content: "butler@lab:~$ \2588";
     display: block;
     margin-top: 10px;
-    color: #b37b00;
-    animation: amber-blink 1s steps(1) infinite;
+    color: var(--crt-mid);
+    animation: crt-blink 1s steps(1) infinite;
 }
-@keyframes amber-blink { 50% { color: transparent; text-shadow: none; } }
+@keyframes crt-blink { 50% { color: transparent; text-shadow: none; } }
 @media (prefers-reduced-motion: reduce) {
-    :root[data-layout="amber"] .page-footer::after { animation: none; }
+    :root:is([data-layout="amber"], [data-layout="greencrt"]) .page-footer::after { animation: none; }
     .header .status .dot.up { animation: none; }
 }

@@ -7,7 +7,7 @@ A companion server for the routers in a network lab. It polls each router over S
 neighbors and BGP/OSPF peers drawn as a topology graph, and syslog. It also renders config
 templates that a router pulls for itself. confetti-butler never writes to a device.
 
-![Tour of confetti-butler: devices, a device page, topology with a BGP filter, IPAM findings, a template preview with security warnings, syslog, an identity conflict, then the colour themes, the four layouts and the Confetti button](docs/img/confetti-butler-demo.gif)
+![Tour of confetti-butler: devices, a device page, topology with a BGP filter, IPAM findings, a template preview with security warnings, syslog, an identity conflict, then the colour themes, the five layouts and the Confetti button](docs/img/confetti-butler-demo.gif)
 
 *Mock data from a made-up lab, using documentation-range addresses. See
 [Running locally](#running-locally).*
@@ -20,13 +20,13 @@ and the choice is saved in your browser.
 
 ![The dashboard in four themes: Light, Terminal green, Confetti Night and Neon Streamers](docs/img/themes.png)
 
-![The dashboard in four layouts: Classic, Modern, Retro 95 and Amber CRT](docs/img/layouts.png)
+![The dashboard in five layouts: Classic, Modern, Retro 95, Amber CRT and Neon Green CRT](docs/img/layouts.png)
 
-- **Themes:** Dark, Light, Dracula, Monokai, High Contrast, Terminal green, Confetti Night and
-  Neon Streamers. **Shuffle** switches between them at random every 5-10 minutes.
-- **Layouts:** Classic, Modern (side menu and summary tiles on the dashboard), Retro 95 and
-  Amber CRT. Retro 95 and Amber CRT bring their own colours, so the theme picker is disabled
-  while one is on.
+- **Themes:** Dark, Light, Monokai, High Contrast, Terminal green, Confetti Night and
+  Neon Streamers. **Shuffle** switches between them at random every 5-10 minutes, and picks a random layout each time.
+- **Layouts:** Classic, Modern (side menu and summary tiles on the dashboard), Retro 95,
+  Amber CRT and Neon Green CRT. Retro 95 and the CRT layouts bring their own colours, so the theme picker is
+  disabled while one is on.
 
 ## What it does
 
@@ -45,7 +45,7 @@ and the choice is saved in your browser.
   its config itself:
   `copy http://<butler>/configs/<device-key>.cfg running-config`.
 - **Syslog.** A UDP receiver, with each message linked to the device that sent it.
-- **Look.** Eight colour themes (or Shuffle) and four layouts. See [Themes and layouts](#themes-and-layouts).
+- **Look.** Seven colour themes (or Shuffle) and five layouts. See [Themes and layouts](#themes-and-layouts).
 
 Built for Cisco IOS / IOS-XE, and tested against CSR1000v routers on IOS-XE 17.3 and 3.11.
 

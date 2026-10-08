@@ -187,11 +187,11 @@ butler/
                           content/CSS/JS (Jinja2 HTML — see constraint 7 re: {% raw %}). The look is
                           copied from confetti-traffic's hub UI; keep the two in step by hand.
   static/theme.css       — the ONE place colours live: dark :root + one :root[data-theme=NAME] block
-                          per extra theme (Dark, Light, Dracula, Monokai, High Contrast, Terminal green,
+                          per extra theme (Dark, Light, Monokai, High Contrast, Terminal green,
                           Confetti Night, Neon Streamers); also the header confetti strip and Neon's
                           per-card colours. Pages must not define their own :root colours
-  static/layout.css      — Classic structure (.header, .section, tables, buttons) + the four layouts:
-                          Classic, Modern (side menu, KPI tiles on the dashboard), Retro 95, Amber CRT.
+  static/layout.css      — Classic structure (.header, .section, tables, buttons) + the five layouts:
+                          Classic, Modern (side menu, KPI tiles on the dashboard), Retro 95, Amber CRT, Neon Green CRT (the last two share one block driven by --crt-* palettes, as in confetti-traffic).
                           Loaded AFTER theme.css on purpose: Retro 95 and Amber bring their own colours
                           and beat Neon's per-card rules only by coming later. Pages use
                           .section > .section-header + .section-body, not their own card CSS
@@ -202,7 +202,7 @@ butler/
                           theme.css + one THEMES entry. "Shuffle" (a mode, not a palette) rotates them
                           every 5-10 min (each timer-driven change also fires the confettiBlast() rain, as in
                           confetti-traffic's hub; not on page load or a selector pick); its pick and
-                          next-change time live in confetti-butler-theme-shuffle so every page stays in step. Retro 95 / Amber disable the theme picker
+                          next-change time live in confetti-butler-theme-shuffle so every page stays in step (the same state carries a `layout` pick, as in confetti-traffic: not saved as the viewer's layout, a hand pick holds until the next change). Retro 95 / the CRT layouts disable the theme picker
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — firstboot.initd, login-setup.sh

@@ -49,30 +49,6 @@
     --blue:      #0969da;
     --cyan:      #0b7a75;
 }
-/* Dracula */
-:root[data-theme="dracula"] {
-    --bg:        #282a36;
-    --bg-card:   #2f3142;
-    --bg-hover:  #383a4d;
-    --bg-muted:  #383a4d;
-    --bg-code:   #1e1f29;
-    --stripe:    #2b2d3b;
-    --border:    #44475a;
-    --border-soft: #383a4d;
-    --badge-bg:  #2f2b45;
-    --badge-border: #5a4f86;
-    --text:      #f8f8f2;
-    --text-dim:  #a9acc6;
-    --green:     #50fa7b;
-    --green-bg:  #23402f;
-    --red:       #ff5555;
-    --red-bg:    #4a2530;
-    --yellow:    #f1fa8c;
-    --yellow-bg: #44452f;
-    --gray:      #6272a4;
-    --blue:      #bd93f9;
-    --cyan:      #8be9fd;
-}
 /* Monokai -- military green: olive drab backgrounds, Monokai accents */
 :root[data-theme="monokai"] {
     --bg:        #22261a;

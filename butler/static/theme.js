@@ -3,11 +3,10 @@
 // Loaded synchronously in <head> so a saved choice is applied before first
 // paint (no dark flash). Pages that draw with JS-held colours (the topology
 // graph) listen for the 'themechange' event and redraw; a layout change fires
-// it too, since Retro 95 and Amber CRT swap the whole palette.
+// it too, since Retro 95 and the CRT layouts swap the whole palette.
 var THEMES = [
     ['dark', 'Dark'],
     ['light', 'Light'],
-    ['dracula', 'Dracula'],
     ['monokai', 'Monokai'],
     ['contrast', 'High Contrast'],
     ['terminal', 'Terminal green'],
@@ -51,6 +50,8 @@ function shuffleStep(fromTimer) {
         try { localStorage.setItem('confetti-butler-theme-shuffle', JSON.stringify(st)); } catch (e) {}
     }
     applyTheme(st.theme);
+    // Shuffle picks a layout with the theme (defined below; not yet at first load).
+    if (typeof shuffleLayout === 'function' && LAYOUTS) shuffleLayout(st);
     // The timer's change gets a confetti rain (as in confetti-traffic's hub); a
     // page load or a pick from the selector does not.
     if (fromTimer && typeof confettiBlast === 'function' && document.body) confettiBlast();
@@ -126,6 +127,7 @@ var LAYOUTS = [
     ['modern', 'Modern'],
     ['retro95', 'Retro 95', true],
     ['amber', 'Amber CRT', true],
+    ['greencrt', 'Neon Green CRT', true],
 ];
 
 function applyLayout(name) {
@@ -138,6 +140,13 @@ try { applyLayout(localStorage.getItem('confetti-butler-layout')); } catch (e) {
 function setLayout(name) {
     applyLayout(name);
     try { localStorage.setItem('confetti-butler-layout', document.documentElement.getAttribute('data-layout') || 'classic'); } catch (e) {}
+    // While shuffling, a hand pick holds until the next change (and a reload).
+    if (shuffling) {
+        try {
+            var st = JSON.parse(localStorage.getItem('confetti-butler-theme-shuffle'));
+            if (st) { st.layout = document.documentElement.getAttribute('data-layout') || 'classic'; localStorage.setItem('confetti-butler-theme-shuffle', JSON.stringify(st)); }
+        } catch (e) {}
+    }
     syncLayoutSelect();
     document.dispatchEvent(new Event('themechange'));
 }
@@ -161,6 +170,26 @@ function syncLayoutSelect() {
         themeSel.title = own ? 'This layout has its own colours' : '';
     }
 }
+
+// Shuffle also picks a layout with each theme, on the same timer. The pick is
+// kept in the shared shuffle state so every page shows the same one. It is not
+// saved as the viewer's own layout choice.
+function shuffleLayout(st) {
+    var names = LAYOUTS.map(function (l) { return l[0]; });
+    if (names.indexOf(st.layout) < 0) {
+        var cur = document.documentElement.getAttribute('data-layout') || 'classic';
+        var pick;
+        do { pick = names[Math.floor(Math.random() * names.length)]; } while (pick === cur);
+        st.layout = pick;
+        try { localStorage.setItem('confetti-butler-theme-shuffle', JSON.stringify(st)); } catch (e) {}
+    }
+    applyLayout(st.layout);
+    syncLayoutSelect();
+}
+// The first shuffleStep ran before LAYOUTS existed: catch up now.
+try {
+    if (shuffling) { var st0 = JSON.parse(localStorage.getItem('confetti-butler-theme-shuffle')); if (st0) shuffleLayout(st0); }
+} catch (e) {}
 
 // "Confetti!" button: a burst from the button, then rain from the top, in the
 // current theme's colours. Plain canvas, no library (the server may be offline).
