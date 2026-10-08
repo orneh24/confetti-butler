@@ -39,7 +39,7 @@ function currentTheme() {
     return document.documentElement.getAttribute('data-theme') || 'dark';
 }
 
-function shuffleStep() {
+function shuffleStep(fromTimer) {
     var now = Date.now();
     var st = null;
     try { st = JSON.parse(localStorage.getItem('confetti-butler-theme-shuffle')); } catch (e) {}
@@ -51,10 +51,13 @@ function shuffleStep() {
         try { localStorage.setItem('confetti-butler-theme-shuffle', JSON.stringify(st)); } catch (e) {}
     }
     applyTheme(st.theme);
+    // The timer's change gets a confetti rain (as in confetti-traffic's hub); a
+    // page load or a pick from the selector does not.
+    if (fromTimer && typeof confettiBlast === 'function' && document.body) confettiBlast();
     clearTimeout(shuffleTimer);
     shuffleTimer = setTimeout(function () {
         if (!shuffling) return;
-        shuffleStep();
+        shuffleStep(true);
         document.dispatchEvent(new Event('themechange'));
     }, Math.max(1000, st.until - now));
 }

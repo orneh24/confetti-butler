@@ -160,7 +160,7 @@ box — that is what the identity ladder is for.
 | Subnet sweep | `POST /api/discover/sweep` | TCP connect to port 22 only — coarse on purpose; the poller's own `version` task does real identification next cycle |
 | vCenter | `POST /api/discover/vcenter` | vSphere REST API (`requests`, not `pyvmomi`) — **not live-verified**, no vCenter instance was reachable while this was built; confirm endpoint shapes before relying on it |
 | YAML seed file | `POST /api/discover/seedfile` | `seed/devices.yaml.sample` shows the shape |
-| confetti-traffic import | `POST /api/discover/confetti` | `GET <hub_url>/endpoints`, imported as `role='node'`, `vendor='alpine'`, `platform='linux'` — never SSH-polled |
+| confetti-traffic import | `POST /api/discover/confetti` | `GET <hub_url>/endpoints`, imported as `role='node'`, `vendor='alpine'`, `platform='linux'` — never SSH-polled. `site` is the endpoint's `group_name`, which is confetti-traffic's *effective* group: a group set on its dashboard overrides what the node registers, so an override changes `site` on the next import |
 
 ## Project Structure
 ```
@@ -200,8 +200,9 @@ butler/
                           change fires 'themechange' too), confettiBlast(), the header health dot
                           (pollHealth; a page may define window.onHealth). Add a theme = one block in
                           theme.css + one THEMES entry. "Shuffle" (a mode, not a palette) rotates them
-                          every 5-10 min; its pick and next-change time live in confetti-butler-theme-shuffle
-                          so every page stays in step. Retro 95 / Amber disable the theme picker
+                          every 5-10 min (each timer-driven change also fires the confettiBlast() rain, as in
+                          confetti-traffic's hub; not on page load or a selector pick); its pick and
+                          next-change time live in confetti-butler-theme-shuffle so every page stays in step. Retro 95 / Amber disable the theme picker
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — firstboot.initd, login-setup.sh
