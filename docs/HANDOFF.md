@@ -1,4 +1,4 @@
-# lab-butler — Build Handoff
+# confetti-butler — Build Handoff
 
 Point-in-time record of the initial build, 2026-09-14/15, plus follow-up sessions on 2026-09-27
 and 2026-09-28 (see the "Follow-up session" sections below). Read `CLAUDE.md` at the repo root first —
@@ -94,7 +94,7 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   survives a page change, no JS errors.
 - **README:** new, with a demo GIF (`docs/img/lab-butler-demo.gif`) recorded against a **mock lab**
   (documentation-range IPs, fake serials) on a scratch database — not real lab data. The seed
-  script for that mock lab is not in the repo.
+  script for that mock lab is now in the repo (see 2026-10-08).
 - **Other:** device delete cleans up `poll_history` and neighbor references; PUT records new
   identifiers as aliases; credential saves are partial.
 - **Renamed:** sibling project lab-tester → mesh-flux (route `/api/discover/meshflux`, module
@@ -138,7 +138,7 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   the Confetti button) plus `themes.png` and `layouts.png` (2×2 collages of the dashboard). Recorded
   with Playwright against a **mock lab** on a scratch database (3 routers, `192.0.2.0/24` and
   `10.0.x.x` addresses, fake serials `9SIMLAB000x`, one identity conflict, an overlap and a duplicate
-  IP in IPAM) — no real lab data. The seed and capture scripts are not in the repo.
+  IP in IPAM) — no real lab data. The seed and capture scripts are now in the repo (see 2026-10-08).
 - The header status reads `up` (not `up since unknown`) when the server reports no uptime, as on Windows.
 - Old saved `catppuccin` / `gruvbox` choices fall back to Dark (unknown names are ignored).
 - Flask caches templates outside debug mode, so restart the server after editing a template.
@@ -171,11 +171,23 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   or move the paths and services by hand and update that line in `butler.env`.
 - Earlier entries above still say lab-butler; that was the name then.
 - **Not tested:** `build-template.sh` and the OpenRC scripts were only syntax-checked, not run on Alpine.
+- **README image scripts are now permanent:** `butler/scripts/seed_mock_lab.py` fills a new scratch DB with the
+  mock lab; `butler/scripts/capture_readme.py` seeds one, starts a server on port 8099, drives Chromium
+  (Playwright + Pillow) and rewrites `docs/img/` (`themes.png`, `layouts.png`, the GIF). Run it after any UI
+  change. Tested with output sent to a scratch folder: both PNGs show the new CONFETTI BUTLER branding.
+  `docs/img/` was regenerated with it the same day: all three images show the new branding
+  (checked: `layouts.png`, `themes.png` and the topology frame of the GIF; other GIF frames not looked at).
+- **Topology legend:** `templates/topology.html` has a collapsible Legend panel (bottom-left of the map)
+  explaining router / Confetti Traffic node / other-role / unresolved-neighbor nodes and the LLDP (cyan),
+  BGP (yellow) and OSPF (blue) line colours. It uses theme colours, so it follows the pickers. Replaces the
+  old one-line legend in the filter bar. Checked in Chrome in Classic and Retro 95 on the mock lab, no JS
+  errors; other theme and layout pairs not checked. The mock-lab seed now uses full interface names on both
+  ends of an LLDP link so each cable is drawn once.
 
 ## Housekeeping
 
 - **Git:** repository initialised 2026-09-27 on `main`, public at
-  https://github.com/orneh24/lab-butler. The unpushed history was rewritten before the first push to
+  https://github.com/orneh24/confetti-butler. The unpushed history was rewritten before the first push to
   replace real lab IPs, hostnames and a serial with placeholders — don't commit real lab details.
   `butler.db*` and `butler.env` are gitignored (plaintext credentials). `.gitattributes` pins `.sh`, `.initd`, `.py` and
   `requirements.txt` to LF — the machine's system-wide `core.autocrlf=true` would otherwise check

@@ -205,7 +205,8 @@ butler/
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — firstboot.initd, login-setup.sh
-  scripts/ — butler-setup.sh
+  scripts/ — butler-setup.sh, seed_mock_lab.py (fake lab in a new scratch DB),
+           capture_readme.py (re-records docs/img/ from that mock lab; run after any UI change)
 .claude/skills/  — 6 vendor/protocol reference skills (this app's domain knowledge) +
            confetti-butler-hub-api (this app's own HTTP contract, mirroring confetti-hub-api) +
            confetti-butler-dev-run (running it locally on Windows)

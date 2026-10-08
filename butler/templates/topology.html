@@ -6,9 +6,17 @@
 <style>
 .filters { padding: 10px 24px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--bg-card); border-bottom: 1px solid var(--border); flex: 0 0 auto; }
 button.active { border-color: var(--cyan); color: var(--cyan); }
-.legend { margin-left: auto; display: flex; gap: 14px; font-size: 11px; color: var(--text-dim); align-items: center; flex-wrap: wrap; }
-.legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-#net { flex: 1 1 auto; min-height: 0; background: var(--bg); }
+.net-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
+#net { position: absolute; inset: 0; background: var(--bg); }
+.legend-box { position: absolute; left: 12px; bottom: 12px; z-index: 5; max-width: 270px; font-size: 11px; color: var(--text-dim);
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; }
+.legend-box summary { cursor: pointer; color: var(--text); font-weight: bold; }
+.legend-box h4 { margin: 8px 0 3px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.legend-box .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.legend-box .sw { flex: 0 0 22px; height: 12px; border-radius: 2px; }
+.legend-box .sw.ghost { border-radius: 50%; width: 12px; flex-basis: 12px; margin: 0 5px; background: var(--bg-card); border: 1px dashed var(--text-dim); }
+.legend-box .ln { flex: 0 0 22px; height: 0; border-top: 3px solid; }
+.legend-box .hint { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 5px; }
 #net .empty { padding: 24px; }
 </style>
 {% endblock %}
@@ -18,13 +26,23 @@ button.active { border-color: var(--cyan); color: var(--cyan); }
     <button data-layer="lldp" onclick="setLayer('lldp', this)">LLDP</button>
     <button data-layer="bgp" onclick="setLayer('bgp', this)">BGP</button>
     <button data-layer="ospf" onclick="setLayer('ospf', this)">OSPF</button>
-    <span class="legend">
-        <span><span class="dot" style="background:var(--blue)"></span>router</span>
-        <span><span class="dot" style="background:var(--text-dim)"></span>node (Confetti Traffic)</span>
-        <span><span class="dot" style="background:var(--gray);border:1px dashed var(--text-dim)"></span>unresolved neighbor</span>
-    </span>
 </div>
-<div id="net"></div>
+<div class="net-wrap">
+    <div id="net"></div>
+    <details class="legend-box" open>
+        <summary>Legend</summary>
+        <h4>Devices</h4>
+        <div class="row"><span class="sw" style="background:var(--blue)"></span>router (polled over SSH)</div>
+        <div class="row"><span class="sw" style="background:var(--text-dim)"></span>Confetti Traffic node (never polled)</div>
+        <div class="row"><span class="sw" style="background:var(--green)"></span>other device role</div>
+        <div class="row"><span class="sw ghost"></span>unresolved neighbor or peer: seen, but not matched to a known device</div>
+        <h4>Links</h4>
+        <div class="row"><span class="ln" style="border-color:var(--cyan)"></span>LLDP cable: local port - remote port</div>
+        <div class="row"><span class="ln" style="border-color:var(--yellow)"></span>BGP session and its state</div>
+        <div class="row"><span class="ln" style="border-color:var(--blue)"></span>OSPF adjacency and its state</div>
+        <div class="hint">Double-click a router to open its page. Drag to move, scroll to zoom.</div>
+    </details>
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="/static/vendor/vis-network/vis-network.min.js"></script>
