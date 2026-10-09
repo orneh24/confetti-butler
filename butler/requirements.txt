@@ -1,6 +1,13 @@
-flask
-waitress
-netmiko
-jinja2
-pyyaml
-requests
+# Exact versions confetti-butler was developed and tested with (Python 3.12).
+#
+# Dev machine:  pip install -r requirements.txt
+# Alpine VM:    build-template.sh takes flask, jinja2, pyyaml and requests from apk
+#               (py3-*) and pip-installs only what apk lacks, using the pins below
+#               for netmiko and waitress. Do not pin the apk-provided ones to
+#               something Alpine does not ship.
+flask==3.1.3
+jinja2==3.1.6
+pyyaml==6.0.3
+requests==2.34.2
+netmiko==4.7.0
+waitress==3.0.2

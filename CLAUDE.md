@@ -175,6 +175,19 @@ against `device_aliases`, never stamped at insert — confetti-butler has the IP
 deliberately lacks, and resolving at query time means a device added or re-addressed after a message
 arrives still correlates retroactively.
 
+## Updating a deployed VM
+
+`butler-update.sh <butler-dir|tarball>` (also `--rollback`) updates the code only: it import-checks the
+new tree against a throwaway DB *before* stopping anything, backs up the DB with `sqlite3 .backup`
+(`/var/lib/confetti-butler/backups`, 0700, newest 5 kept), swaps `/opt/confetti-butler` (old one kept as
+`.prev`), restarts, waits for `/api/health` and swaps back by itself if it never comes up. `butler.env`
+is carried over; the DB is not restored on rollback (new versions only add tables/columns). It does not
+touch apk/pip packages or the OpenRC scripts — it warns when `requirements.txt` or `firstboot.initd`
+changed; re-run `build-template.sh` for those. `requirements.txt` holds exact tested versions;
+`build-template.sh` pip-installs only netmiko/waitress/flask-if-missing from those pins, the rest come
+from apk. Tested in an `alpine:3.20` container with a fake `rc-service` (update from dir and tarball,
+rollback, import failure, unhealthy start → auto rollback); not on a real OpenRC VM.
+
 ## Seeding paths (device discovery)
 
 All five are meant to run together and land on the same `devices` row when they observe the same
@@ -233,7 +246,7 @@ butler/
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — firstboot.initd, login-setup.sh
-  scripts/ — butler-setup.sh, seed_mock_lab.py (fake lab in a new scratch DB),
+  scripts/ — butler-setup.sh, butler-update.sh (in-place update with backup + rollback), seed_mock_lab.py (fake lab in a new scratch DB),
            capture_readme.py (re-records docs/img/ from that mock lab; run after any UI change)
 .claude/skills/  — 6 vendor/protocol reference skills (this app's domain knowledge) +
            confetti-butler-hub-api (this app's own HTTP contract, mirroring confetti-hub-api) +

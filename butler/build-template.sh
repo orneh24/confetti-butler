@@ -18,6 +18,9 @@
 #   2. Run: sh /root/butler/build-template.sh
 #   3. Shutdown and convert to template in vCenter
 #
+# Updating an already-deployed VM (code only, with backup and rollback):
+#   butler-update.sh <butler-dir | butler.tar.gz>     (see scripts/butler-update.sh)
+#
 # After cloning:
 #   1. Set a static IP (or a DHCP reservation)
 #   2. Boot — the dashboard starts automatically on port 80
@@ -141,22 +144,33 @@ cp -f "${SCRIPT_DIR}/requirements.txt" "$INSTALL_DIR/"
 cp -f "${SCRIPT_DIR}/serve.py" "$INSTALL_DIR/"
 cp -f "${SCRIPT_DIR}/run.sh" "$INSTALL_DIR/"
 cp -f "${SCRIPT_DIR}/scripts/butler-setup.sh" "$INSTALL_DIR/"
-chmod +x "$INSTALL_DIR/run.sh" "$INSTALL_DIR/serve.py" "$INSTALL_DIR/butler-setup.sh"
+cp -f "${SCRIPT_DIR}/scripts/butler-update.sh" "$INSTALL_DIR/"
+chmod +x "$INSTALL_DIR/run.sh" "$INSTALL_DIR/serve.py" "$INSTALL_DIR/butler-setup.sh"     "$INSTALL_DIR/butler-update.sh"
 ln -sf "$INSTALL_DIR/butler-setup.sh" /usr/local/bin/butler-setup.sh
+ln -sf "$INSTALL_DIR/butler-update.sh" /usr/local/bin/butler-update.sh
 
 # -------------------------------------------------------------------
 # 5. Install Python dependencies not covered by apk
 # -------------------------------------------------------------------
 log "Checking Python dependencies"
 
+# Versions come from requirements.txt, so a rebuild installs what was tested.
+# Only the packages apk lacks are installed here; the py3-* ones above stay
+# at whatever version this Alpine release ships.
+pin() {
+    spec=$(grep -i "^$1==" "${SCRIPT_DIR}/requirements.txt" || true)
+    [ -n "$spec" ] || die "no pinned $1 in requirements.txt"
+    printf '%s' "$spec"
+}
+
 if ! python3 -c "import flask" 2>/dev/null; then
     log "Installing Flask via pip"
-    pip3 install --break-system-packages flask
+    pip3 install --break-system-packages "$(pin flask)"
 fi
 
 if ! python3 -c "import netmiko" 2>/dev/null; then
     log "Installing Netmiko via pip (not an Alpine package)"
-    pip3 install --break-system-packages netmiko
+    pip3 install --break-system-packages "$(pin netmiko)"
 fi
 
 # Waitress serves the app instead of Flask's development server, which is
@@ -164,8 +178,7 @@ fi
 # the dashboard would all queue behind each other otherwise.
 log "Installing waitress WSGI server"
 if ! python3 -c "import waitress" 2>/dev/null; then
-    apk add --no-cache py3-waitress 2>/dev/null || \
-        pip3 install --break-system-packages waitress
+    apk add --no-cache py3-waitress 2>/dev/null ||         pip3 install --break-system-packages "$(pin waitress)"
 fi
 
 # -------------------------------------------------------------------
@@ -196,6 +209,11 @@ BUTLER_POLL_WORKERS=8
 BUTLER_POLL_DEFAULT_INTERVAL_S=300
 BUTLER_POLL_MAX_BACKOFF_S=3600
 BUTLER_POLL_HISTORY_RETENTION_HOURS=168
+
+# --- Retention ---------------------------------------------------------
+BUTLER_EVENT_RETENTION_DAYS=30
+# Running-config versions kept per device; 0 keeps all.
+BUTLER_CONFIG_VERSIONS_KEEP=0
 
 # --- Default device credentials -----------------------------------------
 # Shared lab defaults; override per device via PUT /api/devices/<id>/credentials.
