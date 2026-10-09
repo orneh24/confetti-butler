@@ -10,3 +10,11 @@
 
 butler/requirements.txt       text eol=lf
 butler/seed/*.sample          text eol=lf
+
+# Read by Alpine (the Packer answer file is sourced by sh), by Docker, or compared
+# byte-for-byte against parser expectations: keep LF on a Windows checkout too.
+packer/http/answers          text eol=lf
+packer/*.hcl                 text eol=lf
+container/*                  text eol=lf
+butler/.dockerignore         text eol=lf
+dev/samples/*.txt            text eol=lf
