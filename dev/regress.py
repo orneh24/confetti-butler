@@ -36,7 +36,7 @@ VERBOSE = "-v" in sys.argv
 STATIC_ONLY = "--static" in sys.argv
 
 results = []   # (status, id, desc, [detail lines])
-LIVE = [("R20", "live: real server answers, pages render, syslog round trip")]
+LIVE = [("R20", "live: real server answers, pages render, /metrics, syslog round trip")]
 TMP = tempfile.mkdtemp(prefix="butler-regress-")
 
 
@@ -442,7 +442,7 @@ def _():
 def _():
     p = []
     m, conn = fresh_db()
-    ssh, events, poller = m["ssh"], m["events"], m["poller"]
+    ssh, poller = m["ssh"], m["poller"]
     did = add_device(conn, "192.0.2.1")
 
     def intf(oper):
@@ -543,6 +543,297 @@ def _():
     return p
 
 
+# ---- features added after R19 -----------------------------------------
+
+SAMPLES = "dev/samples/"
+
+
+def sample(name):
+    return read(SAMPLES + name)
+
+
+@check("R21", "Arista EOS / Junos parsers handle their (hand-written) samples")
+def _():
+    p = []
+    app_modules()
+    from app.parsers import eos, junos
+    v = eos.parse_version(sample("eos_show_version.txt"))
+    need((v["model"], v["serial"], v["os_version"]) == ("vEOS-lab", "SN-EOS-0001", "4.28.3M"), "eos version: %r" % v, p)
+    l = eos.parse_lldp_neighbors(sample("eos_lldp_detail.txt"))
+    need(len(l) == 2 and l[0]["local_if"] == "Ethernet1" and l[0]["remote_mgmt_ip"] == "192.0.2.22"
+         and l[0]["remote_port"] == "Ethernet2" and l[1]["remote_sysname"] == "core-sw", "eos lldp: %r" % l, p)
+    b = eos.parse_bgp_summary(sample("eos_bgp_summary.txt"))
+    need([(x["peer_ip"], x["state"]) for x in b] == [("192.0.2.2", "Established"), ("192.0.2.3", "Active")], "eos bgp: %r" % b, p)
+    o = eos.parse_ospf_neighbors(sample("eos_ospf_neighbor.txt"))
+    need([x["state"] for x in o] == ["FULL", "2-WAY"], "eos ospf: %r" % o, p)
+    c = eos.parse_running_config(sample("eos_running_config.txt"))
+    need(c and "Command:" not in c and c.rstrip().endswith("end"), "eos config header not stripped / not accepted", p)
+    need(eos.parse_running_config("% Invalid input") == "", "eos error text accepted as a config", p)
+    jv = junos.parse_version(sample("junos_show_version.txt"))
+    need((jv["hostname_hint"], jv["model"], jv["os_version"]) == ("vsrx1", "vsrx", "21.4R3-S2.3"), "junos version: %r" % jv, p)
+    ji = {x["name"]: x for x in junos.parse_interfaces(sample("junos_interfaces_terse.txt"))}
+    need(ji.get("ge-0/0/0.0", {}).get("ip") == "198.51.100.1" and ji["ge-0/0/0.0"]["prefix_len"] == 24, "junos ip: %r" % ji.get("ge-0/0/0.0"), p)
+    need(ji.get("ge-0/0/1", {}).get("oper_status") == "down" and ji.get("lo0.0", {}).get("prefix_len") == 32, "junos status/prefix", p)
+    need(len(ji) == 6, "junos interfaces: %d rows, expected 6 (continuation lines must not become rows)" % len(ji), p)
+    jl = junos.parse_lldp_neighbors(sample("junos_lldp.txt"))
+    need([x["local_if"] for x in jl] == ["ge-0/0/0", "ge-0/0/2"], "junos lldp: %r" % jl, p)
+    jb = junos.parse_bgp_summary(sample("junos_bgp_summary.txt"))
+    need([(x["peer_ip"], x["state"]) for x in jb] == [("192.0.2.2", "Established"), ("192.0.2.3", "Active")], "junos bgp: %r" % jb, p)
+    jo = junos.parse_ospf_neighbors(sample("junos_ospf.txt"))
+    need([x["state"] for x in jo] == ["FULL", "2WAY"], "junos ospf: %r" % jo, p)
+    need(junos.parse_running_config(sample("junos_config_set.txt")).count("\n") == 3, "junos config set lines", p)
+    need(junos.parse_running_config("syntax error, expecting <command>") == "", "junos error text accepted as a config", p)
+    return p
+
+
+@check("R22", "platform registry: same tasks everywhere, config last, unknown platform = IOS")
+def _():
+    p = []
+    m = app_modules()
+    from app import platforms
+    ios_tasks = tuple(platforms.IOS["commands"])
+    for name, plat in platforms.PLATFORMS.items():
+        if plat["transport"] == "ssh":
+            need(tuple(plat["commands"]) == ios_tasks, "%s tasks are %r, expected %r" % (name, tuple(plat["commands"]), ios_tasks), p)
+            need(set(plat["parsers"]) == set(plat["commands"]), "%s: commands and parsers differ" % name, p)
+        else:
+            need(set(plat["tasks"]) <= set(ios_tasks), "%s offers tasks the apply step does not know" % name, p)
+    need(ios_tasks[-1] == "config", "config must stay the last task (a slow read must not delay the others)", p)
+    need(platforms.get(None) is platforms.IOS and platforms.get("no-such-os") is platforms.IOS, "unknown platform must fall back to IOS", p)
+    need(m["ssh"].TASKS == ios_tasks, "ssh.TASKS drifted from platforms.IOS", p)
+    seen = []
+    real = m["ssh"].snmp.run_tasks
+    def fake_snmp(device, creds):
+        seen.append("snmp")
+        return iter([])
+    m["ssh"].snmp.run_tasks = fake_snmp
+    try:
+        list(m["ssh"].run_tasks({"platform": "snmp", "mgmt_ip": "192.0.2.1"}, {}))
+    finally:
+        m["ssh"].snmp.run_tasks = real
+    need(seen == ["snmp"], "platform 'snmp' was not routed to the SNMP collector", p)
+    return p
+
+
+@check("R23", "SNMP collector: parses real snmpd output, refuses v3, bad hosts, missing tools")
+def _():
+    p = []
+    from app.collectors import snmp
+    walks = {c: {} for c in (snmp.IF_DESCR, snmp.IF_MTU, snmp.IF_SPEED, snmp.IF_ADMIN, snmp.IF_OPER,
+                             snmp.IF_IN_ERRORS, snmp.IF_ALIAS, snmp.IP_IFINDEX, snmp.IP_MASK)}
+    for col, f in ((snmp.IF_DESCR, "snmp_ifDescr.txt"), (snmp.IF_ADMIN, "snmp_ifAdminStatus.txt"),
+                   (snmp.IF_OPER, "snmp_ifOperStatus.txt"), (snmp.IP_IFINDEX, "snmp_ipAdEntIfIndex.txt"),
+                   (snmp.IP_MASK, "snmp_ipAdEntNetMask.txt")):
+        walks[col] = snmp.parse_pairs(sample(f))
+    rows = {r["name"]: r for r in snmp.parse_interfaces(walks)}
+    need(set(rows) == {"lo", "eth0"}, "interfaces parsed: %r" % sorted(rows), p)
+    if "lo" in rows:
+        need((rows["lo"]["ip"], rows["lo"]["prefix_len"], rows["lo"]["oper_status"]) == ("127.0.0.1", 8, "up"), "lo row: %r" % rows["lo"], p)
+    v = snmp.parse_version(snmp.parse_pairs(sample("snmp_sys.txt")))
+    need((v["hostname_hint"], v["os_version"]) == ("lab-snmp-1", "15.4(1)S2"), "version: %r" % v, p)
+
+    def errors(device, creds):
+        return [e for (_t, ok, _o, e, _p) in snmp.run_tasks(device, creds) if not ok]
+    need(all("not supported" in e for e in errors({"mgmt_ip": "192.0.2.1"}, {"snmp_version": "3"})), "v3 must fail with a clear message", p)
+    need(all("not an IP" in e for e in errors({"mgmt_ip": "192.0.2.1; id"}, {"snmp_version": "2c"})), "a non-IP host reached the subprocess", p)
+    real = snmp.subprocess.run
+
+    def missing(*a, **k):
+        raise FileNotFoundError()
+    snmp.subprocess.run = missing
+    try:
+        errs = errors({"mgmt_ip": "192.0.2.1"}, {"snmp_version": "2c", "snmp_community": "x"})
+    finally:
+        snmp.subprocess.run = real
+    need(errs and all("net-snmp-tools" in e for e in errs), "missing snmpwalk should name the apk package: %r" % errs, p)
+    return p
+
+
+@check("R24", "ICMP checker: baseline silent, down after N fails, up on recovery, never shells out a non-IP")
+def _():
+    p = []
+    m, conn = fresh_db()
+    from app import reach
+    a = add_device(conn, "192.0.2.1", "a")
+    b = add_device(conn, "192.0.2.2", "b", "node")      # nodes are pinged too
+    conn.close()
+    answers = {"192.0.2.1": [True, False, False, True], "192.0.2.2": [False, False, False, False]}
+    step = [0]
+
+    def fake_ping(host):
+        return answers[host][step[0]]
+
+    def kinds():
+        c = m["db"].connect()
+        try:
+            return [(r["device_id"], r["kind"]) for r in c.execute("SELECT device_id, kind FROM events ORDER BY id")]
+        finally:
+            c.close()
+    for i in range(4):
+        step[0] = i
+        reach.run_cycle(ping=fake_ping)
+        if i == 0:
+            need(kinds() == [], "first result emitted an event: %r" % kinds(), p)
+        if i == 1:
+            need(kinds() == [], "one lost ping already raised an event", p)
+        if i == 2:
+            need(kinds() == [(a, "ping_down")], "after 2 failures expected ping_down, got %r" % kinds(), p)
+    need(kinds() == [(a, "ping_down"), (a, "ping_up")], "recovery expected ping_up, got %r" % kinds(), p)
+    c = m["db"].connect()
+    need(c.execute("SELECT reachable FROM devices WHERE id = ?", (b,)).fetchone()[0] == 0, "node device not marked down", p)
+    c.close()
+    need(reach._ping("-h") is None and reach._ping("192.0.2.1; id") is None and reach._ping("") is None,
+         "_ping must refuse anything that is not an IP", p)
+    return p
+
+
+@check("R25", "/metrics is valid Prometheus text with escaped labels")
+def _():
+    p = []
+    m, conn = fresh_db()
+    did = add_device(conn, "192.0.2.1", 'a"b\\c')
+    conn.execute("INSERT INTO adjacencies (device_id, proto, peer_ip, state, last_seen) VALUES (?, 'bgp', '192.0.2.9', 'Active', ?)",
+                 (did, m["db"].sqlite_now()))
+    conn.execute("UPDATE devices SET reachable = 0 WHERE id = ?", (did,))
+    conn.commit()
+    conn.close()
+    resp = m["appmod"].app.test_client().get("/metrics")
+    need(resp.status_code == 200 and resp.content_type.startswith("text/plain"), "status/content-type: %s %s" % (resp.status_code, resp.content_type), p)
+    text = resp.get_data(as_text=True)
+    sample_rx = re.compile(r'^[a-zA-Z_:][a-zA-Z0-9_:]*(\{([a-zA-Z_][a-zA-Z0-9_]*="([^"\\\n]|\\.)*",?)*\})? -?\d+(\.\d+)?$')
+    declared = []
+    for ln in text.splitlines():
+        if ln.startswith("# HELP "):
+            declared.append(ln.split()[2])
+        elif ln.startswith("# TYPE "):
+            continue
+        elif not sample_rx.match(ln):
+            p.append("not valid exposition format: %r" % ln)
+    need(len(declared) == len(set(declared)), "a metric is declared (# HELP) more than once", p)
+    for want in ('butler_up 1', 'butler_adjacency_up{device="a\\"b\\\\c",peer="192.0.2.9",proto="bgp"} 0',
+                 'butler_device_reachable{device="a\\"b\\\\c",role="router"} 0'):
+        need(want in text, "missing line: %s" % want, p)
+    return p
+
+
+@check("R26", "interface error history: sampled on change, resets ignored, 24h growth in the API")
+def _():
+    p = []
+    m, conn = fresh_db()
+    ssh = m["ssh"]
+    need(ssh.growth([{"x": v} for v in (10, 15, 3, 8)], "x") == 10, "growth() should ignore a counter reset", p)
+    did = add_device(conn, "192.0.2.1")
+
+    def intf(crc):
+        return [dict(name="Gi1", description="", ip=None, prefix_len=None, network=None, admin_status="up",
+                     oper_status="up", speed=None, duplex=None, input_errors=crc, crc_errors=crc, mtu=1500)]
+
+    def samples():
+        return conn.execute("SELECT COUNT(*) FROM interface_stats").fetchone()[0]
+    ssh.apply_result(conn, did, "interfaces", intf(5))
+    ssh.apply_result(conn, did, "interfaces", intf(5))
+    need(samples() == 1, "unchanged counters stored %d samples, expected 1" % samples(), p)
+    ssh.apply_result(conn, did, "interfaces", intf(9))
+    need(samples() == 2, "changed counters not sampled (%d)" % samples(), p)
+    conn.commit()
+    conn.close()
+    c = m["appmod"].app.test_client()
+    row = c.get("/api/devices/%d/interfaces" % did).get_json()[0]
+    need(row["crc_errors_24h"] == 4, "crc_errors_24h = %r, expected 4" % row["crc_errors_24h"], p)
+    hist = c.get("/api/devices/%d/interface-stats?name=Gi1" % did).get_json()
+    need([h["crc_errors"] for h in hist] == [5, 9], "history: %r" % hist, p)
+    return p
+
+
+@check("R27", "LLDP crawl: adopted devices are inventory-only; off by default; bad IPs refused")
+def _():
+    p = []
+    cfg_src = read("butler/app/config.py")
+    need('"BUTLER_LLDP_AUTO_ADOPT", "false"' in cfg_src, "BUTLER_LLDP_AUTO_ADOPT must default to false", p)
+    need('"BUTLER_DISCOVERY_INTERVAL_S", "0"' in cfg_src, "BUTLER_DISCOVERY_INTERVAL_S must default to 0 (off)", p)
+    m, conn = fresh_db()
+    from app import lldp_crawl as crawl
+    ssh, config = m["ssh"], m["config"]
+    did = add_device(conn, "192.0.2.1", "r1")
+
+    def nb(ip, name, port):
+        return [dict(local_if="Gi1", remote_chassis="aa", remote_sysname=name, remote_port=port, remote_mgmt_ip=ip)]
+    ssh.apply_result(conn, did, "lldp", nb("192.0.2.50", "sw9", "Gi0/1"))
+    need([u["ip"] for u in crawl.unknown_neighbors(conn)] == ["192.0.2.50"], "unknown neighbor not listed", p)
+    need(conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0] == 1, "a neighbor became a device with auto-adopt off", p)
+    new = crawl.adopt(conn, "192.0.2.50", "sw9", "r1")
+    conn.commit()
+    row = conn.execute("SELECT enabled, hostname FROM devices WHERE id = ?", (new,)).fetchone()
+    need(row and row["enabled"] == 0 and row["hostname"] == "sw9", "adopted device must start disabled: %r" % (dict(row) if row else None), p)
+    need(conn.execute("SELECT COUNT(*) FROM events WHERE kind = 'device_discovered'").fetchone()[0] == 1, "no device_discovered event", p)
+    need(conn.execute("SELECT remote_device_id FROM lldp_neighbors").fetchone()[0] == new, "lldp row not linked to the adopted device", p)
+    need(crawl.unknown_neighbors(conn) == [], "adopted neighbor still listed as unknown", p)
+    for bad in ("127.0.0.1", "0.0.0.0", "224.0.0.1", "999.1.1.1", "not-an-ip", ""):
+        need(crawl.adopt(conn, bad, "x", "r1") is None, "adopt accepted %r" % bad, p)
+    config.LLDP_AUTO_ADOPT = True
+    try:
+        ssh.apply_result(conn, did, "lldp", nb("192.0.2.51", "sw10", "Gi0/2"))
+    finally:
+        config.LLDP_AUTO_ADOPT = False
+    auto = conn.execute("SELECT enabled FROM devices WHERE mgmt_ip = '192.0.2.51'").fetchone()
+    need(auto is not None and auto["enabled"] == 0, "auto-adopt did not create a disabled device", p)
+    conn.close()
+    return p
+
+
+@check("R28", "scheduled discovery: one source failing keeps the others; new devices announced once")
+def _():
+    p = []
+    m, conn = fresh_db()
+    conn.close()
+    from app import discovery as disc
+    config, conf = m["config"], m["confetti"]
+    need(disc._thread is None and config.DISCOVERY_INTERVAL_S == 0, "discovery thread should not run by default", p)
+    disc.start()
+    need(disc._thread is None, "discovery.start() started a thread with the interval at 0", p)
+
+    def fake(c, url):
+        return [m["identity"].ingest(c, [("mgmt_ip", "192.0.2.77")], {"hostname": "found1"}, source="confetti")], []
+    real, old = conf.discover, (config.DISCOVERY_CONFETTI_URL, config.DISCOVERY_SEEDFILE)
+    conf.discover = fake
+    config.DISCOVERY_CONFETTI_URL, config.DISCOVERY_SEEDFILE = "http://hub.invalid", os.path.join(TMP, "missing.yaml")
+    try:
+        s1 = disc.run_once()
+        s2 = disc.run_once()
+    finally:
+        conf.discover = real
+        config.DISCOVERY_CONFETTI_URL, config.DISCOVERY_SEEDFILE = old
+    need(s1.get("confetti", {}).get("new") == 1 and "error" in s1.get("seedfile", {}), "first run summary: %r" % s1, p)
+    need(s2.get("confetti", {}).get("new") == 0, "second run reported the device as new again: %r" % s2, p)
+    c = m["db"].connect()
+    n = c.execute("SELECT COUNT(*) FROM events WHERE kind = 'device_discovered'").fetchone()[0]
+    need(n == 1, "device_discovered events: %d, expected exactly 1" % n, p)
+    need(c.execute("SELECT COUNT(*) FROM devices WHERE hostname = 'found1'").fetchone()[0] == 1,
+         "the confetti device was lost when the seedfile source failed", p)
+    c.close()
+    return p
+
+
+@check("R29", "container and Packer files agree with the repo (COPY sources, contexts, ignored secrets)")
+def _():
+    p = []
+    df = read("container/Dockerfile")
+    for src in re.findall(r"^COPY\s+(\S+)\s+\S+", df, re.M):
+        need(os.path.exists(os.path.join("butler", src)), "Dockerfile copies '%s', not in butler/" % src, p)
+    need(re.search(r"^FROM alpine:\d", df, re.M) is not None, "Dockerfile base image is not a pinned alpine:<version>", p)
+    need("BUTLER_HEALTH_SERVICES=" in df, "Dockerfile must empty BUTLER_HEALTH_SERVICES (no OpenRC in a container)", p)
+    for pin in ("netmiko", "waitress"):
+        need("'^%s=='" % pin in df, "Dockerfile does not install %s from the requirements.txt pin" % pin, p)
+    dc = read("container/docker-compose.yml")
+    need("context: ../butler" in dc and "dockerfile: ../container/Dockerfile" in dc, "docker-compose.yml build paths are off", p)
+    di = read("butler/.dockerignore")
+    need("butler.env" in di and "butler.db" in di, "butler/.dockerignore must keep butler.env and butler.db* out of the image", p)
+    need(os.path.isfile("packer/http/answers"), "packer/http/answers is missing", p)
+    need("http_directory" in read("packer/confetti-butler.pkr.hcl"), "Packer template lost http_directory", p)
+    need("packer/vars.pkrvars.hcl" in read(".gitignore"), "packer/vars.pkrvars.hcl (passwords) is not git-ignored", p)
+    return p
+
+
 # ============================================================ live tier
 
 def run_live():
@@ -586,6 +877,8 @@ def run_live():
         health = json.loads(get("/api/health")[1])
         need(health.get("poller_running") is True, "poller is not running", problems)
         need(health.get("syslog_listening") is True, "syslog listener is not up", problems)
+        need(health.get("reach_running") is True, "ICMP checker is not running", problems)
+        need(b"butler_up 1" in get("/metrics")[1], "/metrics does not answer", problems)
         for url in ("/", "/devices", "/topology", "/ipam", "/templates", "/syslog", "/conflicts"):
             code = get(url)[0]
             need(code == 200, "GET %s -> %s" % (url, code), problems)

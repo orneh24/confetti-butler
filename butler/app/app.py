@@ -15,12 +15,17 @@ from flask import Flask, jsonify, render_template, request, Response
 
 from . import config
 from . import db
+from . import discovery
 from . import identity
 from . import ipam
+from . import lldp_crawl
+from . import metrics
 from . import poller
+from . import reach
 from . import rendering
 from . import syslog_server
 from .collectors import confetti
+from .collectors import ssh as ssh_collector
 from .collectors import seedfile
 from .collectors import sweep as sweep_collector
 from .collectors import vcenter as vcenter_collector
@@ -225,11 +230,19 @@ def api_health():
         "services": services,
         "syslog_listening": syslog_server.is_listening(),
         "poller_running": poller.is_running(),
+        "reach_running": reach.is_running(),
+        "discovery": discovery.status(),
         "load_avg": _load_avg(),
         "memory": _memory_info(),
         "disk": _disk_info(),
         "uptime_s": _uptime_s(),
     })
+
+
+@app.route("/metrics", methods=["GET"])
+def metrics_endpoint():
+    """Prometheus text format, built from the database at scrape time."""
+    return Response(metrics.render(db.get_db()), mimetype="text/plain; version=0.0.4")
 
 
 # ---------------------------------------------------------------------------
@@ -285,7 +298,9 @@ def device_row(r):
     d["last_seen"] = db.iso(d["last_seen"])
     d["first_seen"] = db.iso(d["first_seen"])
     d["next_poll_at"] = db.iso(d["next_poll_at"]) if d["next_poll_at"] else ""
-    d["last_poll_ok"] = db.iso(d["last_poll_ok"]) if d["last_poll_ok"] else None
+    d["last_poll_ok"] = db.iso(d["last_poll_ok"]) if d.get("last_poll_ok") else None
+    if d.get("last_ping_at"):
+        d["last_ping_at"] = db.iso(d["last_ping_at"])
     return d
 
 
@@ -295,7 +310,8 @@ def api_list_devices():
     rows = conn.execute(
         """SELECT id, key, hostname, mgmt_ip, vendor, platform, model, serial,
                   os_version, role, site, enabled, poll_interval_s, next_poll_at,
-                  poll_state, fail_count, first_seen, last_seen, last_poll_ok
+                  poll_state, fail_count, first_seen, last_seen, last_poll_ok,
+                  reachable, last_ping_at
            FROM devices ORDER BY role, hostname"""
     ).fetchall()
     return jsonify([device_row(r) for r in rows])
@@ -370,12 +386,37 @@ def api_device_interfaces(device_id):
            FROM interfaces WHERE device_id = ? ORDER BY name""",
         (device_id,),
     ).fetchall()
+    # Counter growth over the last 24h, from interface_stats samples.
+    samples = {}
+    for s in conn.execute(
+            """SELECT name, input_errors, crc_errors FROM interface_stats
+               WHERE device_id = ? AND at >= datetime('now', '-1 day') ORDER BY id""", (device_id,)):
+        samples.setdefault(s["name"], []).append(s)
     out = []
     for r in rows:
         d = dict(r)
         d["last_seen"] = db.iso(d["last_seen"])
+        mine = samples.get(d["name"], [])
+        d["input_errors_24h"] = ssh_collector.growth(mine, "input_errors")
+        d["crc_errors_24h"] = ssh_collector.growth(mine, "crc_errors")
         out.append(d)
     return jsonify(out)
+
+
+@app.route("/api/devices/<int:device_id>/interface-stats", methods=["GET"])
+def api_interface_stats(device_id):
+    """Error-counter samples for one interface: ?name=GigabitEthernet1&hours=24."""
+    name = request.args.get("name", "")
+    try:
+        hours = max(1, min(int(request.args.get("hours", "24")), 24 * config.STATS_RETENTION_DAYS))
+    except ValueError:
+        hours = 24
+    rows = db.get_db().execute(
+        """SELECT at, input_errors, crc_errors FROM interface_stats
+           WHERE device_id = ? AND name = ? AND at >= datetime('now', ? || ' hours') ORDER BY id""",
+        (device_id, name, "-{:d}".format(hours))).fetchall()
+    return jsonify([{"at": db.iso(r["at"]), "input_errors": r["input_errors"],
+                     "crc_errors": r["crc_errors"]} for r in rows])
 
 
 def _config_body(row, raw):
@@ -665,6 +706,38 @@ def api_discover_vcenter():
         return jsonify({"error": "vCenter request failed: {}".format(exc)}), 502
     conn.commit()
     return jsonify({"status": "ok", "device_ids": device_ids, "conflicts": conflicts})
+
+
+@app.route("/api/discover/run", methods=["POST"])
+def api_discover_run():
+    """Run the configured scheduled-discovery sources now (BUTLER_DISCOVERY_*)."""
+    return jsonify({"status": "ok", "summary": discovery.run_once()})
+
+
+@app.route("/api/discover/status", methods=["GET"])
+def api_discover_status():
+    return jsonify(discovery.status())
+
+
+@app.route("/api/lldp/unknown", methods=["GET"])
+def api_lldp_unknown():
+    """LLDP neighbors advertising a management IP no known device owns."""
+    return jsonify(lldp_crawl.unknown_neighbors(db.get_db()))
+
+
+@app.route("/api/lldp/adopt", methods=["POST"])
+def api_lldp_adopt():
+    """Body: {"ip": "192.0.2.9", "hostname": "optional"}. Adds the neighbor as a
+    device with polling off; enable it from its page once credentials are set."""
+    data = request.get_json(force=True, silent=True) or {}
+    ip = (data.get("ip") or "").strip()
+    conn = db.get_db()
+    device_id = lldp_crawl.adopt(conn, ip, (data.get("hostname") or "").strip(), "operator")
+    if device_id is None:
+        conn.rollback()
+        return jsonify({"error": "not a usable IPv4 address, or it conflicts with an existing device"}), 400
+    conn.commit()
+    return jsonify({"status": "ok", "device_id": device_id}), 201
 
 
 @app.route("/api/discover/confetti", methods=["POST"])
@@ -1164,14 +1237,14 @@ def api_topology():
     conn = db.get_db()
 
     devices = conn.execute(
-        "SELECT id, hostname, role, vendor, platform, enabled FROM devices"
+        "SELECT id, hostname, role, vendor, platform, enabled, reachable FROM devices"
     ).fetchall()
     nodes = {}
     for d in devices:
         nid = "dev:{}".format(d["id"])
         nodes[nid] = {
             "id": nid, "label": d["hostname"], "group": d["role"],
-            "device_id": d["id"], "ghost": False,
+            "device_id": d["id"], "ghost": False, "reachable": d["reachable"],
         }
 
     ghost_seen = set()
@@ -1226,6 +1299,7 @@ def api_topology():
             edges.append({
                 "from": "dev:{}".format(r["device_id"]), "to": target, "layer": r["proto"],
                 "label": "{} {}".format(r["proto"], r["state"]),
+                "up": r["state"] == ("Established" if r["proto"] == "bgp" else "FULL"),
             })
 
     return jsonify({"nodes": list(nodes.values()), "edges": edges})

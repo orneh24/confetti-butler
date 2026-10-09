@@ -44,6 +44,20 @@ def _start_background_services():
     else:
         poller.start()
 
+    try:
+        from app import reach
+    except ImportError:
+        pass
+    else:
+        reach.start()
+
+    try:
+        from app import discovery
+    except ImportError:
+        pass
+    else:
+        discovery.start()
+
 
 def main():
     host = os.environ.get("BUTLER_HOST", "0.0.0.0")

@@ -1,0 +1,3 @@
+Neighbor ID     Instance VRF      Pri State                  Dead Time   Address         Interface
+192.0.2.2       1        default  1   FULL/DR                00:00:34    198.51.100.2    Ethernet1
+192.0.2.4       1        default  1   2-WAY/DROTHER          00:00:31    198.51.100.4    Ethernet1

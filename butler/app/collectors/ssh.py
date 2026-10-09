@@ -18,26 +18,16 @@ from .. import config
 from .. import db
 from .. import events
 from .. import identity
+from .. import lldp_crawl
+from .. import platforms
+from . import snmp
 from ..parsers import ios
 
-COMMANDS = {
-    "version": "show version",
-    "interfaces": "show interfaces",
-    "lldp": "show lldp neighbors detail",
-    "bgp": "show bgp summary",
-    "ospf": "show ip ospf neighbor",
-    # Last, so a slow config read never delays the other five tasks.
-    "config": "show running-config",
-}
-PARSERS = {
-    "version": ios.parse_version,
-    "interfaces": ios.parse_interfaces,
-    "lldp": ios.parse_lldp_neighbors,
-    "bgp": ios.parse_bgp_summary,
-    "ospf": ios.parse_ospf_neighbors,
-    "config": ios.parse_running_config,
-}
-TASKS = tuple(COMMANDS.keys())
+# The IOS entry, kept under these names: it is the default platform, and
+# dev/regress.py (R3, R16) reads them. Other platforms live in platforms.py.
+COMMANDS = platforms.IOS["commands"]
+PARSERS = platforms.IOS["parsers"]
+TASKS = platforms.tasks(platforms.IOS)
 
 
 def resolve_credentials(conn, device_id):
@@ -64,24 +54,24 @@ def _error_text(exc):
     return "{}: {}".format(type(exc).__name__, exc)
 
 
-def _run_command(conn, task):
+def _run_command(conn, task, plat):
     # A large config is slow to read over SSH.
-    output = conn.send_command(COMMANDS[task], read_timeout=60 if task == "config" else 20)
-    parsed = PARSERS[task](output)
+    output = conn.send_command(plat["commands"][task], read_timeout=60 if task == "config" else 20)
+    parsed = plat["parsers"][task](output)
     if task == "config" and not parsed:
         # Unlike the show-command parsers, an empty result is not a normal
         # device state: it is an error message or a truncated read.
         raise ValueError("output is not a complete running-config")
-    if task == "lldp" and any(not row["local_if"] for row in parsed):
+    if task == "lldp" and plat.get("lldp_brief_command") and any(not row["local_if"] for row in parsed):
         # Older IOS leaves Local Intf out of the detail output; the brief
         # table has it. Only fetched when needed.
-        brief_out = conn.send_command("show lldp neighbors", read_timeout=20)
+        brief_out = conn.send_command(plat["lldp_brief_command"], read_timeout=20)
         output = output + "\n\n" + brief_out
         parsed = ios.fill_lldp_local_if(parsed, ios.parse_lldp_brief(brief_out))
     return output, parsed
 
 
-def run_tasks(device, creds, tasks=TASKS):
+def run_tasks(device, creds, tasks=None):
     """SSH to a device once and run each task's show command in turn.
 
     A generator: yields (task, ok, raw_output, error, parsed) per task, so
@@ -95,6 +85,12 @@ def run_tasks(device, creds, tasks=TASKS):
     configured), not a poll failure. A failed login fails every task with
     the same error; a failure on one command fails only that task.
     """
+    plat = platforms.get(device.get("platform"))
+    if plat["transport"] == "snmp":
+        yield from snmp.run_tasks(device, creds)
+        return
+    tasks = tasks or platforms.tasks(plat)
+
     host = device.get("mgmt_ip")
     if not host:
         for task in tasks:
@@ -122,7 +118,7 @@ def run_tasks(device, creds, tasks=TASKS):
     try:
         for task in tasks:
             try:
-                output, parsed = _run_command(conn, task)
+                output, parsed = _run_command(conn, task, plat)
             except Exception as exc:
                 yield task, False, None, _error_text(exc), None
             else:
@@ -218,6 +214,7 @@ def _apply_interfaces(conn, device_id, parsed, now):
              row["admin_status"], row["oper_status"], row["speed"], row["duplex"],
              row["input_errors"], row["crc_errors"], row["mtu"], now),
         )
+    _record_interface_stats(conn, device_id, parsed, now)
     # Drop interfaces this poll no longer reported (removed subinterface,
     # deleted loopback) — otherwise IPAM keeps flagging a dead address. Not
     # on an empty result: every router has interfaces, so empty means the
@@ -230,6 +227,47 @@ def _apply_interfaces(conn, device_id, parsed, now):
 def _hostname(conn, device_id):
     row = conn.execute("SELECT hostname FROM devices WHERE id = ?", (device_id,)).fetchone()
     return row["hostname"] if row else str(device_id)
+
+
+STATS_HEARTBEAT_S = 3600
+
+
+def _record_interface_stats(conn, device_id, parsed, now):
+    """Keep a sample of each interface's error counters when they change, plus
+    one an hour so a flat line still has points. A counter that went DOWN
+    (device reload) is stored like any other change; growth() ignores resets."""
+    last = {r["name"]: r for r in conn.execute(
+        """SELECT name, input_errors, crc_errors, at FROM interface_stats
+           WHERE device_id = ? AND id IN
+                 (SELECT MAX(id) FROM interface_stats WHERE device_id = ? GROUP BY name)""",
+        (device_id, device_id))}
+    for row in parsed:
+        if row["input_errors"] is None and row["crc_errors"] is None:
+            continue
+        prev = last.get(row["name"])
+        if prev is not None and (prev["input_errors"], prev["crc_errors"]) == (
+                row["input_errors"], row["crc_errors"]):
+            age = conn.execute("SELECT strftime('%s', ?) - strftime('%s', ?)", (now, prev["at"])).fetchone()[0]
+            if age is None or age < STATS_HEARTBEAT_S:
+                continue
+        conn.execute(
+            "INSERT INTO interface_stats (device_id, name, at, input_errors, crc_errors) VALUES (?, ?, ?, ?, ?)",
+            (device_id, row["name"], now, row["input_errors"], row["crc_errors"]))
+
+
+def growth(samples, field):
+    """Total increase of a counter across consecutive samples (oldest first).
+    A decrease means the counters were reset by a reload; it adds nothing."""
+    total = 0
+    prev = None
+    for s in samples:
+        v = s[field]
+        if v is None:
+            continue
+        if prev is not None and v > prev:
+            total += v - prev
+        prev = v
+    return total
 
 
 def _apply_lldp(conn, device_id, parsed, now):
@@ -262,6 +300,9 @@ def _apply_lldp(conn, device_id, parsed, now):
                 (row["remote_mgmt_ip"],),
             ).fetchone()
             remote_device_id = hit["device_id"] if hit else None
+            if remote_device_id is None and config.LLDP_AUTO_ADOPT:
+                remote_device_id = lldp_crawl.adopt(
+                    conn, row["remote_mgmt_ip"], row.get("remote_sysname"), _hostname(conn, device_id))
         conn.execute(
             """INSERT INTO lldp_neighbors (device_id, local_if, remote_chassis, remote_sysname,
                    remote_port, remote_mgmt_ip, remote_device_id, last_seen)

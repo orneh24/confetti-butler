@@ -62,7 +62,15 @@ table (`device_aliases`, `device_sources`, `credentials`, `interfaces`, `templat
   single-device conflict). An identical conflict already open is not re-inserted, only its
   `seen_at` is bumped
 - `POST /api/discover/{sweep,vcenter,seedfile,confetti}` — all four return
-  `{device_ids: [...], conflicts: [...]}` in the same shape
+  `{device_ids: [...], conflicts: [...]}` in the same shape. `POST /api/discover/run` runs the
+  scheduled-discovery sources now (`BUTLER_DISCOVERY_*`), `GET /api/discover/status` shows the last run
+- `GET /api/devices/<id>/configs`, `/configs/<version_id>` (secrets masked unless `?raw=1`),
+  `/configs/diff?a=&b=` — running-config backups, one row per distinct config
+- `GET /api/devices/<id>/interface-stats?name=&hours=` — error-counter samples; `GET .../interfaces`
+  adds `input_errors_24h` / `crc_errors_24h`
+- `GET /api/events` (`device_id`, `kind`, `severity`, `hours`, `limit`) — change events
+- `GET /api/lldp/unknown` — neighbors whose advertised mgmt IP no device owns;
+  `POST /api/lldp/adopt {ip, hostname?}` adds one as a device with polling OFF (`enabled=0`)
 
 **Templates:** `GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/<name>`,
 `GET /api/templates/<name>/versions`, `POST /api/templates/<name>/preview` (body:
@@ -82,8 +90,11 @@ default overlays all three), `GET /api/adjacencies`
 `?device_id=` — device_id resolved via a join at query time, not stored at insert),
 `GET /api/syslog/sources`
 
+**Metrics:** `GET /metrics` — Prometheus text built from the database at scrape time (hand-written,
+label values escaped; see `app/metrics.py`).
+
 **Health:** `GET /api/time` (chrony tracking), `GET /api/health` (services, poller_running,
-syslog_listening, load/memory/disk/uptime) — both **never 500**, every check degrades independently
+reach_running, discovery, syslog_listening, load/memory/disk/uptime) — both **never 500**, every check degrades independently
 to `null`/`"unknown"` on a flaky or non-Alpine box.
 
 ## Poller scheduling
@@ -93,6 +104,10 @@ Each tick claims due devices, marks them `running` (so a slow poll is never pick
 runs six independent tasks per device — `version`, `interfaces`, `lldp`, `bgp`, `ospf`, `config` — over one
 SSH session, each committing its own transaction. Rows a task no longer sees are deleted.
 `running` is always released in a `finally`, and reset at poller startup. `role='node'` devices are excluded from the claim query entirely.
+
+The task list belongs to the device's `platform` (`app/platforms.py`): `cisco_ios`/`cisco_xe` run the six
+above, `arista_eos` and `juniper_junos` the same six with their own commands and parsers (not verified
+on real hardware), and `snmp` runs only `version` and `interfaces` through net-snmp.
 
 Success: `fail_count=0`, `next_poll_at = now + poll_interval_s`. Failure:
 `fail_count += 1`, `next_poll_at = now + min(interval * 2**fail_count, POLL_MAX_BACKOFF_S)`.

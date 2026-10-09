@@ -68,7 +68,10 @@ def init_db():
             fail_count      INTEGER NOT NULL DEFAULT 0,
             first_seen      TEXT NOT NULL,
             last_seen       TEXT NOT NULL,
-            last_poll_ok    TEXT
+            last_poll_ok    TEXT,
+            reachable       INTEGER,
+            last_ping_at    TEXT,
+            ping_fail       INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_devices_next_poll ON devices(enabled, poll_state, next_poll_at);
 
@@ -247,6 +250,19 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_config_device ON config_versions(device_id, id);
 
+        -- Error-counter history per interface (see ssh._apply_interfaces). A row
+        -- is added when the counters change, plus an hourly heartbeat. Age-pruned.
+        CREATE TABLE IF NOT EXISTS interface_stats (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id    INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+            name         TEXT NOT NULL,
+            at           TEXT NOT NULL,
+            input_errors INTEGER,
+            crc_errors   INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_ifstats ON interface_stats(device_id, name, id);
+        CREATE INDEX IF NOT EXISTS idx_ifstats_at ON interface_stats(at);
+
         -- State changes seen by the poller (see events.py). Age-pruned.
         CREATE TABLE IF NOT EXISTS events (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -285,6 +301,12 @@ def init_db():
     cols = {r[1] for r in db.execute("PRAGMA table_info(devices)").fetchall()}
     if "template_name" not in cols:
         db.execute("ALTER TABLE devices ADD COLUMN template_name TEXT REFERENCES templates(name)")
+
+    # Migration: reachability columns landed with the ICMP checker.
+    for col, ddl in (("reachable", "INTEGER"), ("last_ping_at", "TEXT"),
+                     ("ping_fail", "INTEGER NOT NULL DEFAULT 0")):
+        if col not in cols:
+            db.execute("ALTER TABLE devices ADD COLUMN {} {}".format(col, ddl))
 
     # Migration: the confetti-traffic import's source value was 'meshflux'
     # (the sibling's old name). OR IGNORE + DELETE handles a device that

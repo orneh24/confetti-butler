@@ -74,6 +74,45 @@ Alpine availability is unverified (same caution as confetti-traffic CLAUDE.md co
 confirmed against a real IOS-XE 17.3 CSR1000v; see constraint 3 below for command-name gotchas found
 that way.
 
+### Platforms and SNMP
+
+`app/platforms.py` maps a device's `platform` to its commands and parsers: `cisco_ios` / `cisco_xe`
+(verified on real hardware), `arista_eos` and `juniper_junos` (**not verified** — written from documented
+output and tested only against the hand-written files in `dev/samples/`; the module and parser docstrings
+say so, and constraint 3 is why), and `snmp`. Every ssh platform has the same six task names, `config`
+last; an unknown platform falls back to the IOS entry. `ssh.COMMANDS` / `PARSERS` / `TASKS` still name the
+IOS entry because the regression script reads them. `snmp` (`collectors/snmp.py`) shells out to
+`snmpget` / `snmpwalk -Oqn` (net-snmp-tools), v1 and v2c only, tasks `version` and `interfaces`; the host
+must be an IP address. Its parser was written against output captured from a real `snmpd`
+(`dev/samples/snmp_*.txt`). `ifSpeed` saturates at 4294 Mbps on fast links; `ifHighSpeed` is not read.
+
+### Reachability, interface history, metrics
+
+- **ICMP checker** (`app/reach.py`, a daemon thread like the poller, `BUTLER_PING_*`): pings every enabled
+  device with a `mgmt_ip`, including `role='node'`, and keeps `devices.reachable` (1 / 0 / NULL = not
+  checked). A device is marked down after `BUTLER_PING_FAILS_TO_DOWN` (2) failures in a row; the first
+  result is a baseline and emits no event (the same rule as `events.is_baseline`). `_ping` refuses any
+  string that is not an IP address before it reaches a subprocess. Shown on the Devices and device pages
+  and as a red outline on the topology; BGP/OSPF sessions that are not Established / FULL are drawn red and dashed.
+- **Interface error history:** `ssh._record_interface_stats` stores a sample in `interface_stats` when an
+  interface's error counters change, plus one an hour; pruned after `BUTLER_STATS_RETENTION_DAYS` (7).
+  `ssh.growth()` sums increases and ignores a counter that went down (a reload). The device page shows
+  the 24 h growth; `GET /api/devices/<id>/interface-stats` returns the samples.
+- **`GET /metrics`** (`app/metrics.py`): Prometheus text built from the database at scrape time, hand-written
+  (no client library). Label values are escaped; each metric is declared once.
+
+### Discovery on a timer, and the LLDP crawl
+
+- `app/discovery.py` runs the confetti-traffic import, subnet sweeps and the seed file every
+  `BUTLER_DISCOVERY_INTERVAL_S` seconds (default 0 = never; nothing runs unless configured via
+  `BUTLER_DISCOVERY_CONFETTI_URL` / `_SWEEP_CIDRS` / `_SEEDFILE`). Each source commits on its own, so one
+  failing source never discards another's work. A device that did not exist before gets a
+  `device_discovered` event. `POST /api/discover/run` runs it once by hand.
+- `app/lldp_crawl.py`: an LLDP neighbor advertising a management IP no device owns is listed by
+  `GET /api/lldp/unknown` and added by `POST /api/lldp/adopt` (or automatically with
+  `BUTLER_LLDP_AUTO_ADOPT=true`, default false). It goes through `identity.ingest`, and the new device is
+  created with `enabled=0`: inventory only, never polled until an operator sets credentials and enables it.
+
 ### Running-config backup
 
 The `config` task (`show running-config`, run last, 60s read timeout) stores the config in
@@ -206,6 +245,15 @@ manual `--rollback` right after one has nothing to go back to.
   checks health. It refuses if both names exist. Run `butler-update.sh` afterwards for the code. The OpenRC
   main script now lives in `services/confetti-butler.initd` (the build copies it) so the migration can use it.
 
+### Other ways to deploy
+
+- **Container** (`container/Dockerfile`, `docker-compose.yml`; context `butler/`): same Alpine packages and
+  pinned pip packages as the VM, `BUTLER_HEALTH_SERVICES` emptied (no OpenRC). Built and run: health,
+  `/metrics`, ping, UDP syslog and a restart with its volume were checked. On the default bridge network
+  Docker may NAT UDP, hiding the real syslog source address (see the compose file).
+- **Packer** (`packer/`): `vsphere-iso` template that installs Alpine from an answer file and runs
+  `build-template.sh`. **Never run** — no vCenter was available; the README lists what will likely need adjusting.
+
 ## Seeding paths (device discovery)
 
 All five are meant to run together and land on the same `devices` row when they observe the same
@@ -234,11 +282,16 @@ butler/
     identity.py         — device identity ladder, ingest/observe/merge — see above
     poller.py           — background SSH polling scheduler
     events.py           — emit() change events, is_baseline() first-poll guard
+    platforms.py        — per-platform commands/parsers (IOS, EOS, Junos, snmp)
+    reach.py            — ICMP reachability thread
+    discovery.py        — scheduled discovery thread (off by default)
+    lldp_crawl.py       — adopt unknown LLDP neighbors as inventory-only devices
+    metrics.py          — /metrics Prometheus text
     syslog_server.py    — UDP/514 receiver (ported from confetti-traffic)
     ipam.py              — overlap/duplicate-IP analysis
     rendering.py         — Jinja2 template rendering + safety checks + redact_secrets (stored configs)
-    collectors/          — ssh.py, sweep.py, vcenter.py, confetti.py, seedfile.py
-    parsers/ios.py        — Cisco IOS/IOS-XE show-command regex parsers
+    collectors/          — ssh.py, snmp.py, sweep.py, vcenter.py, confetti.py, seedfile.py
+    parsers/             — ios.py (verified), eos.py and junos.py (NOT verified on hardware), regex only
   templates/            — base.html (head, header/nav, theme + layout pickers, footer, Retro taskbar,
                           written once) + dashboard, devices, device, conflicts, ipam, templates_editor,
                           topology, syslog, each `{% extends "base.html" %}` and holding only its own
@@ -264,7 +317,8 @@ butler/
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — confetti-butler.initd, firstboot.initd, login-setup.sh, butler-backup.sh
-  dev/regress.py — the regression gate (see "Regression gate" below)
+  dev/regress.py — the regression gate (see "Regression gate" below); dev/samples/ = parser fixtures
+  container/ — Dockerfile + compose; packer/ — vSphere template (untested)
   scripts/ — butler-setup.sh, butler-update.sh (in-place update with backup + rollback), migrate-from-lab-butler.sh, seed_mock_lab.py (fake lab in a new scratch DB),
            capture_readme.py (re-records docs/img/ from that mock lab; run after any UI change)
 .claude/skills/  — 6 vendor/protocol reference skills (this app's domain knowledge) +
@@ -276,11 +330,10 @@ butler/
 - **Mirror confetti-traffic's stack exactly**: Flask + SQLite (WAL) + waitress, vanilla JS with no build
   step, Alpine golden image, OpenRC.
 - **Pull-only config delivery.** No Netmiko config-push path in v1 — see Architecture above.
-- **SNMP is not polled in v1.** If added, it shells out to `net-snmp-tools` (`snmpwalk`/`snmpget`),
-  not a Python SNMP library — `pysnmp` is heavy with a history of packaging breakage; `puresnmp` was
-  considered and rejected for the same "one more Alpine dependency to verify" reason that keeps
-  `use_textfsm` out of the collector. Today only the `credentials` columns, the `BUTLER_SNMP_*`
-  defaults and the `net-snmp-tools` install in `build-template.sh` exist.
+- **SNMP shells out to `net-snmp-tools`** (`snmpwalk`/`snmpget`), not a Python SNMP library — `pysnmp` is
+  heavy with a history of packaging breakage; `puresnmp` was rejected for the same "one more Alpine
+  dependency to verify" reason that keeps `use_textfsm` out of the collector. It is used only for devices
+  whose `platform` is `snmp` (see "Platforms and SNMP"); v3 is not supported.
 - **Credentials**: env defaults (`BUTLER_SSH_*`, `BUTLER_SNMP_*`) + a per-device `credentials` table
   override. Plaintext in v1 — `butler.db` must be `0600` (`checkpath --directory --mode 0700` on
   `/var/lib/confetti-butler` in the OpenRC service is the current mitigation; the file itself should be
@@ -381,7 +434,11 @@ butler/
 `python dev/regress.py` (stdlib only; `--static` skips the live tier, `-v` shows detail for passes) is
 the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above; `R16`..`R19`
 are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
-lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP. Output is one line
+lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21`..`R28` cover the
+features added since (EOS/Junos parsers against `dev/samples/`, platform registry, SNMP, ICMP state machine,
+`/metrics` format, interface history, LLDP crawl, scheduled discovery); `R29` checks the container and Packer
+files against the repo. R21 passes on hand-written samples, so it proves the parsers do what they were written
+to do, not that they match real devices. Output is one line
 per check and a verdict: `CLEAR`, `CLEAR WITH GAPS` (something not run) or `BLOCKED`. The unit tier
 imports the app, so it needs the app's own Python packages (else those checks are `NOT RUN`). Each check
 was proven red by reverting its fix in a scratch copy. Adding a constraint means adding its check with the

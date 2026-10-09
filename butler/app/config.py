@@ -41,6 +41,33 @@ EVENT_RETENTION_DAYS = int(os.environ.get("BUTLER_EVENT_RETENTION_DAYS", "30"))
 CONFIG_VERSIONS_KEEP = int(os.environ.get("BUTLER_CONFIG_VERSIONS_KEEP", "0"))
 
 # ---------------------------------------------------------------------------
+# ICMP reachability checker (reach.py)
+# ---------------------------------------------------------------------------
+def _flag(name, default):
+    return os.environ.get(name, default).lower() in ("true", "1", "yes")
+
+
+PING_ENABLED = _flag("BUTLER_PING_ENABLED", "true")
+PING_INTERVAL_S = int(os.environ.get("BUTLER_PING_INTERVAL_S", "30"))
+PING_WORKERS = int(os.environ.get("BUTLER_PING_WORKERS", "16"))
+# Consecutive failed pings before a device counts as down (one lost packet is not an outage).
+PING_FAILS_TO_DOWN = int(os.environ.get("BUTLER_PING_FAILS_TO_DOWN", "2"))
+
+# Interface error-counter samples kept (interface_stats table).
+STATS_RETENTION_DAYS = int(os.environ.get("BUTLER_STATS_RETENTION_DAYS", "7"))
+
+# ---------------------------------------------------------------------------
+# Scheduled discovery (discovery.py). 0 = off; nothing runs unless asked for.
+# ---------------------------------------------------------------------------
+DISCOVERY_INTERVAL_S = int(os.environ.get("BUTLER_DISCOVERY_INTERVAL_S", "0"))
+DISCOVERY_CONFETTI_URL = os.environ.get("BUTLER_DISCOVERY_CONFETTI_URL", "").strip()
+DISCOVERY_SWEEP_CIDRS = [c.strip() for c in os.environ.get("BUTLER_DISCOVERY_SWEEP_CIDRS", "").split(",") if c.strip()]
+DISCOVERY_SEEDFILE = os.environ.get("BUTLER_DISCOVERY_SEEDFILE", "").strip()
+# Add LLDP neighbors that advertise an unknown management IP as devices
+# (inventory-only: polling stays off until an operator enables them).
+LLDP_AUTO_ADOPT = _flag("BUTLER_LLDP_AUTO_ADOPT", "false")
+
+# ---------------------------------------------------------------------------
 # Default device credentials — a per-device row in the credentials table
 # overrides these. Never hardcode a real lab password here; this is a shared
 # default for an isolated lab, same posture as confetti-traffic's default root password.

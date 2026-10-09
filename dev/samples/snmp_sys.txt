@@ -1,0 +1,2 @@
+.1.3.6.1.2.1.1.1.0 Cisco IOS Software, Version 15.4(1)S2, RELEASE SOFTWARE (fc1)
+.1.3.6.1.2.1.1.5.0 lab-snmp-1

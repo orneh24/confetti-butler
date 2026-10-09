@@ -216,6 +216,32 @@ Three features, each its own commit, then a real-VM test of the deployment piece
 - **Validation still pending** against real routers: config backup, the diff, and the events.
   Only tested on a scratch DB so far.
 
+## Follow-up session (2026-10-09, optional features)
+
+The optional features picked from `docs/ROADMAP.md`, plus `dev/regress.py` (29 checks, all green; each was
+proven to fail when its fix is reverted). **None of this was validated against the real lab routers**; that
+was deferred on request. What was checked, and how:
+
+| Feature | Where | Checked how |
+|---|---|---|
+| ICMP reachability | `app/reach.py` | state machine with an injected ping (R24); never run against real devices. Container: `ping` works |
+| Interface error history | `ssh._record_interface_stats`, `/interface-stats` | scratch DB (R26) |
+| `/metrics` | `app/metrics.py` | format validated by regex incl. label escaping (R25); a container scrape |
+| Topology state colours | `/api/topology`, `topology.html` | API fields only; **not looked at in a browser** |
+| Scheduled discovery | `app/discovery.py` | patched sources (R28); off by default |
+| LLDP neighbor crawl | `app/lldp_crawl.py`, Devices page | scratch DB (R27); Devices-page button not clicked in a browser |
+| Multi-vendor | `app/platforms.py`, `parsers/eos.py`, `junos.py` | **hand-written samples only**; unverified against real EOS / Junos |
+| SNMP | `collectors/snmp.py` | **real `snmpd`** in an Alpine 3.24 container: v1, v2c, wrong community, v3 refusal |
+| Container image | `container/` | built and run: health, metrics, ping, UDP syslog, restart with volume |
+| Packer template | `packer/` | **never run** (no vCenter, no `packer` binary) |
+
+- Not done from the roadmap: IPAM allocation, ZTP by serial, write auth (not selected).
+- Known gaps: SNMP reads `ifSpeed` (saturates at 4294 Mbps) not `ifHighSpeed`; Junos gives no serial, no LLDP
+  management IP and no error counters; the SNMP community is visible in the server's process list.
+- The new env settings are in `butler.env` as created by `build-template.sh` (`BUTLER_PING_*`,
+  `BUTLER_DISCOVERY_*`, `BUTLER_LLDP_AUTO_ADOPT`, `BUTLER_STATS_RETENTION_DAYS`). An already-deployed VM keeps its old
+  `butler.env`; the defaults apply, so reachability pings start on update, everything else stays off.
+
 ## Housekeeping
 
 - **Git:** repository initialised 2026-09-27 on `main`, public at

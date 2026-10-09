@@ -35,7 +35,20 @@ and the choice is saved in your browser.
   on one device. When the identifiers disagree (the same IP now answers with a different serial),
   confetti-butler raises a conflict instead of guessing.
 - **Polling.** Every few minutes it logs in once per router and reads version, interfaces, LLDP,
-  BGP and OSPF. Anything a router stops reporting drops out of the app.
+  BGP, OSPF and the running config. Anything a router stops reporting drops out of the app.
+  Platforms: Cisco IOS / IOS-XE (tested), Arista EOS and Juniper Junos (**untested**, written from
+  documented output), and SNMP v1/v2c for devices without SSH (version and interfaces only).
+- **Config backup.** The running config is saved whenever it changes, with a diff between any two
+  versions. Secrets are masked in the UI and API.
+- **Events.** Interface up/down and rising errors, BGP/OSPF and LLDP changes, OS or config
+  changes, and devices going unreachable are listed on the dashboard and on each device page.
+- **Reachability.** Every device is pinged every 30 seconds, so a dead router shows up before its
+  next SSH poll fails. A down device is outlined red on the topology.
+- **Metrics.** `GET /metrics` serves Prometheus text (devices, ping state, BGP/OSPF state,
+  interface state and errors, syslog and conflict counts).
+- **Discovery.** The confetti-traffic import, subnet sweep and seed file can run on a timer
+  (off by default). LLDP neighbors with an unknown management IP are listed on the Devices page
+  and can be added as inventory-only devices.
 - **IPAM.** Addresses come from the routers' own interfaces. It flags subnets that partly overlap
   and IPs assigned twice.
 - **Topology.** LLDP links and BGP/OSPF adjacencies on one graph, with a filter per protocol.
@@ -48,6 +61,8 @@ and the choice is saved in your browser.
 - **Look.** Seven colour themes (or Shuffle) and five layouts. See [Themes and layouts](#themes-and-layouts).
 
 Built for Cisco IOS / IOS-XE, and tested against CSR1000v routers on IOS-XE 17.3 and 3.11.
+Arista EOS and Juniper Junos support has only been tested against hand-written sample output.
+SNMP support has been tested against a real `snmpd` in a container.
 
 ## Running locally
 
@@ -65,7 +80,18 @@ page (Credentials), then click **Poll now**. The database is `butler.db` in the 
 ## Deploying
 
 `butler/build-template.sh` builds an Alpine Linux VM template (OpenRC service, waitress, port 80),
-following the same pattern as confetti-traffic's hub. **It has not yet been run on a real Alpine VM.**
+following the same pattern as confetti-traffic's hub. It has been run on a real Alpine 3.24 VM.
+
+- **Update a running VM:** `butler-update.sh <butler-dir|tarball>` checks the new code, backs up the
+  database, swaps it in, and rolls back by itself if it does not come up. `--rollback` goes back one version.
+- **Backups:** the database is backed up nightly (7 kept) to `/var/lib/confetti-butler/backups`.
+- **Clone settings:** `guestinfo.butler.ip` / `gateway` set a static IP; `ssh_username`, `ssh_password`,
+  `ssh_secret` and `poll_interval_s` set the polling defaults.
+- **Older VM** (installed as lab-butler): `scripts/migrate-from-lab-butler.sh`.
+- **Container:** `container/` has a Dockerfile and compose file for trying it without ESXi.
+  `docker compose -f container/docker-compose.yml up --build`. Tested.
+- **Packer:** `packer/` builds the vCenter template in one command. **Not yet run** (no vCenter was available).
+
 vCenter discovery is also not yet tested against a real vCenter.
 
 ## Security notes

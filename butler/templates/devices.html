@@ -46,12 +46,22 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
                 <thead>
                     <tr>
                         <th>Hostname</th><th>Role</th><th>Mgmt IP</th><th>Site</th>
-                        <th>Key</th><th>Poll</th><th>Last seen</th><th></th>
+                        <th>Key</th><th>Ping</th><th>Poll</th><th>Last seen</th><th></th>
                     </tr>
                 </thead>
                 <tbody id="device-rows"></tbody>
             </table>
             <div class="empty" id="device-empty" style="display:none">No devices yet — add one above, or POST /api/discover/seedfile.</div>
+        </div>
+    </div>
+    <div class="section" id="lldp-unknown-section" style="display:none">
+        <div class="section-header"><span>Unknown LLDP neighbors</span></div>
+        <div class="section-body">
+            <div class="hint">Neighbors that advertise a management IP no device owns. Adding one creates an inventory entry with polling off; enable it on its page once credentials are set.</div>
+            <table>
+                <thead><tr><th>Mgmt IP</th><th>Name</th><th>Seen on</th><th></th></tr></thead>
+                <tbody id="lldp-unknown-rows"></tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -74,6 +84,34 @@ function timeAgo(iso) {
     return Math.floor(s / 86400) + 'd ago';
 }
 
+function pingCell(r) {
+    if (r === null || r === undefined) { return '<span class="pill idle">?</span>'; }
+    return r ? '<span class="pill ok">up</span>' : '<span class="pill bad">down</span>';
+}
+
+function loadUnknownNeighbors() {
+    fetch('/api/lldp/unknown').then(function (r) { return r.json(); }).then(function (list) {
+        var rows = '';
+        for (var i = 0; i < list.length; i++) {
+            var n = list[i];
+            rows += '<tr><td>' + esc(n.ip) + '</td><td>' + esc(n.sysname || '') + '</td><td>' + esc(n.seen_on) +
+                '</td><td><button data-ip="' + attr(n.ip) + '" data-name="' + attr(n.sysname || '') +
+                '" onclick="adoptNeighbor(this)">add</button></td></tr>';
+        }
+        document.getElementById('lldp-unknown-rows').innerHTML = rows;
+        document.getElementById('lldp-unknown-section').style.display = list.length ? 'block' : 'none';
+    });
+}
+
+function attr(s) { return esc(s).replace(/"/g, '&quot;'); }
+
+function adoptNeighbor(btn) {
+    fetch('/api/lldp/adopt', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: btn.getAttribute('data-ip'), hostname: btn.getAttribute('data-name') })
+    }).then(function () { loadDevices(); loadUnknownNeighbors(); });
+}
+
 function renderDevices(list) {
     var rows = '';
     for (var i = 0; i < list.length; i++) {
@@ -86,6 +124,7 @@ function renderDevices(list) {
             '<td>' + esc(d.mgmt_ip || '') + '</td>' +
             '<td>' + esc(d.site || '') + '</td>' +
             '<td>' + esc(d.key) + '</td>' +
+            '<td>' + pingCell(d.reachable) + '</td>' +
             '<td><span class="pill ' + pollCls + '">' + esc(d.role === 'node' ? 'not polled' : d.poll_state) + '</span></td>' +
             '<td>' + timeAgo(d.last_seen) + '</td>' +
             '<td><button onclick="removeDevice(' + d.id + ')">delete</button></td>' +
@@ -181,5 +220,6 @@ document.getElementById('seedfile-form').addEventListener('submit', function (ev
 });
 
 loadDevices();
+loadUnknownNeighbors();
 </script>
 {% endblock %}

@@ -1,0 +1,12 @@
+! Command: show running-config
+! device: eos1 (vEOS-lab, EOS-4.28.3M)
+! Time: Fri Oct  9 10:00:00 2026
+!
+! boot system flash:/vEOS-lab.swi
+!
+hostname eos1
+!
+interface Ethernet1
+   ip address 198.51.100.1/24
+!
+end

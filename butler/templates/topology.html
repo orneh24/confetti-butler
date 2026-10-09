@@ -35,11 +35,13 @@ button.active { border-color: var(--cyan); color: var(--cyan); }
         <div class="row"><span class="sw" style="background:var(--blue)"></span>router (polled over SSH)</div>
         <div class="row"><span class="sw" style="background:var(--text-dim)"></span>Confetti Traffic node (never polled)</div>
         <div class="row"><span class="sw" style="background:var(--green)"></span>other device role</div>
+        <div class="row"><span class="sw" style="background:var(--blue);outline:2px solid var(--red)"></span>red outline: device not answering ping</div>
         <div class="row"><span class="sw ghost"></span>unresolved neighbor or peer: seen, but not matched to a known device</div>
         <h4>Links</h4>
         <div class="row"><span class="ln" style="border-color:var(--cyan)"></span>LLDP cable: local port - remote port</div>
         <div class="row"><span class="ln" style="border-color:var(--yellow)"></span>BGP session and its state</div>
         <div class="row"><span class="ln" style="border-color:var(--blue)"></span>OSPF adjacency and its state</div>
+        <div class="row"><span class="ln" style="border-color:var(--red);border-top-style:dashed"></span>BGP/OSPF session that is not Established / FULL</div>
         <div class="hint">Double-click a router to open its page. Drag to move, scroll to zoom.</div>
     </details>
 </div>
@@ -64,11 +66,12 @@ function toVisNodes(nodes) {
             shape: n.ghost ? 'dot' : 'box',
             color: {
                 background: n.ghost ? themeColor('--bg-card') : color,
-                border: n.ghost ? themeColor('--text-dim') : color,
+                border: n.ghost ? themeColor('--text-dim') : (n.reachable === 0 ? themeColor('--red') : color),
                 highlight: { background: color, border: themeColor('--text') },
             },
             font: { color: n.ghost ? themeColor('--text-dim') : themeColor('--bg'), face: 'monospace' },
-            borderWidth: n.ghost ? 1 : 0,
+            // A device that stopped answering ping gets a red outline, whatever its role colour.
+            borderWidth: n.ghost ? 1 : (n.reachable === 0 ? 3 : 0),
             shapeProperties: { borderDashes: n.ghost ? [4, 3] : false },
         };
     });
@@ -83,7 +86,10 @@ function toVisEdges(edges) {
             from: e.from,
             to: e.to,
             label: e.label,
-            color: { color: LAYER_COLOR[e.layer] || themeColor('--gray') },
+            // A BGP/OSPF session that is not Established/FULL is drawn red and dashed.
+            color: { color: e.up === false ? themeColor('--red') : (LAYER_COLOR[e.layer] || themeColor('--gray')) },
+            dashes: e.up === false,
+            width: e.up === false ? 2 : 1,
             font: { color: themeColor('--text-dim'), size: 10, strokeWidth: 0, background: themeColor('--bg') },
         };
     });

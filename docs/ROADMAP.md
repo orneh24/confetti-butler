@@ -337,3 +337,14 @@ Build order starts with Phase A.
   Not selected: DB backup cron, migrate + guestinfo.
 
 Section 10 narrows sections 7 and 9: the drift check, alerting and the unselected Phase C scripts are deferred.
+
+---
+
+## 11. Status (2026-10-09)
+
+Built: Phases A, B, C (backup + diff + retention, events + timeline, pinned requirements, update script,
+real-VM build, nightly backup, guestinfo settings, lab-butler migration), then the optional features from
+section 9: ICMP reachability, interface counter trends, `/metrics`, topology state colours, scheduled
+discovery, LLDP neighbor crawl, regression script, multi-vendor parsers (EOS, Junos), SNMP polling, Packer
+template, container image. Still open: drift check, alerting (webhook / email / syslog rules), IPAM
+allocation, ZTP by serial, write auth token. Details and what was verified: `docs/HANDOFF.md`.

@@ -55,7 +55,7 @@
                     <label for="f-enabled">polling enabled</label><input id="f-enabled" name="enabled" type="checkbox">
                 </div>
                 <datalist id="role-list"><option value="router"><option value="switch"><option value="firewall"><option value="node"></datalist>
-                <datalist id="platform-list"><option value="cisco_ios"><option value="cisco_xe"><option value="linux"></datalist>
+                <datalist id="platform-list"><option value="cisco_ios"><option value="cisco_xe"><option value="arista_eos"><option value="juniper_junos"><option value="snmp"><option value="linux"></datalist>
                 <button type="submit">Save</button><span class="msg" id="edit-msg"></span>
             </form>
         </div>
@@ -111,7 +111,7 @@
         <div class="section-body">
             <table>
                 <thead><tr><th>Name</th><th>Admin</th><th>Oper</th><th>IP</th><th>Speed/Duplex</th>
-                    <th>MTU</th><th>Errors</th><th>Last seen</th></tr></thead>
+                    <th>MTU</th><th>Errors (24h)</th><th>Last seen</th></tr></thead>
                 <tbody id="interface-rows"></tbody>
             </table>
             <div class="empty" id="interface-empty" style="display:none">no interfaces polled yet</div>
@@ -142,6 +142,7 @@ function loadDevice() {
             kv('vendor', d.vendor) + kv('platform', d.platform) + kv('model', d.model || '') +
             kv('serial', d.serial || '') + kv('os version', d.os_version || '') +
             kv('site', d.site || '') + kv('key', d.key) + kv('enabled', d.enabled ? 'yes' : 'no') +
+            kv('ping', d.reachable === null || d.reachable === undefined ? 'not checked' : (d.reachable ? 'up' : 'down')) +
             kv('poll interval', d.poll_interval_s + 's') + kv('poll state', d.poll_state) +
             kv('fail count', d.fail_count) + kv('first seen', d.first_seen) + kv('last seen', d.last_seen);
         document.getElementById('device-body').innerHTML = body;
@@ -271,6 +272,9 @@ function loadInterfaces() {
             var f = list[i];
             var sd = (f.speed || f.duplex) ? ((f.duplex || '') + ' ' + (f.speed || '')).trim() : '';
             var errs = (f.input_errors === null) ? '' : (f.input_errors + ' / ' + f.crc_errors + ' crc');
+            if (f.input_errors !== null && (f.input_errors_24h || f.crc_errors_24h)) {
+                errs += '  +' + f.input_errors_24h + ' in, +' + f.crc_errors_24h + ' crc';
+            }
             rows += '<tr>' +
                 '<td>' + esc(f.name) + '</td>' +
                 '<td><span class="pill ' + (f.admin_status === 'up' ? 'ok' : 'bad') + '">' + esc(f.admin_status) + '</span></td>' +

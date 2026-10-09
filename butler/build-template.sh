@@ -216,6 +216,23 @@ BUTLER_EVENT_RETENTION_DAYS=30
 BUTLER_CONFIG_VERSIONS_KEEP=0
 # Nightly database backups kept (/var/lib/confetti-butler/backups).
 BUTLER_BACKUP_KEEP=7
+# Interface error-counter samples kept, in days.
+BUTLER_STATS_RETENTION_DAYS=7
+
+# --- ICMP reachability ---------------------------------------------------
+BUTLER_PING_ENABLED=true
+BUTLER_PING_INTERVAL_S=30
+# Failed pings in a row before a device is marked down.
+BUTLER_PING_FAILS_TO_DOWN=2
+
+# --- Discovery (all off until configured) --------------------------------
+# Seconds between scheduled runs of the sources below; 0 = never.
+BUTLER_DISCOVERY_INTERVAL_S=0
+# BUTLER_DISCOVERY_CONFETTI_URL=http://10.0.0.100
+# BUTLER_DISCOVERY_SWEEP_CIDRS=10.0.1.0/24,10.0.2.0/24
+# BUTLER_DISCOVERY_SEEDFILE=/opt/confetti-butler/seed/devices.yaml
+# Add LLDP neighbors with an unknown management IP as inventory-only devices.
+BUTLER_LLDP_AUTO_ADOPT=false
 
 # --- Default device credentials -----------------------------------------
 # Shared lab defaults; override per device via PUT /api/devices/<id>/credentials.
