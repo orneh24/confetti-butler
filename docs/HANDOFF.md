@@ -213,14 +213,13 @@ Three features, each its own commit, then a real-VM test of the deployment piece
 - **Not tested:** the nightly job firing from `crond` at 02:00 (script run by hand and listed by run-parts);
   guestinfo set from vCenter rather than from inside the guest; the migrate script's both-names-exist refusal.
   The test guestinfo values on the build VM can only be cleared by powering it off.
-- **Validation still pending** against real routers: config backup, the diff, and the events.
-  Only tested on a scratch DB so far.
+- **Validation against real routers** was done on 2026-10-10: see the section of that name below.
 
 ## Follow-up session (2026-10-09, optional features)
 
 The optional features picked from `docs/ROADMAP.md`, plus `dev/regress.py` (29 checks, all green; each was
-proven to fail when its fix is reverted). **None of this was validated against the real lab routers**; that
-was deferred on request. What was checked, and how:
+proven to fail when its fix is reverted). That table is what was checked when the features were built;
+the next section (2026-10-10) is the later run against the real lab, which overrides it where they differ:
 
 | Feature | Where | Checked how |
 |---|---|---|
@@ -241,6 +240,37 @@ was deferred on request. What was checked, and how:
 - The new env settings are in `butler.env` as created by `build-template.sh` (`BUTLER_PING_*`,
   `BUTLER_DISCOVERY_*`, `BUTLER_LLDP_AUTO_ADOPT`, `BUTLER_STATS_RETENTION_DAYS`). An already-deployed VM keeps its old
   `butler.env`; the defaults apply, so reachability pings start on update, everything else stays off.
+
+## Validation against real devices (2026-10-10)
+
+Run from the Alpine VM (updated with `butler-update.sh`, which also migrated its existing database), against
+the lab: lab-rtr-b (CSR1000v, IOS-XE 17.3.2) and a Catalyst 3560-CG (IOS 15.2(2)E4), reached with the lab's
+login supplied for the session. Addresses and names are in the private lab notes, not here. The only change
+to a device was a temporary `Loopback999` on lab-rtr-b, running-config only, removed afterwards (the final
+config hash equals the first).
+
+| Checked | Result |
+|---|---|
+| Poll, all six tasks, both devices | OK, including `config` on 17.3.2 and 15.2 |
+| Config backup | one version per distinct config; a second poll added none |
+| Config change flow | create / shutdown / no shutdown / remove the loopback gave the expected versions and diffs |
+| Events | `config_changed` x4, `interface_down` (`up -> down`), `interface_up` (`down -> up`); a brand-new interface emitted no event (by design) |
+| Secret masking | `enable secret`, `username ... secret` (types 5 and 9) and `snmp-server community` masked on both. **Found a real leak:** `crypto isakmp key` came back unmasked. Fixed (also NTP / HSRP / authentication keys) and covered by R14 |
+| Interfaces + error history | 8 and 17 interfaces; non-zero counters (`VirtualPortGroup0`) sampled; 24 h growth 0 |
+| ICMP checker | up/down matched reality; the two powered-off routers showed down with only the poller's `device_unreachable` event (no ping event: baseline rule) |
+| `/metrics` | reachability, OSPF adjacency, events and 25 interface series present |
+| Unknown LLDP neighbors | listed; the Add button created an inventory-only device |
+| confetti-traffic import | first live import against a real hub: 4 nodes, `alpine` / `linux` / `node`, site from the group name |
+| SNMP | against the Catalyst: 17 of 17 SSH interfaces matched with the same oper status (SNMP also lists `Null0`) |
+| UI in Chrome | topology (red outline on the unreachable routers, ghost nodes, legend), Devices (Ping column, unknown-neighbor list), device page (events, config history, diff controls, errors column): no console errors |
+
+**Not validated:** lab-rtr-a (17.3.8a) and lab-rtr-c (15.4) were unreachable (no ARP / no SSH), so the
+15.4 `config` task is still untested on real hardware. Arista EOS and Junos have no devices here and stay
+unverified. Not exercised on hardware: `BUTLER_LLDP_AUTO_ADOPT`, scheduled discovery, BGP session state
+colours (the BGP peer on lab-rtr-c was down with the router). Packer and vCenter discovery are untested.
+
+The VM's database was emptied afterwards (devices, credentials, events, history), vacuumed, and checked
+for leftover credential text.
 
 ## Housekeeping
 

@@ -62,7 +62,7 @@ and the choice is saved in your browser.
 
 Built for Cisco IOS / IOS-XE, and tested against CSR1000v routers on IOS-XE 17.3 and 3.11.
 Arista EOS and Juniper Junos support has only been tested against hand-written sample output.
-SNMP support has been tested against a real `snmpd` in a container.
+SNMP support has been tested against a real Cisco Catalyst and a `snmpd` in a container.
 
 ## Running locally
 

@@ -423,6 +423,8 @@ butler/
     leave them in and every poll after a `write memory` stores a new version. The body is stored raw;
     `rendering.redact_secrets` masks it in every API response unless `?raw=1`. Extend the masking
     patterns when a new secret-bearing command appears; the check only covers the ones listed there.
+    A real router's config leaked `crypto isakmp key` through the first version (found 2026-10-10); NTP,
+    HSRP and `authentication-key` lines are masked now too. Other vendors' secret syntax (EOS, Junos) is not covered.
 15. **Events are written inside the transaction of the change they describe, and not on a task's first
     poll.** `events.emit()` must never commit (an event for a change that then rolled back is a lie).
     `events.is_baseline()` suppresses events until the task has an `ok=1` row in `poll_history`; without

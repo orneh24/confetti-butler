@@ -98,6 +98,8 @@ _REDACT_RE = re.compile(
     r"username \S+(?: privilege \d+)?(?: \S+)*? (?:secret|password)|"
     r"snmp-server community|neighbor \S+ password|ip ospf authentication-key|"
     r"ip ospf message-digest-key \d+ md5|key-string|pre-shared-key(?: address \S+)?(?: key)?|"
+    r"crypto isakmp key|ntp authentication-key \d+ md5|(?:ip )?authentication-key|"
+    r"standby \d+ authentication(?: md5 key-string)?|"
     r"(?:tacacs|radius)-server key|password))"
     r"(?:\s+(\d)(?=\s))?\s+\S+",
     re.I | re.M,

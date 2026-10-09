@@ -432,6 +432,15 @@ def _():
     masked = rendering.redact_secrets(a)
     for leak in ("$9$abc", "hunter2", "lab123"):
         need(leak not in masked, "secret %r survives redact_secrets" % leak, p)
+    # Found leaking on a real router's config (the isakmp pre-shared key came back unmasked).
+    more = rendering.redact_secrets(
+        "crypto isakmp key s3cretpsk address 198.51.100.7\n"
+        "ntp authentication-key 1 md5 ntpk3y\n"
+        "standby 1 authentication md5 key-string hsrpk3y\n"
+        " description crypto isakmp key is a topic\n")
+    for leak in ("s3cretpsk", "ntpk3y", "hsrpk3y"):
+        need(leak not in more, "secret %r survives redact_secrets" % leak, p)
+    need(" description crypto isakmp key is a topic" in more, "redact_secrets masked a description line", p)
     conn.close()
     resp = m["appmod"].app.test_client().get("/api/devices/%d/configs/1" % did)
     need(resp.status_code == 200 and b"hunter2" not in resp.data, "API returns an unmasked secret by default", p)
