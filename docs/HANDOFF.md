@@ -55,9 +55,9 @@ constraints" section.
 - **vCenter discovery** (`app/collectors/vcenter.py`). Written against the documented vSphere REST API
   shape for 7.0. No live vCenter was reachable to confirm the actual endpoint responses, auth flow, or
   field names match.
-- **Packaging** (`build-template.sh` and the OpenRC/firstboot scripts). Syntax-valid, structurally
-  mirrors confetti-traffic's own build script closely, but has not been run against a real Alpine install —
-  same caveat confetti-traffic's own build docs carried at this stage of that project.
+- **Packaging** (`build-template.sh` and the OpenRC/firstboot scripts). Run on a real Alpine 3.24.2 VM on
+  2026-10-09, see that session below. Still unverified: guestinfo first boot, the login setup prompt,
+  `set-static-ip`, and a clone from the converted template.
 - ~~**Cross-device LLDP/BGP/OSPF resolution** in a real multi-device lab.~~ Resolved 2026-09-27:
   lab-rtr-b and lab-rtr-c resolve to each other over LLDP in both directions, and live OSPF
   (FULL) and BGP (Established/Active) adjacencies parse correctly. BGP/OSPF peer resolution to a
@@ -183,6 +183,28 @@ whole history and are kept outside the repo. Main changes, all verified live unl
   old one-line legend in the filter bar. Checked in Chrome in Classic and Retro 95 on the mock lab, no JS
   errors; other theme and layout pairs not checked. The mock-lab seed now uses full interface names on both
   ends of an LLDP link so each cable is drawn once.
+
+## Follow-up session (2026-10-09)
+
+Three features, each its own commit, then a real-VM test of the deployment pieces.
+
+- **Running-config backup** (`2997401`): sixth poll task `config`; versions stored in `config_versions`
+  only on change; secrets masked in the API (`rendering.redact_secrets`); device page shows the history
+  and a diff; `BUTLER_CONFIG_VERSIONS_KEEP` caps versions. A changed secret shows no difference in the diff.
+- **Change events** (`9ceaeb6`): `app/events.py`; dashboard box and device timeline; `GET /api/events`;
+  30-day retention. No alerting. First poll of a task emits nothing.
+- **Pinned requirements + `butler-update.sh`** (`70dc9ff`): see "Updating a deployed VM" in CLAUDE.md.
+- **Real Alpine 3.24.2 VM** (x86_64, 217 MB RAM, fresh `setup-alpine`, Dropbear): `build-template.sh` ran
+  with no errors. Afterwards the service, `chronyd`, `lldpd`, `open-vm-tools` and the first-boot service
+  were all started after a reboot; port 80 and UDP 514 listened; `/api/health` returned 200 (also from
+  another machine); memory used was 59%. `butler-update.sh` updated cleanly, and a deliberately broken
+  `serve.py` was rolled back automatically (exit 1, old version healthy again).
+- **Found:** the build's cleanup step deletes Dropbear's host keys, so no new SSH connection works until
+  the VM reboots (expected for a template, but it ends the session that ran the build). A non-login SSH
+  command has no `/usr/local/bin` in PATH, so use the full path to `butler-update.sh`. `requests` came
+  from apk as 2.33.1, not the 2.34.2 pin.
+- **Validation still pending** against real routers: config backup, the diff, and the events.
+  Only tested on a scratch DB so far.
 
 ## Housekeeping
 

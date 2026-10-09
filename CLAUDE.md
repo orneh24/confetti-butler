@@ -186,7 +186,9 @@ touch apk/pip packages or the OpenRC scripts — it warns when `requirements.txt
 changed; re-run `build-template.sh` for those. `requirements.txt` holds exact tested versions;
 `build-template.sh` pip-installs only netmiko/waitress/flask-if-missing from those pins, the rest come
 from apk. Tested in an `alpine:3.20` container with a fake `rc-service` (update from dir and tarball,
-rollback, import failure, unhealthy start → auto rollback); not on a real OpenRC VM.
+rollback, import failure, unhealthy start → auto rollback) and then on a real Alpine 3.24.2 VM under OpenRC
+(update, unhealthy start → auto rollback; 2026-10-09). A successful auto-rollback consumes `.prev`, so a
+manual `--rollback` right after one has nothing to go back to.
 
 ## Seeding paths (device discovery)
 
