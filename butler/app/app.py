@@ -6,6 +6,7 @@ file, a section that outgrows a screenful moves to its own module under app/
 app.py keeps only the @app.route wiring for it.
 """
 
+import difflib
 import os
 import shutil
 import subprocess
@@ -375,6 +376,58 @@ def api_device_interfaces(device_id):
         d["last_seen"] = db.iso(d["last_seen"])
         out.append(d)
     return jsonify(out)
+
+
+def _config_body(row, raw):
+    return row["body"] if raw else rendering.redact_secrets(row["body"])
+
+
+@app.route("/api/devices/<int:device_id>/configs", methods=["GET"])
+def api_device_configs(device_id):
+    conn = db.get_db()
+    rows = conn.execute(
+        "SELECT id, sha256, captured_at, length(body) AS size FROM config_versions "
+        "WHERE device_id = ? ORDER BY id DESC", (device_id,),
+    ).fetchall()
+    return jsonify([{"id": r["id"], "sha256": r["sha256"], "size": r["size"],
+                     "captured_at": db.iso(r["captured_at"])} for r in rows])
+
+
+@app.route("/api/devices/<int:device_id>/configs/<int:version_id>", methods=["GET"])
+def api_device_config(device_id, version_id):
+    """Secrets are masked unless ?raw=1 (the unmasked text is the backup)."""
+    conn = db.get_db()
+    row = conn.execute("SELECT * FROM config_versions WHERE id = ? AND device_id = ?",
+                       (version_id, device_id)).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"id": row["id"], "sha256": row["sha256"],
+                    "captured_at": db.iso(row["captured_at"]),
+                    "body": _config_body(row, request.args.get("raw") == "1")})
+
+
+@app.route("/api/devices/<int:device_id>/configs/diff", methods=["GET"])
+def api_device_config_diff(device_id):
+    """Unified diff of two stored versions (?a=<id>&b=<id>, a older). Secrets are
+    masked, so a changed secret shows no difference."""
+    conn = db.get_db()
+    rows = {}
+    for key in ("a", "b"):
+        try:
+            vid = int(request.args.get(key, ""))
+        except ValueError:
+            return jsonify({"error": "a and b must be version ids"}), 400
+        rows[key] = conn.execute("SELECT * FROM config_versions WHERE id = ? AND device_id = ?",
+                                 (vid, device_id)).fetchone()
+        if not rows[key]:
+            return jsonify({"error": "version {} not found".format(vid)}), 404
+    diff = difflib.unified_diff(
+        _config_body(rows["a"], False).splitlines(), _config_body(rows["b"], False).splitlines(),
+        fromfile="version {} ({})".format(rows["a"]["id"], db.iso(rows["a"]["captured_at"])),
+        tofile="version {} ({})".format(rows["b"]["id"], db.iso(rows["b"]["captured_at"])),
+        lineterm="",
+    )
+    return jsonify({"diff": "\n".join(diff)})
 
 
 CREDENTIAL_FIELDS = ("username", "password", "enable_secret", "snmp_community", "snmp_version")

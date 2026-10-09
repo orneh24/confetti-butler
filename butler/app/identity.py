@@ -374,6 +374,8 @@ def merge(conn, survivor_id, loser_id):
     # Plain reference columns, no uniqueness to protect.
     conn.execute("UPDATE poll_history SET device_id = ? WHERE device_id = ?",
                  (survivor_id, loser_id))
+    conn.execute("UPDATE config_versions SET device_id = ? WHERE device_id = ?",
+                 (survivor_id, loser_id))
     conn.execute("UPDATE lldp_neighbors SET remote_device_id = ? WHERE remote_device_id = ?",
                  (survivor_id, loser_id))
     conn.execute("UPDATE adjacencies SET peer_device_id = ? WHERE peer_device_id = ?",

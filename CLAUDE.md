@@ -53,12 +53,12 @@ Each tick (`BUTLER_POLL_TICK_S`, default 15s): claim devices with `poll_state='i
 `next_poll_at <= now`, mark them `'running'` (this is the per-device lock — a device whose SSH hangs
 is never queued twice), and hand each to a `ThreadPoolExecutor` (`BUTLER_POLL_WORKERS`, default 8).
 
-Per device, five tasks run independently, **each committing its own transaction**: `version`,
-`interfaces`, `lldp`, `bgp`, `ospf`. Partial failure is the normal case — an LLDP timeout must never
+Per device, six tasks run independently, **each committing its own transaction**: `version`,
+`interfaces`, `lldp`, `bgp`, `ospf`, `config`. Partial failure is the normal case — an LLDP timeout must never
 discard interface data collected 200ms earlier. `role='node'` devices (confetti-traffic's imported Alpine
 fleet) are never polled — `poller.py`'s device-selection query filters `role != 'node'`.
 
-All five tasks share **one SSH session** per poll (`ssh.run_tasks` is a generator, so each task still
+All six tasks share **one SSH session** per poll (`ssh.run_tasks` is a generator, so each task still
 commits before the next command runs). Each apply step deletes that device's rows not seen in this
 poll — a removed peer or cable must not stay on the topology forever. `interfaces` skips the delete
 on an empty result, since empty there means a parse failure, not a router with no interfaces. The
@@ -73,6 +73,19 @@ Commands and parsers (`app/collectors/ssh.py`, `app/parsers/ios.py`) use **pure 
 Alpine availability is unverified (same caution as confetti-traffic CLAUDE.md constraint 14). This was
 confirmed against a real IOS-XE 17.3 CSR1000v; see constraint 3 below for command-name gotchas found
 that way.
+
+### Running-config backup
+
+The `config` task (`show running-config`, run last, 60s read timeout) stores the config in
+`config_versions` **only when its sha256 differs** from the device's latest version
+(`ssh._apply_config`). `ios.parse_running_config` strips lines that change on their own (`Current
+configuration`, `! Last configuration change`, `ntp clock-period`, ...) so an unchanged config never
+makes a new version; it returns `""` for anything without a `version` line and a closing `end`, which
+`ssh._run_command` turns into a failed task — an error message or truncated read is never stored as a
+backup. `BUTLER_CONFIG_VERSIONS_KEEP` caps versions per device (0 = unlimited). The body is stored
+**raw**; `GET /api/devices/<id>/configs[/<vid>|/diff]` masks secrets with `rendering.redact_secrets`
+unless `?raw=1`. Because the diff is built from masked text, a changed secret shows no difference.
+The device page's Config history section shows the list, a viewer and the diff.
 
 ### Config templates — pull delivery
 
@@ -178,7 +191,7 @@ butler/
     poller.py           — background SSH polling scheduler
     syslog_server.py    — UDP/514 receiver (ported from confetti-traffic)
     ipam.py              — overlap/duplicate-IP analysis
-    rendering.py         — Jinja2 template rendering + safety checks
+    rendering.py         — Jinja2 template rendering + safety checks + redact_secrets (stored configs)
     collectors/          — ssh.py, sweep.py, vcenter.py, confetti.py, seedfile.py
     parsers/ios.py        — Cisco IOS/IOS-XE show-command regex parsers
   templates/            — base.html (head, header/nav, theme + layout pickers, footer, Retro taskbar,

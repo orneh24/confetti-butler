@@ -90,7 +90,7 @@ to `null`/`"unknown"` on a flaky or non-Alpine box.
 
 `devices.poll_state` (`idle`/`running`) is the per-device lock; `next_poll_at` is the schedule.
 Each tick claims due devices, marks them `running` (so a slow poll is never picked up twice), and
-runs five independent tasks per device — `version`, `interfaces`, `lldp`, `bgp`, `ospf` — over one
+runs six independent tasks per device — `version`, `interfaces`, `lldp`, `bgp`, `ospf`, `config` — over one
 SSH session, each committing its own transaction. Rows a task no longer sees are deleted.
 `running` is always released in a `finally`, and reset at poller startup. `role='node'` devices are excluded from the claim query entirely.
 

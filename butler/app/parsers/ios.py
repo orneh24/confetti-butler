@@ -299,3 +299,35 @@ def parse_ospf_neighbors(text):
             "local_if": m.group("interface"),
         })
     return out
+
+
+# ---------------------------------------------------------------------------
+# show running-config
+# ---------------------------------------------------------------------------
+
+# Lines that change on their own between two identical configs. Left in, every
+# poll after a `write memory` would store a "new" version.
+_CONFIG_VOLATILE_RE = re.compile(
+    r"^(Building configuration|Current configuration\s*:|Using \d+ out of \d+ bytes|"
+    r"!\s*(Last configuration change|NVRAM config last updated|No configuration change)|"
+    r"ntp clock-period\b)",
+    re.I,
+)
+
+
+def parse_running_config(text):
+    """Return the config with volatile lines and trailing blanks removed.
+
+    Returns "" when the output isn't a config (no `version` line or no
+    closing `end`) — an error message or truncated read must never be stored
+    as a backup.
+    """
+    lines = [ln.rstrip() for ln in text.replace("\r", "").split("\n")]
+    kept = [ln for ln in lines if not _CONFIG_VOLATILE_RE.match(ln)]
+    while kept and not kept[0].strip():
+        kept.pop(0)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    if not any(ln.startswith("version ") for ln in kept) or not kept or kept[-1].strip() != "end":
+        return ""
+    return "\n".join(kept) + "\n"

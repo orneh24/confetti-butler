@@ -81,6 +81,22 @@
         </div>
     </div>
     <div class="section wide">
+        <div class="section-header"><span>Config history</span></div>
+        <div class="section-body">
+            <div class="hint">Running-config backups, saved when the config changes. Secrets are masked.</div>
+            <table>
+                <thead><tr><th>Version</th><th>Captured</th><th>Size</th><th></th></tr></thead>
+                <tbody id="config-rows"></tbody>
+            </table>
+            <div class="empty" id="config-empty" style="display:none">no config backed up yet</div>
+            <div id="config-diff-controls" style="display:none;margin-top:8px;">
+                diff <select id="diff-a"></select> &rarr; <select id="diff-b"></select>
+                <button onclick="showDiff()">Show diff</button>
+            </div>
+            <pre id="config-view" style="display:none;margin-top:8px;max-height:480px;overflow:auto;background:var(--bg-code);border:1px solid var(--border);padding:8px;font-size:12px;"></pre>
+        </div>
+    </div>
+    <div class="section wide">
         <div class="section-header"><span>Interfaces</span></div>
         <div class="section-body">
             <table>
@@ -261,6 +277,59 @@ function loadInterfaces() {
     });
 }
 
+function showConfigText(text, isDiff) {
+    var pre = document.getElementById('config-view');
+    pre.style.display = 'block';
+    if (!isDiff) { pre.textContent = text; return; }
+    if (!text) { pre.textContent = 'no differences'; return; }
+    var html = '';
+    text.split('\n').forEach(function (ln) {
+        var color = '';
+        if (ln.charAt(0) === '+' && ln.indexOf('+++') !== 0) color = 'var(--green)';
+        else if (ln.charAt(0) === '-' && ln.indexOf('---') !== 0) color = 'var(--red)';
+        else if (ln.indexOf('@@') === 0) color = 'var(--cyan)';
+        html += '<div' + (color ? ' style="color:' + color + '"' : '') + '>' + esc(ln) + '</div>';
+    });
+    pre.innerHTML = html;
+}
+
+function viewConfig(id) {
+    fetch('/api/devices/' + deviceId + '/configs/' + id).then(function (r) { return r.json(); }).then(function (c) {
+        showConfigText(c.body, false);
+    });
+}
+
+function showDiff() {
+    var a = document.getElementById('diff-a').value;
+    var b = document.getElementById('diff-b').value;
+    fetch('/api/devices/' + deviceId + '/configs/diff?a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b))
+        .then(function (r) { return r.json(); }).then(function (d) {
+            showConfigText(d.diff || '', true);
+        });
+}
+
+function loadConfigs() {
+    fetch('/api/devices/' + deviceId + '/configs').then(function (r) { return r.json(); }).then(function (list) {
+        var rows = '', opts = '';
+        for (var i = 0; i < list.length; i++) {
+            var v = list[i];
+            rows += '<tr><td>#' + esc(v.id) + '</td><td>' + esc(v.captured_at) + '</td><td>' +
+                esc(v.size) + ' bytes</td><td><button onclick="viewConfig(' + v.id + ')">View</button></td></tr>';
+            opts += '<option value="' + v.id + '">#' + v.id + ' ' + esc(v.captured_at) + '</option>';
+        }
+        document.getElementById('config-rows').innerHTML = rows;
+        document.getElementById('config-empty').style.display = list.length ? 'none' : 'block';
+        // Needs two versions to compare. List is newest first: default is previous -> latest.
+        document.getElementById('config-diff-controls').style.display = list.length > 1 ? 'block' : 'none';
+        document.getElementById('diff-a').innerHTML = opts;
+        document.getElementById('diff-b').innerHTML = opts;
+        if (list.length > 1) {
+            document.getElementById('diff-a').selectedIndex = 1;
+            document.getElementById('diff-b').selectedIndex = 0;
+        }
+    });
+}
+
 function pollNow() {
     var btn = document.getElementById('poll-btn');
     var msg = document.getElementById('poll-msg');
@@ -279,6 +348,7 @@ function pollNow() {
         btn.disabled = false;
         loadDevice();
         loadInterfaces();
+        loadConfigs();
     }).catch(function () {
         msg.textContent = 'poll failed';
         btn.disabled = false;
@@ -287,6 +357,7 @@ function pollNow() {
 
 loadDevice();
 loadInterfaces();
+loadConfigs();
 loadCredentials();
 </script>
 {% endblock %}

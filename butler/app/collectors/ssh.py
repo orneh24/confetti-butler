@@ -9,6 +9,8 @@ next one — see poller.py, which runs the device pool through a
 ThreadPoolExecutor.
 """
 
+import hashlib
+
 from netmiko import ConnectHandler
 from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
 
@@ -23,6 +25,8 @@ COMMANDS = {
     "lldp": "show lldp neighbors detail",
     "bgp": "show bgp summary",
     "ospf": "show ip ospf neighbor",
+    # Last, so a slow config read never delays the other five tasks.
+    "config": "show running-config",
 }
 PARSERS = {
     "version": ios.parse_version,
@@ -30,6 +34,7 @@ PARSERS = {
     "lldp": ios.parse_lldp_neighbors,
     "bgp": ios.parse_bgp_summary,
     "ospf": ios.parse_ospf_neighbors,
+    "config": ios.parse_running_config,
 }
 TASKS = tuple(COMMANDS.keys())
 
@@ -59,8 +64,13 @@ def _error_text(exc):
 
 
 def _run_command(conn, task):
-    output = conn.send_command(COMMANDS[task], read_timeout=20)
+    # A large config is slow to read over SSH.
+    output = conn.send_command(COMMANDS[task], read_timeout=60 if task == "config" else 20)
     parsed = PARSERS[task](output)
+    if task == "config" and not parsed:
+        # Unlike the show-command parsers, an empty result is not a normal
+        # device state: it is an error message or a truncated read.
+        raise ValueError("output is not a complete running-config")
     if task == "lldp" and any(not row["local_if"] for row in parsed):
         # Older IOS leaves Local Intf out of the detail output; the brief
         # table has it. Only fetched when needed.
@@ -143,6 +153,8 @@ def apply_result(conn, device_id, task, parsed):
         _apply_adjacencies(conn, device_id, "bgp", parsed, now)
     elif task == "ospf":
         _apply_adjacencies(conn, device_id, "ospf", parsed, now)
+    elif task == "config":
+        _apply_config(conn, device_id, parsed, now)
 
 
 def _apply_version(conn, device_id, parsed, now):
@@ -249,3 +261,24 @@ def _apply_adjacencies(conn, device_id, proto, parsed, now):
     # A peer that is merely down is still listed (Active/Idle) and stays.
     conn.execute("DELETE FROM adjacencies WHERE device_id = ? AND proto = ? AND last_seen <> ?",
                  (device_id, proto, now))
+
+
+def _apply_config(conn, device_id, text, now):
+    """Store the config only when it differs from the device's latest version."""
+    sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    latest = conn.execute(
+        "SELECT sha256 FROM config_versions WHERE device_id = ? ORDER BY id DESC LIMIT 1",
+        (device_id,),
+    ).fetchone()
+    if latest and latest["sha256"] == sha:
+        return
+    conn.execute(
+        "INSERT INTO config_versions (device_id, sha256, body, captured_at) VALUES (?, ?, ?, ?)",
+        (device_id, sha, text, now),
+    )
+    if config.CONFIG_VERSIONS_KEEP > 0:
+        conn.execute(
+            """DELETE FROM config_versions WHERE device_id = ? AND id NOT IN
+                   (SELECT id FROM config_versions WHERE device_id = ? ORDER BY id DESC LIMIT ?)""",
+            (device_id, device_id, config.CONFIG_VERSIONS_KEEP),
+        )

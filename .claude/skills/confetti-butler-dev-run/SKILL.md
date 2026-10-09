@@ -35,7 +35,7 @@ cd butler && BUTLER_PORT=8080 BUTLER_SYSLOG_PORT=5514 python serve.py
    "enable_secret": ...}`. Write the JSON to a temp file and send it with `--data @file`. Passwords
    often contain `!` or `$`, which the shell would otherwise mangle. Delete the file afterwards.
 3. Poll now: `POST /api/devices/<id>/poll`. It is synchronous and can take up to about a minute. It
-   returns ok/error for each of the five tasks (version, interfaces, lldp, bgp, ospf).
+   returns ok/error for each of the six tasks (version, interfaces, lldp, bgp, ospf, config).
 4. Check: `GET /api/devices/<id>` (the key should now be `serial:...`) and
    `GET /api/devices/<id>/interfaces`.
 

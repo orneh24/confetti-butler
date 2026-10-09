@@ -217,7 +217,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_adj_state ON adjacencies(state);
 
         -- Append-only, age-pruned like confetti-traffic's results table. One row
-        -- per poll task (version/interfaces/lldp/bgp/ospf), not per device —
+        -- per poll task (version/interfaces/lldp/bgp/ospf/config), not per device —
         -- a device's LLDP task failing must not hide that its interfaces task
         -- just succeeded.
         CREATE TABLE IF NOT EXISTS poll_history (
@@ -234,6 +234,18 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_poll_received ON poll_history(received_at);
         CREATE INDEX IF NOT EXISTS idx_poll_device ON poll_history(device_id, task);
+
+        -- Running-config backups. One row per distinct config, not per poll:
+        -- a row is only added when sha256 differs from the device's latest.
+        -- The body is stored raw (it is the backup); the API redacts secrets.
+        CREATE TABLE IF NOT EXISTS config_versions (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id   INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+            sha256      TEXT NOT NULL,
+            body        TEXT NOT NULL,
+            captured_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_config_device ON config_versions(device_id, id);
 
         -- Same shape as confetti-traffic's syslog table. device_id is resolved at
         -- query time against device_aliases, never stamped at insert — a

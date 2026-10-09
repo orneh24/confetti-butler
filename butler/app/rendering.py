@@ -90,6 +90,25 @@ def check_hardcoded_secrets(template_source):
     return warnings
 
 
+# Secret-bearing lines in a device's *running* config. The optional digit is
+# the IOS encryption type (0/5/7/8/9), kept so the line still shows how the
+# secret is stored; the value after it is what gets masked.
+_REDACT_RE = re.compile(
+    r"^(\s*(?:enable (?:secret|password)|"
+    r"username \S+(?: privilege \d+)?(?: \S+)*? (?:secret|password)|"
+    r"snmp-server community|neighbor \S+ password|ip ospf authentication-key|"
+    r"ip ospf message-digest-key \d+ md5|key-string|pre-shared-key(?: address \S+)?(?: key)?|"
+    r"(?:tacacs|radius)-server key|password))"
+    r"(?:\s+(\d)(?=\s))?\s+\S+",
+    re.I | re.M,
+)
+
+
+def redact_secrets(text):
+    """Mask secret values in a stored running-config before it leaves the API."""
+    return _REDACT_RE.sub(lambda m: m.group(1) + (" " + m.group(2) if m.group(2) else "") + " <redacted>", text)
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
