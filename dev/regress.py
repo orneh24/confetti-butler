@@ -843,6 +843,17 @@ def _():
     return p
 
 
+@check("R30", "IOS BGP summary: an administratively shut peer keeps '(Admin)' (found on a real 15.4 router)")
+def _():
+    p = []
+    ios = app_modules()["ios"]
+    rows = {r["peer_ip"]: r for r in ios.parse_bgp_summary(sample("ios_bgp_summary_15_4.txt"))}
+    need(rows.get("192.0.2.250", {}).get("state") == "Idle (Admin)", "admin-down peer parsed as %r" % rows.get("192.0.2.250"), p)
+    need(rows.get("198.51.100.81", {}).get("state") == "Established" and rows["198.51.100.81"]["prefixes"] == 4, "established peer: %r" % rows.get("198.51.100.81"), p)
+    need(rows.get("198.51.100.164", {}).get("state") == "Idle", "idle peer: %r" % rows.get("198.51.100.164"), p)
+    return p
+
+
 # ============================================================ live tier
 
 def run_live():

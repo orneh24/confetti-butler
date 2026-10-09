@@ -264,10 +264,25 @@ config hash equals the first).
 | SNMP | against the Catalyst: 17 of 17 SSH interfaces matched with the same oper status (SNMP also lists `Null0`) |
 | UI in Chrome | topology (red outline on the unreachable routers, ghost nodes, legend), Devices (Ping column, unknown-neighbor list), device page (events, config history, diff controls, errors column): no console errors |
 
-**Not validated:** lab-rtr-a (17.3.8a) and lab-rtr-c (15.4) were unreachable (no ARP / no SSH), so the
-15.4 `config` task is still untested on real hardware. Arista EOS and Junos have no devices here and stay
-unverified. Not exercised on hardware: `BUTLER_LLDP_AUTO_ADOPT`, scheduled discovery, BGP session state
-colours (the BGP peer on lab-rtr-c was down with the router). Packer and vCenter discovery are untested.
+### Second run (same day): the 15.4 router, a 17.3.8a router and BGP
+
+The two routers that had been off were powered on (the 17.3.8a one now answers on a different address).
+
+| Checked | Result |
+|---|---|
+| lab-rtr-c, IOS-XE 15.4(1)S2 | all six tasks OK; `config` stored (2 KB, complete, ends with `end`); LLDP local interfaces filled from the brief table; its LLDP neighbors resolved to known devices over the whole segment |
+| 17.3.8a CSR1000v | all six tasks OK, config stored, masking clean |
+| BGP on 15.4 | established peer parsed (prefixes, uptime); an Active/Idle peer drew a red dashed edge on the topology (`up=false`) |
+| BGP events | temporary neighbor: `bgp_peer_added`, `bgp_state` (Active/Idle changes), `bgp_peer_removed`; config returned to the original hash |
+| ICMP checker | an early "down" for a router that was fine was my own single cold-ARP ping from the shell; the checker's two-failures rule did not flap and all devices read up |
+| Masking fix | after updating the VM, the `crypto isakmp key` line comes back as `<redacted>` on the real config |
+
+**Found and fixed:** `show bgp summary` prints an administratively shut neighbor as `Idle (Admin)`. The parser
+kept only `Idle`, so shutting a neighbor down raised no event. It now keeps `(Admin)` and an
+`Idle -> Idle (Admin)` `bgp_state` event fires (re-checked on the 15.4 router; R30, with a real-format sample).
+
+**Still not validated:** Arista EOS and Junos (no devices). Not exercised on hardware: `BUTLER_LLDP_AUTO_ADOPT`,
+scheduled discovery, and the OSPF state colours beyond the one FULL adjacency. Packer and vCenter discovery are untested.
 
 The VM's database was emptied afterwards (devices, credentials, events, history), vacuumed, and checked
 for leftover credential text.

@@ -439,7 +439,7 @@ are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the 
 lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21`..`R28` cover the
 features added since (EOS/Junos parsers against `dev/samples/`, platform registry, SNMP, ICMP state machine,
 `/metrics` format, interface history, LLDP crawl, scheduled discovery); `R29` checks the container and Packer
-files against the repo. R21 passes on hand-written samples, so it proves the parsers do what they were written
+files against the repo; `R30` pins the BGP `Idle (Admin)` parse found on a real 15.4 router. R21 passes on hand-written samples, so it proves the parsers do what they were written
 to do, not that they match real devices. Output is one line
 per check and a verdict: `CLEAR`, `CLEAR WITH GAPS` (something not run) or `BLOCKED`. The unit tier
 imports the app, so it needs the app's own Python packages (else those checks are `NOT RUN`). Each check
