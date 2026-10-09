@@ -305,10 +305,27 @@ for leftover credential text.
 - **Checked:** R21 (drift), R31 and R32 (alerting) plus an updated live tier (`/alerts`, `alerts_running`); each
   was shown to fail when its code is broken. The Alerts page and the drift section were looked at in Chrome on a
   scratch database, no console errors. 32 checks, all green.
-- **NOT validated:** drift has only seen hand-written configs, never a real router's running config (the next
-  real-device run should assign a template to a lab router and look at what it reports; IOS prints a few more
-  defaults than `no shutdown` handles). A real webhook endpoint and a real SMTP server were not used: delivery
-  was tested against a local HTTP server and a recorded `smtplib`.
+- **Real-device validation of drift and alerting: see the next section.** Delivery to a real SMTP server was never
+  tried (mail is tested against a recorded `smtplib` only).
+
+## Validation of drift and alerting on lab routers (2026-10-10)
+
+Run from the VM against lab-rtr-b (IOS-XE 17.3.2, 313-line config) and lab-rtr-c (IOS-XE 15.4, 130 lines),
+after updating the VM with `butler-update.sh`. No code changes were needed.
+
+| Checked | Result |
+|---|---|
+| Each router's own masked config as its template | `compliant`, 0 missing (4 and 3 secret lines skipped). Real content: certificate chains, DHCP pools, nested blocks. Both sides come from the same text, so this checks for false drift, not for missed drift |
+| A hand-written template (4-space indent, a `{{ vars.* }}` value, `no shutdown`, `no ip http server`, `logging host`) | `compliant` on 17.3.2: `no shutdown` is met by the line being absent, as designed |
+| Router-side change (a loopback address) | `drifted`, exactly one missing line under the right interface; `config_drift` event; webhook delivered about 10 s after the poll |
+| Revert | `compliant`, `config_compliant` event, second webhook |
+| Template-side change (a line the router lacks) | `drifted` with that line at top level; removing it returned to `compliant` (template saves refresh the status) |
+| Syslog rule, real UDP datagram to the VM's port 514 | one webhook for the `%LINK-3-UPDOWN` message; the severity-6 message sent with it did not fire |
+| Rule bookkeeping | `fired_count` matched the sends, no `last_error`, the target shown as host only |
+
+The webhook target was a throw-away listener on the VM, not a real service. The alert path (event -> alert thread
+-> HTTP POST) and the syslog path ran for real; only the far end was local. Test rules, templates, devices and
+credentials were removed from the VM afterwards and the database vacuumed; a search found no credential text.
 
 ## Housekeeping
 

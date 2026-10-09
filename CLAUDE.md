@@ -126,7 +126,7 @@ device stores them encrypted and a template can never match them. Statuses: `com
 have changed), when a template is saved, and when a device's template assignment changes. A `config_drift`
 event (warning) fires on compliant -> drifted and `config_compliant` on the way back; the first evaluation is a
 baseline and emits nothing. `GET /api/devices/<id>/drift` is live; the Devices page has a Template column and
-the device page a Template drift section. Tested against hand-written configs only; not yet run against a real router's config (see HANDOFF).
+the device page a Template drift section. Run against real IOS-XE 17.3.2 and 15.4 configs (a router's own config as the template, and a hand-written template; see HANDOFF).
 
 ### Alerting
 
