@@ -1,0 +1,30 @@
+# docker compose -f container/docker-compose.yml up --build
+#
+# Dashboard on http://localhost/ , syslog on UDP 514 (point a device's
+# "logging host" at this machine).
+#
+# Syslog caveat: with the default bridge network, Docker NATs UDP, so on some
+# hosts every message arrives from the bridge gateway instead of the device,
+# and the Syslog page cannot match messages to devices. On Linux, replace
+# "ports:" with "network_mode: host" to get real source addresses.
+services:
+  butler:
+    build:
+      context: ../butler
+      dockerfile: ../container/Dockerfile
+    image: confetti-butler
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "514:514/udp"
+    volumes:
+      - butler-data:/var/lib/confetti-butler
+    environment:
+      # Default SSH credentials for polled devices; override per device in the UI.
+      BUTLER_SSH_USERNAME: ${BUTLER_SSH_USERNAME:-admin}
+      BUTLER_SSH_PASSWORD: ${BUTLER_SSH_PASSWORD:-}
+      BUTLER_SSH_SECRET: ${BUTLER_SSH_SECRET:-}
+      # BUTLER_DISCOVERY_INTERVAL_S: 900
+      # BUTLER_DISCOVERY_CONFETTI_URL: http://hub.example
+volumes:
+  butler-data:

@@ -1,0 +1,19 @@
+# Answer file for setup-alpine (served to the installer by Packer).
+# The root password is not here: setup-alpine always prompts for it.
+KEYMAPOPTS="us us"
+HOSTNAMEOPTS="-n confetti-butler"
+INTERFACESOPTS="auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet dhcp
+"
+DNSOPTS="-d local 1.1.1.1"
+TIMEZONEOPTS="-z UTC"
+PROXYOPTS="none"
+# First mirror, community repository enabled (build-template.sh needs it too).
+APKREPOSOPTS="-1 -c"
+USEROPTS="none"
+SSHDOPTS="-c dropbear"
+NTPOPTS="-c chrony"
+DISKOPTS="-m sys /dev/sda"

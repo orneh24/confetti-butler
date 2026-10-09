@@ -1,0 +1,7 @@
+butler.db*
+butler.env
+**/__pycache__
+*.pyc
+scripts
+services
+build-template.sh

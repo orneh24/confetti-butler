@@ -1,0 +1,11 @@
+# Copy to vars.pkrvars.hcl (git-ignored) and fill in.
+vcenter_server      = "vcenter.example.net"
+vcenter_username    = "administrator@vsphere.local"
+vcenter_password    = "change-me"
+insecure_connection = true
+datacenter          = "Lab"
+cluster             = "Lab-Cluster"
+datastore           = "datastore1"
+network             = "VM Network"
+iso_path            = "[datastore1] iso/alpine-virt-3.24.2-x86_64.iso"
+root_password       = "change-me-too"
