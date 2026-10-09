@@ -1,4 +1,4 @@
-"""Change events — "BGP peer 10.0.0.2 went Established -> Active", "config changed".
+"""Change events (CLAUDE.md constraint 15) — "BGP peer 10.0.0.2 went Established -> Active", "config changed".
 
 The poller's apply steps already hold the old state just before they overwrite
 it, so they call emit() with the difference. emit() never commits: the event

@@ -264,6 +264,7 @@ butler/
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
   services/ — confetti-butler.initd, firstboot.initd, login-setup.sh, butler-backup.sh
+  dev/regress.py — the regression gate (see "Regression gate" below)
   scripts/ — butler-setup.sh, butler-update.sh (in-place update with backup + rollback), migrate-from-lab-butler.sh, seed_mock_lab.py (fake lab in a new scratch DB),
            capture_readme.py (re-records docs/img/ from that mock lab; run after any UI change)
 .claude/skills/  — 6 vendor/protocol reference skills (this app's domain knowledge) +
@@ -362,3 +363,27 @@ butler/
     the mitigating control is `check_hardcoded_secrets` at template save time, not access control on
     the endpoint, because the client fetching it (a router's `copy http://` from its own console)
     cannot present credentials anyway.
+14. **A stored running-config must be a complete config, stored only when it changes, and masked on the
+    way out.** `ios.parse_running_config` returns `""` for anything without a `version` line and a
+    closing `end` (an error message or truncated read must never become the "latest backup"), and
+    strips lines that change on their own (`! Last configuration change`, `ntp clock-period`, ...) —
+    leave them in and every poll after a `write memory` stores a new version. The body is stored raw;
+    `rendering.redact_secrets` masks it in every API response unless `?raw=1`. Extend the masking
+    patterns when a new secret-bearing command appears; the check only covers the ones listed there.
+15. **Events are written inside the transaction of the change they describe, and not on a task's first
+    poll.** `events.emit()` must never commit (an event for a change that then rolled back is a lie).
+    `events.is_baseline()` suppresses events until the task has an `ok=1` row in `poll_history`; without
+    it, adding a device emits one event per interface, neighbor and peer. `device_unreachable` /
+    `device_recovered` fire only on the 0 → failing and failing → ok transitions of `fail_count`.
+
+## Regression gate
+
+`python dev/regress.py` (stdlib only; `--static` skips the live tier, `-v` shows detail for passes) is
+the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above; `R16`..`R19`
+are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
+lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP. Output is one line
+per check and a verdict: `CLEAR`, `CLEAR WITH GAPS` (something not run) or `BLOCKED`. The unit tier
+imports the app, so it needs the app's own Python packages (else those checks are `NOT RUN`). Each check
+was proven red by reverting its fix in a scratch copy. Adding a constraint means adding its check with the
+same number; the `regression-gate` agent runs this script. Doc-only changes need `docs-drift-checker`
+instead.

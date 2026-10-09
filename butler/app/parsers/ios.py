@@ -316,7 +316,7 @@ _CONFIG_VOLATILE_RE = re.compile(
 
 
 def parse_running_config(text):
-    """Return the config with volatile lines and trailing blanks removed.
+    """Return the config with volatile lines and trailing blanks removed (CLAUDE.md constraint 14).
 
     Returns "" when the output isn't a config (no `version` line or no
     closing `end`) — an error message or truncated read must never be stored
