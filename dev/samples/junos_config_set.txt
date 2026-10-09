@@ -1,3 +1,0 @@
-set version 21.4R3-S2.3
-set system host-name vsrx1
-set interfaces ge-0/0/0 unit 0 family inet address 198.51.100.1/24

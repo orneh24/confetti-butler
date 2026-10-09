@@ -1,4 +1,0 @@
-Hostname: vsrx1
-Model: vsrx
-Junos: 21.4R3-S2.3
-JUNOS Software Release [21.4R3-S2.3]

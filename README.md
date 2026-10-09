@@ -36,12 +36,16 @@ and the choice is saved in your browser.
   confetti-butler raises a conflict instead of guessing.
 - **Polling.** Every few minutes it logs in once per router and reads version, interfaces, LLDP,
   BGP, OSPF and the running config. Anything a router stops reporting drops out of the app.
-  Platforms: Cisco IOS / IOS-XE (tested), Arista EOS and Juniper Junos (**untested**, written from
-  documented output), and SNMP v1/v2c for devices without SSH (version and interfaces only).
+  Platforms: Cisco IOS / IOS-XE, and SNMP v1/v2c for devices without SSH (version and interfaces only).
 - **Config backup.** The running config is saved whenever it changes, with a diff between any two
   versions. Secrets are masked in the UI and API.
 - **Events.** Interface up/down and rising errors, BGP/OSPF and LLDP changes, OS or config
   changes, and devices going unreachable are listed on the dashboard and on each device page.
+- **Template drift.** A device's assigned template is compared with its latest config backup; the
+  Devices page flags routers whose running config no longer contains it, and the device page lists the
+  missing lines. Secret lines are not compared.
+- **Alerts.** Rules on the Alerts page send a webhook (ntfy, Slack-style, Gotify, ...) or an e-mail when
+  an event or a syslog message matches, with a cooldown so a flapping link does not flood you.
 - **Reachability.** Every device is pinged every 30 seconds, so a dead router shows up before its
   next SSH poll fails. A down device is outlined red on the topology.
 - **Metrics.** `GET /metrics` serves Prometheus text (devices, ping state, BGP/OSPF state,
@@ -61,7 +65,6 @@ and the choice is saved in your browser.
 - **Look.** Seven colour themes (or Shuffle) and five layouts. See [Themes and layouts](#themes-and-layouts).
 
 Built for Cisco IOS / IOS-XE, and tested against CSR1000v routers on IOS-XE 17.3 and 3.11.
-Arista EOS and Juniper Junos support has only been tested against hand-written sample output.
 SNMP support has been tested against a real Cisco Catalyst and a `snmpd` in a container.
 
 ## Running locally

@@ -77,9 +77,9 @@ that way.
 ### Platforms and SNMP
 
 `app/platforms.py` maps a device's `platform` to its commands and parsers: `cisco_ios` / `cisco_xe`
-(verified on real hardware), `arista_eos` and `juniper_junos` (**not verified** — written from documented
-output and tested only against the hand-written files in `dev/samples/`; the module and parser docstrings
-say so, and constraint 3 is why), and `snmp`. Every ssh platform has the same six task names, `config`
+(verified on real hardware) and `snmp`. Arista was dropped from the roadmap and Junos is planned but not started;
+both were removed rather than shipped unverified (constraint 3 is why: IOS-XE output was "known" too, until a real
+router disagreed). Every ssh platform has the same six task names, `config`
 last; an unknown platform falls back to the IOS entry. `ssh.COMMANDS` / `PARSERS` / `TASKS` still name the
 IOS entry because the regression script reads them. `snmp` (`collectors/snmp.py`) shells out to
 `snmpget` / `snmpwalk -Oqn` (net-snmp-tools), v1 and v2c only, tasks `version` and `interfaces`; the host
@@ -113,6 +113,43 @@ must be an IP address. Its parser was written against output captured from a rea
   `BUTLER_LLDP_AUTO_ADOPT=true`, default false). It goes through `identity.ingest`, and the new device is
   created with `enabled=0`: inventory only, never polled until an operator sets credentials and enables it.
 
+### Drift check
+
+`app/drift.py` renders a device's assigned template exactly as `/configs/<key>.cfg` would, and checks the
+latest `config_versions` backup **contains** it: every rendered line must be present under the same parent
+chain (`interface X` > `ip address ...`; nested blocks too). Indentation width is ignored, only nesting
+counts. Lines the running config has and the template never mentions are not drift. Skipped: blank lines,
+`!`, `end`, `exit`, `exit-address-family`, and secret-bearing lines (`rendering._REDACT_RE`) because the
+device stores them encrypted and a template can never match them. Statuses: `compliant`, `drifted`,
+`no_template`, `no_backup`, `render_error` (an unset `{{ vars.* }}` is a status, not a 500).
+`devices.drift_status` is refreshed after every `config` poll (even an unchanged config, since the template may
+have changed), when a template is saved, and when a device's template assignment changes. A `config_drift`
+event (warning) fires on compliant -> drifted and `config_compliant` on the way back; the first evaluation is a
+baseline and emits nothing. `GET /api/devices/<id>/drift` is live; the Devices page has a Template column and
+the device page a Template drift section. Tested against hand-written configs only; not yet run against a real router's config (see HANDOFF).
+
+### Alerting
+
+`app/alerts.py` sends a webhook (`webhook:<url>`, JSON with `text`/`content`/`message`/`title` so Slack-style,
+Discord, Gotify and ntfy-JSON endpoints all read it) or an e-mail (`mail:<address>`, `BUTLER_SMTP_*`) when a
+rule matches. Rules are rows in `alert_rules` (`/alerts`, `/api/alert-rules`): **event** rules match the
+`events` table by kind list, minimum severity, a regex over subject + detail and part of the hostname;
+**syslog** rules match received messages by worst severity (0-7), a regex over mnemonic + message and part of
+the host. Rules to remember when changing it:
+- One daemon thread does all sending. Events are read from the database (`events.alerted = 0`) and are marked
+  done **and committed before any network call**; a slow webhook must never sit in an open write transaction
+  (the poller and the syslog receiver share the database).
+- The syslog receiver only calls `alerts.offer_syslog()` (a bounded deque append that never raises) after its
+  own commit, so alerting cannot slow or break UDP intake.
+- A rule fires at most once per cooldown per device (per host for syslog); messages held back are counted into
+  the next one. Events older than `BUTLER_ALERT_MAX_AGE_S` (600) are marked done without sending, so a restart
+  or a new rule never replays history. Cooldown state is in memory.
+- A failed send is retried once, then recorded on the rule (`last_error`) and dropped. It never raises an event.
+- A rule's target is never returned by the API (a webhook URL often carries a token): `target_display` shows the
+  host only, and a PUT without `target` keeps the stored one. SMTP password lives in `butler.env`.
+- The API is unauthenticated, so anyone on the lab network can create a rule that makes the server send an
+  HTTP request to a URL they choose. Same trust model as the rest of the app; do not expose it.
+
 ### Running-config backup
 
 The `config` task (`show running-config`, run last, 60s read timeout) stores the config in
@@ -137,7 +174,7 @@ every poll). `emit()` never commits — the event shares the transaction of the 
 `events.is_baseline()` is true until a task has an `ok=1` row in `poll_history`; while true, nothing is
 emitted, so adding a device doesn't produce one event per interface/peer. Read via
 `GET /api/events` (`device_id`, `kind`, `severity`, `hours`, `limit`); shown on the dashboard
-(last 15) and each device page. There is no alerting yet — events are only recorded.
+(last 15) and each device page. Alerting (below) reads the same table.
 
 ### Config templates — pull delivery
 
@@ -282,16 +319,18 @@ butler/
     identity.py         — device identity ladder, ingest/observe/merge — see above
     poller.py           — background SSH polling scheduler
     events.py           — emit() change events, is_baseline() first-poll guard
-    platforms.py        — per-platform commands/parsers (IOS, EOS, Junos, snmp)
+    platforms.py        — per-platform commands/parsers (IOS, snmp)
     reach.py            — ICMP reachability thread
     discovery.py        — scheduled discovery thread (off by default)
     lldp_crawl.py       — adopt unknown LLDP neighbors as inventory-only devices
     metrics.py          — /metrics Prometheus text
+    drift.py            — template vs running-config check
+    alerts.py           — alert rules, webhook / mail sender thread
     syslog_server.py    — UDP/514 receiver (ported from confetti-traffic)
     ipam.py              — overlap/duplicate-IP analysis
     rendering.py         — Jinja2 template rendering + safety checks + redact_secrets (stored configs)
     collectors/          — ssh.py, snmp.py, sweep.py, vcenter.py, confetti.py, seedfile.py
-    parsers/             — ios.py (verified), eos.py and junos.py (NOT verified on hardware), regex only
+    parsers/             — ios.py, regex only
   templates/            — base.html (head, header/nav, theme + layout pickers, footer, Retro taskbar,
                           written once) + dashboard, devices, device, conflicts, ipam, templates_editor,
                           topology, syslog, each `{% extends "base.html" %}` and holding only its own
@@ -424,7 +463,7 @@ butler/
     `rendering.redact_secrets` masks it in every API response unless `?raw=1`. Extend the masking
     patterns when a new secret-bearing command appears; the check only covers the ones listed there.
     A real router's config leaked `crypto isakmp key` through the first version (found 2026-10-10); NTP,
-    HSRP and `authentication-key` lines are masked now too. Other vendors' secret syntax (EOS, Junos) is not covered.
+    HSRP and `authentication-key` lines are masked now too. Only IOS secret syntax is covered.
 15. **Events are written inside the transaction of the change they describe, and not on a task's first
     poll.** `events.emit()` must never commit (an event for a change that then rolled back is a lie).
     `events.is_baseline()` suppresses events until the task has an `ok=1` row in `poll_history`; without
@@ -436,11 +475,11 @@ butler/
 `python dev/regress.py` (stdlib only; `--static` skips the live tier, `-v` shows detail for passes) is
 the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above; `R16`..`R19`
 are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
-lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21`..`R28` cover the
-features added since (EOS/Junos parsers against `dev/samples/`, platform registry, SNMP, ICMP state machine,
+lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21` (drift check), `R22`..`R28` and
+`R31`/`R32` (alert rules and delivery) cover the
+features added since (platform registry, SNMP, ICMP state machine,
 `/metrics` format, interface history, LLDP crawl, scheduled discovery); `R29` checks the container and Packer
-files against the repo; `R30` pins the BGP `Idle (Admin)` parse found on a real 15.4 router. R21 passes on hand-written samples, so it proves the parsers do what they were written
-to do, not that they match real devices. Output is one line
+files against the repo; `R30` pins the BGP `Idle (Admin)` parse found on a real 15.4 router.  Output is one line
 per check and a verdict: `CLEAR`, `CLEAR WITH GAPS` (something not run) or `BLOCKED`. The unit tier
 imports the app, so it needs the app's own Python packages (else those checks are `NOT RUN`). Each check
 was proven red by reverting its fix in a scratch copy. Adding a constraint means adding its check with the

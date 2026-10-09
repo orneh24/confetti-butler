@@ -13,9 +13,11 @@ import subprocess
 
 from flask import Flask, jsonify, render_template, request, Response
 
+from . import alerts
 from . import config
 from . import db
 from . import discovery
+from . import drift
 from . import identity
 from . import ipam
 from . import lldp_crawl
@@ -231,6 +233,7 @@ def api_health():
         "syslog_listening": syslog_server.is_listening(),
         "poller_running": poller.is_running(),
         "reach_running": reach.is_running(),
+        "alerts_running": alerts.is_running(),
         "discovery": discovery.status(),
         "load_avg": _load_avg(),
         "memory": _memory_info(),
@@ -311,7 +314,7 @@ def api_list_devices():
         """SELECT id, key, hostname, mgmt_ip, vendor, platform, model, serial,
                   os_version, role, site, enabled, poll_interval_s, next_poll_at,
                   poll_state, fail_count, first_seen, last_seen, last_poll_ok,
-                  reachable, last_ping_at
+                  reachable, last_ping_at, drift_status
            FROM devices ORDER BY role, hostname"""
     ).fetchall()
     return jsonify([device_row(r) for r in rows])
@@ -375,6 +378,15 @@ def api_get_device(device_id):
         (device_id,),
     ).fetchall()]
     return jsonify(out)
+
+
+@app.route("/api/devices/<int:device_id>/drift", methods=["GET"])
+def api_device_drift(device_id):
+    """Live drift check of the device's latest config backup against its template."""
+    conn = db.get_db()
+    if not conn.execute("SELECT 1 FROM devices WHERE id = ?", (device_id,)).fetchone():
+        return jsonify({"error": "not found"}), 404
+    return jsonify(drift.evaluate(conn, device_id))
 
 
 @app.route("/api/devices/<int:device_id>/interfaces", methods=["GET"])
@@ -567,6 +579,8 @@ def api_update_device(device_id):
     updates["id"] = device_id
     conn.execute("UPDATE devices SET {} WHERE id = :id".format(set_clause), updates)
     taken = identity.add_operator_aliases(conn, device_id, updates)
+    if "template_name" in updates:
+        drift.refresh(conn, device_id)
     conn.commit()
     row = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
     out = device_row(row)
@@ -738,6 +752,145 @@ def api_lldp_adopt():
         return jsonify({"error": "not a usable IPv4 address, or it conflicts with an existing device"}), 400
     conn.commit()
     return jsonify({"status": "ok", "device_id": device_id}), 201
+
+
+# ---------------------------------------------------------------------------
+# Alert rules (alerts.py). The target of a rule is never returned in full: a
+# webhook URL often carries a token. PUT without "target" keeps the stored one.
+# ---------------------------------------------------------------------------
+
+ALERT_FIELDS = ("name", "enabled", "source", "kinds", "min_severity", "syslog_max_severity",
+                "pattern", "device", "target", "cooldown_s")
+
+
+def rule_out(r):
+    d = dict(r)
+    d["target_display"] = alerts.display_target(d.pop("target"))
+    d["last_fired_at"] = db.iso(d["last_fired_at"]) if d["last_fired_at"] else None
+    d["created_at"] = db.iso(d["created_at"])
+    return d
+
+
+def clean_rule(data, existing=None):
+    """Validated column values from a request body, or (None, error)."""
+    import re as _re
+    base = dict(existing) if existing else {
+        "name": "", "enabled": 1, "source": "event", "kinds": "", "min_severity": "info",
+        "syslog_max_severity": None, "pattern": "", "device": "", "target": "", "cooldown_s": 300}
+    for k in ALERT_FIELDS:
+        if k in data:
+            base[k] = data[k]
+    if not str(base["name"]).strip():
+        return None, "name is required"
+    if base["source"] not in ("event", "syslog"):
+        return None, "source must be event or syslog"
+    if base["min_severity"] not in alerts.SEVERITY_ORDER:
+        return None, "min_severity must be info, warning or critical"
+    if isinstance(base["kinds"], list):
+        base["kinds"] = ",".join(str(k).strip() for k in base["kinds"] if str(k).strip())
+    sms = base["syslog_max_severity"]
+    if sms in ("", None):
+        base["syslog_max_severity"] = None
+    else:
+        try:
+            base["syslog_max_severity"] = int(sms)
+        except (TypeError, ValueError):
+            return None, "syslog_max_severity must be 0-7"
+        if not 0 <= base["syslog_max_severity"] <= 7:
+            return None, "syslog_max_severity must be 0-7"
+    try:
+        base["cooldown_s"] = int(base["cooldown_s"])
+    except (TypeError, ValueError):
+        return None, "cooldown_s must be a number of seconds"
+    if not 0 <= base["cooldown_s"] <= 86400:
+        return None, "cooldown_s must be between 0 and 86400"
+    try:
+        _re.compile(base["pattern"] or "")
+    except _re.error as exc:
+        return None, "pattern is not a valid regular expression: {}".format(exc)
+    err = alerts.validate_target(base["target"])
+    if err:
+        return None, err
+    base["enabled"] = 1 if base["enabled"] in (True, 1, "1", "true") else 0
+    base["name"] = str(base["name"]).strip()
+    return base, None
+
+
+@app.route("/alerts")
+def alerts_page():
+    return render_template("alerts.html")
+
+
+@app.route("/api/alert-rules", methods=["GET"])
+def api_list_alert_rules():
+    rows = db.get_db().execute("SELECT * FROM alert_rules ORDER BY id").fetchall()
+    return jsonify([rule_out(r) for r in rows])
+
+
+@app.route("/api/alert-rules", methods=["POST"])
+def api_create_alert_rule():
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Body must be a JSON object"}), 400
+    vals, err = clean_rule(data)
+    if err:
+        return jsonify({"error": err}), 400
+    conn = db.get_db()
+    cur = conn.execute(
+        """INSERT INTO alert_rules (name, enabled, source, kinds, min_severity, syslog_max_severity,
+               pattern, device, target, cooldown_s, created_at)
+           VALUES (:name, :enabled, :source, :kinds, :min_severity, :syslog_max_severity,
+                   :pattern, :device, :target, :cooldown_s, :created_at)""",
+        dict(vals, created_at=db.sqlite_now()))
+    conn.commit()
+    row = conn.execute("SELECT * FROM alert_rules WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return jsonify(rule_out(row)), 201
+
+
+@app.route("/api/alert-rules/<int:rule_id>", methods=["PUT"])
+def api_update_alert_rule(rule_id):
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Body must be a JSON object"}), 400
+    conn = db.get_db()
+    row = conn.execute("SELECT * FROM alert_rules WHERE id = ?", (rule_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    vals, err = clean_rule(data, existing=row)
+    if err:
+        return jsonify({"error": err}), 400
+    conn.execute(
+        """UPDATE alert_rules SET name = :name, enabled = :enabled, source = :source, kinds = :kinds,
+               min_severity = :min_severity, syslog_max_severity = :syslog_max_severity,
+               pattern = :pattern, device = :device, target = :target, cooldown_s = :cooldown_s
+           WHERE id = :id""", dict(vals, id=rule_id))
+    conn.commit()
+    return jsonify(rule_out(conn.execute("SELECT * FROM alert_rules WHERE id = ?", (rule_id,)).fetchone()))
+
+
+@app.route("/api/alert-rules/<int:rule_id>", methods=["DELETE"])
+def api_delete_alert_rule(rule_id):
+    conn = db.get_db()
+    cur = conn.execute("DELETE FROM alert_rules WHERE id = ?", (rule_id,))
+    conn.commit()
+    if cur.rowcount == 0:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"status": "deleted", "id": rule_id})
+
+
+@app.route("/api/alert-rules/<int:rule_id>/test", methods=["POST"])
+def api_test_alert_rule(rule_id):
+    """Send a test message to the rule's target now (no cooldown, no matching)."""
+    conn = db.get_db()
+    row = conn.execute("SELECT * FROM alert_rules WHERE id = ?", (rule_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    payload = alerts.make_payload("info", "test", "", "Test alert from rule '{}'".format(row["name"]), "")
+    try:
+        alerts.deliver(row["target"], payload)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": "{}: {}".format(type(exc).__name__, exc)[:300]})
+    return jsonify({"ok": True})
 
 
 @app.route("/api/discover/confetti", methods=["POST"])
@@ -1085,6 +1238,7 @@ def api_update_template(name):
         "INSERT INTO template_versions (name, version, body, saved_at) VALUES (?, ?, ?, ?)",
         (name, next_version, body, now),
     )
+    drift.refresh_template(conn, name)
     conn.commit()
     warnings = rendering.check_hardcoded_secrets(body)
     return jsonify({"status": "ok", "name": name, "version": next_version, "warnings": warnings})

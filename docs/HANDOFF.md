@@ -287,6 +287,29 @@ scheduled discovery, and the OSPF state colours beyond the one FULL adjacency. P
 The VM's database was emptied afterwards (devices, credentials, events, history), vacuumed, and checked
 for leftover credential text.
 
+## Follow-up session (2026-10-10): drift check, alerting, vendor clean-up
+
+- **Arista and Junos removed.** Arista EOS was dropped from the roadmap; Junos is planned but not started.
+  `parsers/eos.py`, `parsers/junos.py`, their hand-written samples and the platform entries were deleted rather
+  than shipped unverified. `app/platforms.py` is where a vendor is added later. Earlier sections of this file
+  that mention them describe what was true then.
+- **Drift check** (`app/drift.py`): template rendered like the pull endpoint, compared by containment (same
+  parent chain) with the latest config backup; secret lines skipped; a template `no X` is met by `X` being absent
+  because IOS does not print defaults (`no shutdown` found while checking the UI). `devices.drift_status` is
+  refreshed after every config poll, on template save and on template assignment; `config_drift` /
+  `config_compliant` events on a change. UI: Template column on Devices, Template drift section on the device page.
+- **Alerting** (`app/alerts.py`, `/alerts`): event rules and syslog rules, webhook or mail targets, cooldown per
+  device, no replay of old events, one retry then recorded on the rule. Events are committed as alerted *before*
+  any network call so a slow webhook never holds the database write lock (R31 checks this with a second
+  connection). The rule target is never returned by the API.
+- **Checked:** R21 (drift), R31 and R32 (alerting) plus an updated live tier (`/alerts`, `alerts_running`); each
+  was shown to fail when its code is broken. The Alerts page and the drift section were looked at in Chrome on a
+  scratch database, no console errors. 32 checks, all green.
+- **NOT validated:** drift has only seen hand-written configs, never a real router's running config (the next
+  real-device run should assign a template to a lab router and look at what it reports; IOS prints a few more
+  defaults than `no shutdown` handles). A real webhook endpoint and a real SMTP server were not used: delivery
+  was tested against a local HTTP server and a recorded `smtplib`.
+
 ## Housekeeping
 
 - **Git:** repository initialised 2026-09-27 on `main`, public at

@@ -244,7 +244,7 @@ _BGP_SUMMARY_RE = re.compile(
     r"(?P<in_q>\d+)\s+"
     r"(?P<out_q>\d+)\s+"
     r"(?P<uptime>\S+)\s+"
-    r"(?P<state_pfx>\S+(?:[ 	]+\(Admin\))?)",   # "Idle (Admin)" = shut down on purpose
+    r"(?P<state_pfx>\S+(?:[ \t]+\(Admin\))?)",   # "Idle (Admin)" = shut down on purpose
     re.MULTILINE,
 )
 

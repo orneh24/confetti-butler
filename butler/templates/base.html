@@ -13,7 +13,7 @@
 {# The page list lives here once. The current page is picked from the URL, so
    /devices/5 counts as Devices. #}
 {% set pages = [('/', 'Dashboard'), ('/devices', 'Devices'), ('/conflicts', 'Conflicts'), ('/ipam', 'IPAM'),
-                ('/templates', 'Templates'), ('/topology', 'Topology'), ('/syslog', 'Syslog')] %}
+                ('/templates', 'Templates'), ('/topology', 'Topology'), ('/syslog', 'Syslog'), ('/alerts', 'Alerts')] %}
 {% set here = '/' if request.path == '/' else '/' + request.path.strip('/').split('/')[0] %}
 <body class="{% block body_class %}{% endblock %}">
 

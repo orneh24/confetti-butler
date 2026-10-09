@@ -272,7 +272,7 @@ def _():
     conn.close()
     client = m["appmod"].app.test_client()
     for url in ("/", "/devices", "/devices/%d" % did, "/conflicts", "/ipam", "/templates",
-                "/topology", "/syslog"):
+                "/topology", "/syslog", "/alerts"):
         code = client.get(url).status_code
         need(code == 200, "GET %s -> %s" % (url, code), p)
     ed = read("butler/templates/templates_editor.html")
@@ -561,40 +561,6 @@ def sample(name):
     return read(SAMPLES + name)
 
 
-@check("R21", "Arista EOS / Junos parsers handle their (hand-written) samples")
-def _():
-    p = []
-    app_modules()
-    from app.parsers import eos, junos
-    v = eos.parse_version(sample("eos_show_version.txt"))
-    need((v["model"], v["serial"], v["os_version"]) == ("vEOS-lab", "SN-EOS-0001", "4.28.3M"), "eos version: %r" % v, p)
-    l = eos.parse_lldp_neighbors(sample("eos_lldp_detail.txt"))
-    need(len(l) == 2 and l[0]["local_if"] == "Ethernet1" and l[0]["remote_mgmt_ip"] == "192.0.2.22"
-         and l[0]["remote_port"] == "Ethernet2" and l[1]["remote_sysname"] == "core-sw", "eos lldp: %r" % l, p)
-    b = eos.parse_bgp_summary(sample("eos_bgp_summary.txt"))
-    need([(x["peer_ip"], x["state"]) for x in b] == [("192.0.2.2", "Established"), ("192.0.2.3", "Active")], "eos bgp: %r" % b, p)
-    o = eos.parse_ospf_neighbors(sample("eos_ospf_neighbor.txt"))
-    need([x["state"] for x in o] == ["FULL", "2-WAY"], "eos ospf: %r" % o, p)
-    c = eos.parse_running_config(sample("eos_running_config.txt"))
-    need(c and "Command:" not in c and c.rstrip().endswith("end"), "eos config header not stripped / not accepted", p)
-    need(eos.parse_running_config("% Invalid input") == "", "eos error text accepted as a config", p)
-    jv = junos.parse_version(sample("junos_show_version.txt"))
-    need((jv["hostname_hint"], jv["model"], jv["os_version"]) == ("vsrx1", "vsrx", "21.4R3-S2.3"), "junos version: %r" % jv, p)
-    ji = {x["name"]: x for x in junos.parse_interfaces(sample("junos_interfaces_terse.txt"))}
-    need(ji.get("ge-0/0/0.0", {}).get("ip") == "198.51.100.1" and ji["ge-0/0/0.0"]["prefix_len"] == 24, "junos ip: %r" % ji.get("ge-0/0/0.0"), p)
-    need(ji.get("ge-0/0/1", {}).get("oper_status") == "down" and ji.get("lo0.0", {}).get("prefix_len") == 32, "junos status/prefix", p)
-    need(len(ji) == 6, "junos interfaces: %d rows, expected 6 (continuation lines must not become rows)" % len(ji), p)
-    jl = junos.parse_lldp_neighbors(sample("junos_lldp.txt"))
-    need([x["local_if"] for x in jl] == ["ge-0/0/0", "ge-0/0/2"], "junos lldp: %r" % jl, p)
-    jb = junos.parse_bgp_summary(sample("junos_bgp_summary.txt"))
-    need([(x["peer_ip"], x["state"]) for x in jb] == [("192.0.2.2", "Established"), ("192.0.2.3", "Active")], "junos bgp: %r" % jb, p)
-    jo = junos.parse_ospf_neighbors(sample("junos_ospf.txt"))
-    need([x["state"] for x in jo] == ["FULL", "2WAY"], "junos ospf: %r" % jo, p)
-    need(junos.parse_running_config(sample("junos_config_set.txt")).count("\n") == 3, "junos config set lines", p)
-    need(junos.parse_running_config("syntax error, expecting <command>") == "", "junos error text accepted as a config", p)
-    return p
-
-
 @check("R22", "platform registry: same tasks everywhere, config last, unknown platform = IOS")
 def _():
     p = []
@@ -854,6 +820,293 @@ def _():
     return p
 
 
+@check("R21", "drift check: containment by parent chain, secrets skipped, statuses, events only on a change")
+def _():
+    p = []
+    m, conn = fresh_db()
+    from app import drift
+    ssh = m["ssh"]
+    run = ("version 17.3\nhostname r1\nenable secret 9 $9$abc\n!\ninterface GigabitEthernet1\n"
+           " ip address 10.0.0.1 255.255.255.0\n no shutdown\n!\nrouter bgp 65000\n"
+           " neighbor 10.0.0.2 remote-as 65001\n address-family ipv4\n  neighbor 10.0.0.2 activate\n"
+           " exit-address-family\nend\n")
+    tpl = ("hostname r1\nenable secret {{ vars.x }}\n\ninterface GigabitEthernet1\n    ip address 10.0.0.1 255.255.255.0\n"
+           "exit\nrouter bgp 65000\n  neighbor 10.0.0.2 remote-as 65001\n  address-family ipv4\n"
+           "      neighbor 10.0.0.2 activate\n")
+    miss, skipped = drift.compare(tpl, run)
+    need(miss == [] and skipped == 1, "matching config reported %r (skipped %r)" % (miss, skipped), p)
+    miss, _ = drift.compare(tpl.replace("65001", "65002").replace("10.0.0.1 255", "10.0.0.9 255"), run)
+    need({x["line"] for x in miss} == {"ip address 10.0.0.9 255.255.255.0", "neighbor 10.0.0.2 remote-as 65002"},
+         "changed values: %r" % miss, p)
+    # the same line under a different parent is NOT a match
+    miss, _ = drift.compare("interface GigabitEthernet2\n ip address 10.0.0.1 255.255.255.0\n", run)
+    need(len(miss) == 2, "a line under the wrong interface counted as present: %r" % miss, p)
+    need(drift.compare(tpl, run + "interface Loopback9\n description extra\n")[0] == [], "extra running lines must not be drift", p)
+    # `no X` in a template: met when X is absent (a default is never printed); drift when X is present
+    nos = "interface GigabitEthernet1\n no shutdown\nno ip http server\n"
+    bare = run.replace(" no shutdown\n", "")                    # IOS prints nothing for an enabled interface
+    need(drift.compare(nos, bare)[0] == [], "`no shutdown` must be met by the line being absent: %r" % drift.compare(nos, bare)[0], p)
+    shut = run.replace(" no shutdown\n", " shutdown\n") + "ip http server\n"
+    need({x["line"] for x in drift.compare(nos, shut)[0]} == {"no shutdown", "no ip http server"},
+         "`no X` with X present must be drift: %r" % drift.compare(nos, shut)[0], p)
+
+    did = add_device(conn, "192.0.2.1", "r1")
+    need(drift.evaluate(conn, did)["status"] == "no_template", "no template -> %r" % drift.evaluate(conn, did)["status"], p)
+    conn.execute("INSERT INTO templates (name, body, updated_at) VALUES ('t', ?, ?)", (tpl, m["db"].sqlite_now()))
+    conn.execute("UPDATE devices SET template_name = 't' WHERE id = ?", (did,))
+    need(drift.evaluate(conn, did)["status"] == "no_backup", "no backup -> %r" % drift.evaluate(conn, did)["status"], p)
+    conn.execute("INSERT INTO config_versions (device_id, sha256, body, captured_at) VALUES (?, 'x', ?, ?)",
+                 (did, run, m["db"].sqlite_now()))
+    need(drift.evaluate(conn, did)["status"] == "render_error", "an unset template variable must be a render_error", p)
+    conn.execute("INSERT INTO template_vars (device_id, key, value) VALUES (?, 'x', 'whatever')", (did,))
+    need(drift.evaluate(conn, did)["status"] == "compliant", "compliant expected: %r" % drift.evaluate(conn, did), p)
+
+    def kinds():
+        return [r["kind"] for r in conn.execute("SELECT kind FROM events WHERE kind LIKE 'config_%' AND kind != 'config_changed' ORDER BY id")]
+    drift.refresh(conn, did)                                    # baseline
+    need(kinds() == [], "baseline evaluation emitted %r" % kinds(), p)
+    drifted = run.replace("10.0.0.1 255", "10.0.0.7 255")
+    ssh.apply_result(conn, did, "config", drifted)              # a poll sees a changed config
+    need(kinds() == ["config_drift"], "compliant -> drifted emitted %r" % kinds(), p)
+    ssh.apply_result(conn, did, "config", drifted)
+    need(kinds() == ["config_drift"], "an unchanged drifted config emitted again: %r" % kinds(), p)
+    ssh.apply_result(conn, did, "config", run)
+    need(kinds() == ["config_drift", "config_compliant"], "drifted -> compliant emitted %r" % kinds(), p)
+    conn.commit()
+    conn.close()
+    # saving the template re-evaluates the devices that use it
+    client = m["appmod"].app.test_client()
+    client.put("/api/templates/t", json={"body": tpl + "banner motd ^hello^\n"})
+    status = client.get("/api/devices").get_json()[0]["drift_status"]
+    need(status == "drifted", "template save did not refresh drift_status (%r)" % status, p)
+    need(client.get("/api/devices/%d/drift" % did).get_json()["status"] == "drifted", "drift API", p)
+    return p
+
+
+class _Capture:
+    def __init__(self, fail=False):
+        self.sent, self.fail = [], fail
+
+    def __call__(self, target, payload):
+        self.sent.append((target, payload))
+        if self.fail:
+            raise RuntimeError("target down")
+
+
+def _rule(conn, **kw):
+    row = dict(name="r", enabled=1, source="event", kinds="", min_severity="info", syslog_max_severity=None,
+               pattern="", device="", target="webhook:http://127.0.0.1:9/x", cooldown_s=300, created_at="2026-01-01 00:00:00")
+    row.update(kw)
+    cols = ",".join(row)
+    conn.execute("INSERT INTO alert_rules (%s) VALUES (%s)" % (cols, ",".join(":" + k for k in row)), row)
+    conn.commit()
+
+
+@check("R31", "alerting: matching, cooldown, no replay of old events, failures contained, no write lock during a send")
+def _():
+    p = []
+    m, conn = fresh_db()
+    from app import alerts, events
+    did = add_device(conn, "192.0.2.1", "core-r1")
+    # --- pure matching
+    ev = {"kind": "bgp_state", "severity": "warning", "subject": "core-r1 BGP peer 10.0.0.2: Active", "detail": "Established -> Active", "hostname": "core-r1"}
+    base = dict(source="event", kinds="", min_severity="info", device="", pattern="")
+    need(alerts.matches_event(dict(base), ev), "empty rule should match every event", p)
+    need(not alerts.matches_event(dict(base, kinds="ping_down"), ev), "kind filter ignored", p)
+    need(alerts.matches_event(dict(base, kinds="ping_down, bgp_state"), ev), "kind list with a space failed", p)
+    need(not alerts.matches_event(dict(base, min_severity="critical"), ev), "min_severity ignored", p)
+    need(alerts.matches_event(dict(base, min_severity="warning"), ev), "min_severity=warning should match a warning", p)
+    need(not alerts.matches_event(dict(base, device="edge"), ev) and alerts.matches_event(dict(base, device="CORE"), ev), "device filter", p)
+    need(alerts.matches_event(dict(base, pattern="established ->"), ev) and not alerts.matches_event(dict(base, pattern="nomatch"), ev), "pattern", p)
+    sysb = dict(source="syslog", syslog_max_severity=3, device="", pattern="")
+    msg = {"severity": 3, "host": "core-r1", "source_ip": "192.0.2.1", "mnemonic": "BGP-3-NOTIFICATION", "message": "sent to neighbor"}
+    need(alerts.matches_syslog(sysb, msg) and not alerts.matches_syslog(sysb, dict(msg, severity=5)), "syslog severity limit", p)
+    need(not alerts.matches_syslog(sysb, dict(msg, severity=None)), "a message without a severity must not pass a severity limit", p)
+    need(alerts.matches_syslog(dict(sysb, pattern="NOTIFICATION"), msg), "syslog pattern over the mnemonic", p)
+    need(not alerts.matches_syslog(dict(base, source="event"), msg), "an event rule matched syslog", p)
+
+    # --- pipeline
+    _rule(conn, name="drift", kinds="config_drift,ping_down", min_severity="warning", cooldown_s=300)
+    events.emit(conn, did, "config_drift", "warning", "core-r1: drifted", "1 line(s) missing")
+    events.emit(conn, did, "interface_up", "info", "core-r1 Gi1: up", "")           # not matched
+    # An old event on a different device key: the cooldown must not be what keeps it quiet.
+    conn.execute("INSERT INTO events (at, device_id, kind, severity, subject, detail) VALUES ('2020-01-01 00:00:00', NULL, 'ping_down', 'warning', 'old', '')")
+    conn.commit()
+    cap = _Capture()
+    now = time.time()
+    alerts.process_once(deliver_fn=cap, now=now)
+    need(len(cap.sent) == 1 and cap.sent[0][1]["kind"] == "config_drift", "first pass sent %r" % [(c[1]["kind"]) for c in cap.sent], p)
+    need(cap.sent and cap.sent[0][1]["text"].startswith("[confetti-butler] core-r1: drifted"), "payload text: %r" % (cap.sent[0][1]["text"] if cap.sent else None), p)
+    alerts.process_once(deliver_fn=cap, now=now + 1)
+    need(len(cap.sent) == 1, "events were alerted twice", p)
+    events.emit(conn, did, "ping_down", "warning", "core-r1: not answering ping", "")
+    events.emit(conn, did, "ping_down", "warning", "core-r1: not answering ping again", "")
+    conn.commit()
+    alerts.process_once(deliver_fn=cap, now=now + 10)
+    need(len(cap.sent) == 1, "cooldown ignored: %d sent" % len(cap.sent), p)
+    events.emit(conn, did, "ping_down", "warning", "core-r1: still down", "")
+    conn.commit()
+    alerts.process_once(deliver_fn=cap, now=now + 400)
+    need(len(cap.sent) == 2 and "held back" in cap.sent[1][1]["text"], "after the cooldown: %r" % (cap.sent[-1][1]["text"] if cap.sent else None), p)
+
+    # --- syslog queue
+    _rule(conn, name="sys", source="syslog", syslog_max_severity=3, cooldown_s=0)
+    for i in range(3):
+        alerts.offer_syslog(dict(msg, message="m%d" % i))
+    alerts.offer_syslog(dict(msg, severity=6))
+    alerts.offer_syslog(None)
+    cap2 = _Capture()
+    alerts.process_once(deliver_fn=cap2, now=now + 500)
+    need(len(cap2.sent) == 3, "syslog alerts sent: %d, expected 3" % len(cap2.sent), p)
+    need(alerts._syslog_queue.maxlen is not None, "the syslog hand-over queue must be bounded", p)
+
+    # --- a failing target is recorded, not raised, not retried forever
+    conn.execute("UPDATE alert_rules SET cooldown_s = 0")      # the cooldown is covered above
+    conn.commit()
+    alerts._last_sent.clear()                                  # the clock above was simulated
+    alerts._held_back.clear()
+    bad = _Capture(fail=True)
+    events.emit(conn, did, "config_drift", "warning", "core-r1: drifted again", "")
+    conn.commit()
+    alerts.process_once(deliver_fn=bad)
+    err = conn.execute("SELECT last_error FROM alert_rules WHERE name = 'drift'").fetchone()[0]
+    need(err and "target down" in err, "failure not recorded on the rule: %r" % err, p)
+    n = len(bad.sent)
+    alerts.process_once(deliver_fn=bad)
+    need(len(bad.sent) == n, "a failed alert was retried on the next pass", p)
+
+    # --- no write lock held while sending
+    import sqlite3
+    seen = []
+
+    def probe(target, payload):
+        c = sqlite3.connect(m["config"].DB_PATH, timeout=0.2)
+        try:
+            c.execute("BEGIN IMMEDIATE")
+            c.rollback()
+            seen.append("free")
+        except sqlite3.OperationalError:
+            seen.append("LOCKED")
+        finally:
+            c.close()
+    events.emit(conn, did, "config_drift", "warning", "core-r1: drifted third time", "")
+    conn.commit()
+    alerts.process_once(deliver_fn=probe)
+    need(seen == ["free"], "database write lock was held during the send: %r" % seen, p)
+    conn.close()
+    need("alerts.offer_syslog" in read("butler/app/syslog_server.py"), "syslog receiver no longer hands messages to alerts", p)
+    return p
+
+
+@check("R32", "alert delivery: webhook JSON, mail, retry once, target never returned in full")
+def _():
+    p = []
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    m, conn = fresh_db()
+    from app import alerts
+    got = []
+
+    class H(BaseHTTPRequestHandler):
+        code = 200
+
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            got.append((self.path, self.headers.get("Content-Type"), json.loads(body)))
+            self.send_response(H.code)
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = "http://127.0.0.1:%d/hook/SECRETTOKEN" % srv.server_address[1]
+    try:
+        payload = alerts.make_payload("warning", "ping_down", "r1", "r1: not answering ping", "2 failed")
+        alerts.deliver("webhook:" + url, payload)
+        need(len(got) == 1 and got[0][0] == "/hook/SECRETTOKEN" and "json" in (got[0][1] or ""), "webhook request: %r" % got, p)
+        if got:
+            need(all(k in got[0][2] for k in ("text", "title", "severity", "kind", "device", "at")), "webhook JSON keys: %r" % sorted(got[0][2]), p)
+        H.code = 500
+        try:
+            alerts.deliver("webhook:" + url, payload)
+            p.append("an HTTP 500 from the webhook was treated as success")
+        except RuntimeError:
+            pass
+        n = len(got)
+        real_sleep, alerts.time.sleep = alerts.time.sleep, lambda s: None
+        try:
+            alerts.deliver_with_retry("webhook:" + url, payload)
+        except RuntimeError:
+            pass
+        finally:
+            alerts.time.sleep = real_sleep
+        need(len(got) - n == 2, "retry sent %d requests, expected exactly 2" % (len(got) - n), p)
+    finally:
+        srv.shutdown()
+
+    # mail: smtplib replaced by a recorder
+    config = m["config"]
+    sent = {}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout=None):
+            sent["conn"] = (host, port)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self):
+            sent["tls"] = True
+
+        def login(self, u, pw):
+            sent["login"] = (u, pw)
+
+        def send_message(self, msg):
+            sent["msg"] = msg
+    real = alerts.smtplib.SMTP
+    alerts.smtplib.SMTP = FakeSMTP
+    old = (config.SMTP_HOST, config.SMTP_TLS, config.SMTP_USER, config.SMTP_PASSWORD)
+    try:
+        config.SMTP_HOST, config.SMTP_TLS, config.SMTP_USER, config.SMTP_PASSWORD = "", False, "", ""
+        try:
+            alerts.deliver("mail:ops@example.net", payload)
+            p.append("mail without BUTLER_SMTP_HOST did not fail")
+        except RuntimeError as exc:
+            need("SMTP" in str(exc), "unhelpful error: %s" % exc, p)
+        config.SMTP_HOST, config.SMTP_TLS, config.SMTP_USER, config.SMTP_PASSWORD = "smtp.invalid", True, "u", "pw"
+        alerts.deliver("mail:ops@example.net", payload)
+        msg = sent.get("msg")
+        need(msg is not None and msg["To"] == "ops@example.net" and "ping_down" in msg["Subject"], "mail headers: %r" % (dict(msg) if msg else None), p)
+        need(sent.get("tls") and sent.get("login") == ("u", "pw"), "TLS / login not used: %r" % sent, p)
+    finally:
+        alerts.smtplib.SMTP = real
+        config.SMTP_HOST, config.SMTP_TLS, config.SMTP_USER, config.SMTP_PASSWORD = old
+
+    # API: validation, masking, partial update
+    c = m["appmod"].app.test_client()
+    good = {"name": "n", "source": "event", "target": "webhook:" + url}
+    r = c.post("/api/alert-rules", json=good)
+    need(r.status_code == 201 and "SECRETTOKEN" not in r.get_data(as_text=True), "create / the token leaked in the response", p)
+    rid = r.get_json()["id"]
+    need("SECRETTOKEN" not in c.get("/api/alert-rules").get_data(as_text=True), "the webhook token leaked in the list", p)
+    for bad in ({"target": "ftp://x"}, {"target": "mail:nope"}, {"pattern": "("}, {"cooldown_s": "-1"},
+                {"source": "other"}, {"min_severity": "loud"}, {"syslog_max_severity": 9}, {"name": " "}):
+        code = c.post("/api/alert-rules", json=dict(good, **bad)).status_code
+        need(code == 400, "invalid %r accepted (%s)" % (bad, code), p)
+    need(c.put("/api/alert-rules/%d" % rid, json={"enabled": False}).get_json()["enabled"] == 0, "PUT enabled", p)
+    stored = m["db"].connect().execute("SELECT target FROM alert_rules WHERE id = ?", (rid,)).fetchone()[0]
+    need(stored == "webhook:" + url, "a PUT without target changed the stored target: %r" % stored, p)
+    need(c.post("/api/alert-rules/%d/test" % rid).get_json().get("ok") in (True, False), "test endpoint", p)
+    need(c.delete("/api/alert-rules/%d" % rid).status_code == 200 and c.delete("/api/alert-rules/%d" % rid).status_code == 404, "delete", p)
+    need(c.get("/alerts").status_code == 200, "alerts page", p)
+    return p
+
+
 # ============================================================ live tier
 
 def run_live():
@@ -898,8 +1151,9 @@ def run_live():
         need(health.get("poller_running") is True, "poller is not running", problems)
         need(health.get("syslog_listening") is True, "syslog listener is not up", problems)
         need(health.get("reach_running") is True, "ICMP checker is not running", problems)
+        need(health.get("alerts_running") is True, "alert thread is not running", problems)
         need(b"butler_up 1" in get("/metrics")[1], "/metrics does not answer", problems)
-        for url in ("/", "/devices", "/topology", "/ipam", "/templates", "/syslog", "/conflicts"):
+        for url in ("/", "/devices", "/topology", "/ipam", "/templates", "/syslog", "/conflicts", "/alerts"):
             code = get(url)[0]
             need(code == 200, "GET %s -> %s" % (url, code), problems)
         req = urllib.request.Request(base + "/api/devices", method="POST",

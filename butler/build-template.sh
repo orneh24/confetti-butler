@@ -234,6 +234,18 @@ BUTLER_DISCOVERY_INTERVAL_S=0
 # Add LLDP neighbors with an unknown management IP as inventory-only devices.
 BUTLER_LLDP_AUTO_ADOPT=false
 
+# --- Alerting (rules are created on the Alerts page) ----------------------
+BUTLER_ALERTS_ENABLED=true
+# Events older than this are never alerted on (no replay after a restart).
+BUTLER_ALERT_MAX_AGE_S=600
+# Needed only for rules with a mail: target.
+# BUTLER_SMTP_HOST=smtp.example.net
+# BUTLER_SMTP_PORT=25
+# BUTLER_SMTP_USER=
+# BUTLER_SMTP_PASSWORD=
+# BUTLER_SMTP_FROM=confetti-butler@example.net
+# BUTLER_SMTP_TLS=false
+
 # --- Default device credentials -----------------------------------------
 # Shared lab defaults; override per device via PUT /api/devices/<id>/credentials.
 # Never put a real password here outside an isolated lab.

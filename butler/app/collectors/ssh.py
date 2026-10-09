@@ -16,6 +16,7 @@ from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutExc
 
 from .. import config
 from .. import db
+from .. import drift
 from .. import events
 from .. import identity
 from .. import lldp_crawl
@@ -377,6 +378,7 @@ def _apply_config(conn, device_id, text, now):
         (device_id,),
     ).fetchone()
     if latest and latest["sha256"] == sha:
+        drift.refresh(conn, device_id)    # the template may have changed since the last poll
         return
     if latest:
         events.emit(conn, device_id, "config_changed", "info",
@@ -391,3 +393,4 @@ def _apply_config(conn, device_id, text, now):
                    (SELECT id FROM config_versions WHERE device_id = ? ORDER BY id DESC LIMIT ?)""",
             (device_id, device_id, config.CONFIG_VERSIONS_KEEP),
         )
+    drift.refresh(conn, device_id)

@@ -46,7 +46,7 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
                 <thead>
                     <tr>
                         <th>Hostname</th><th>Role</th><th>Mgmt IP</th><th>Site</th>
-                        <th>Key</th><th>Ping</th><th>Poll</th><th>Last seen</th><th></th>
+                        <th>Key</th><th>Ping</th><th>Template</th><th>Poll</th><th>Last seen</th><th></th>
                     </tr>
                 </thead>
                 <tbody id="device-rows"></tbody>
@@ -82,6 +82,13 @@ function timeAgo(iso) {
     if (s < 3600) { return Math.floor(s / 60) + 'm ago'; }
     if (s < 86400) { return Math.floor(s / 3600) + 'h ago'; }
     return Math.floor(s / 86400) + 'd ago';
+}
+
+function driftCell(s) {
+    if (s === 'compliant') { return '<span class="pill ok">matches</span>'; }
+    if (s === 'drifted') { return '<span class="pill bad">drifted</span>'; }
+    if (s === 'render_error') { return '<span class="pill running">template error</span>'; }
+    return '';
 }
 
 function pingCell(r) {
@@ -125,6 +132,7 @@ function renderDevices(list) {
             '<td>' + esc(d.site || '') + '</td>' +
             '<td>' + esc(d.key) + '</td>' +
             '<td>' + pingCell(d.reachable) + '</td>' +
+            '<td>' + driftCell(d.drift_status) + '</td>' +
             '<td><span class="pill ' + pollCls + '">' + esc(d.role === 'node' ? 'not polled' : d.poll_state) + '</span></td>' +
             '<td>' + timeAgo(d.last_seen) + '</td>' +
             '<td><button onclick="removeDevice(' + d.id + ')">delete</button></td>' +

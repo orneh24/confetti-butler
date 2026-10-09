@@ -55,7 +55,7 @@
                     <label for="f-enabled">polling enabled</label><input id="f-enabled" name="enabled" type="checkbox">
                 </div>
                 <datalist id="role-list"><option value="router"><option value="switch"><option value="firewall"><option value="node"></datalist>
-                <datalist id="platform-list"><option value="cisco_ios"><option value="cisco_xe"><option value="arista_eos"><option value="juniper_junos"><option value="snmp"><option value="linux"></datalist>
+                <datalist id="platform-list"><option value="cisco_ios"><option value="cisco_xe"><option value="snmp"><option value="linux"></datalist>
                 <button type="submit">Save</button><span class="msg" id="edit-msg"></span>
             </form>
         </div>
@@ -88,6 +88,13 @@
                 <tbody id="event-rows"></tbody>
             </table>
             <div class="empty" id="event-empty" style="display:none">no changes recorded yet</div>
+        </div>
+    </div>
+    <div class="section wide" id="drift-section" style="display:none">
+        <div class="section-header"><span>Template drift</span></div>
+        <div class="section-body">
+            <div class="hint">The assigned template, rendered as the device would pull it, compared with the latest config backup. Lines the template does not mention are ignored, and secret lines are not compared.</div>
+            <div id="drift-body"></div>
         </div>
     </div>
     <div class="section wide">
@@ -344,6 +351,30 @@ function loadConfigs() {
     });
 }
 
+function loadDrift() {
+    fetch('/api/devices/' + deviceId + '/drift').then(function (r) { return r.json(); }).then(function (d) {
+        var sec = document.getElementById('drift-section');
+        if (d.status === 'no_template') { sec.style.display = 'none'; return; }
+        sec.style.display = 'block';
+        var html;
+        if (d.status === 'compliant') {
+            html = '<span class="pill ok">matches</span> the running config contains every line of the template' +
+                (d.skipped ? ' (' + d.skipped + ' secret line(s) not compared)' : '') + '.';
+        } else if (d.status === 'drifted') {
+            html = '<span class="pill bad">drifted</span> ' + d.missing.length + ' template line(s) missing from the running config:<pre style="margin-top:6px;">';
+            d.missing.forEach(function (m) {
+                html += esc(m.path.length ? m.path.join(' > ') + ' > ' : '') + esc(m.line) + '\n';
+            });
+            html += '</pre>';
+        } else if (d.status === 'no_backup') {
+            html = 'No config backup yet — poll the device first.';
+        } else {
+            html = '<span class="pill running">template error</span> ' + esc(d.detail || '');
+        }
+        document.getElementById('drift-body').innerHTML = html;
+    });
+}
+
 function loadEvents() {
     fetch('/api/events?limit=50&device_id=' + deviceId).then(function (r) { return r.json(); }).then(function (list) {
         var rows = '';
@@ -379,6 +410,7 @@ function pollNow() {
         loadInterfaces();
         loadConfigs();
         loadEvents();
+        loadDrift();
     }).catch(function () {
         msg.textContent = 'poll failed';
         btn.disabled = false;
@@ -389,6 +421,7 @@ loadDevice();
 loadInterfaces();
 loadConfigs();
 loadEvents();
+loadDrift();
 loadCredentials();
 </script>
 {% endblock %}

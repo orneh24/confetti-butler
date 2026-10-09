@@ -24,6 +24,7 @@ import sys
 import threading
 from datetime import datetime, timezone
 
+from . import alerts
 from . import config
 
 SEVERITY_NAMES = {
@@ -188,6 +189,9 @@ class _Store:
                 )
                 self.since_prune = 0
             self.db.commit()
+        # Hand the message to the alert thread. Appends to a deque and never
+        # raises, so alerting can not slow or break the receiver.
+        alerts.offer_syslog(rec)
 
 
 class _Handler(socketserver.BaseRequestHandler):

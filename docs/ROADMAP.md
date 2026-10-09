@@ -108,7 +108,7 @@ alerting) provide.
 
 ### Tier 4: platform breadth
 15. **Per-platform command/parser dispatch** (`parsers/<platform>.py` keyed by `devices.platform`).
-    Then Arista EOS (cEOS/vEOS fit well in ESXi labs), Juniper vMX/vSRX, and Linux via `lldpd`. That
+    Then Juniper vMX/vSRX (planned; Arista EOS was dropped from the roadmap 2026-10-10), and Linux via `lldpd`. That
     last one would let confetti-traffic nodes show up properly on the topology.
 16. **SNMP polling** (already planned in Design Decisions): `snmpwalk` for interface counters on
     devices without SSH.
@@ -345,6 +345,16 @@ Section 10 narrows sections 7 and 9: the drift check, alerting and the unselecte
 Built: Phases A, B, C (backup + diff + retention, events + timeline, pinned requirements, update script,
 real-VM build, nightly backup, guestinfo settings, lab-butler migration), then the optional features from
 section 9: ICMP reachability, interface counter trends, `/metrics`, topology state colours, scheduled
-discovery, LLDP neighbor crawl, regression script, multi-vendor parsers (EOS, Junos), SNMP polling, Packer
+discovery, LLDP neighbor crawl, regression script, multi-vendor dispatch (IOS + SNMP; the EOS and Junos parsers were removed 2026-10-10), SNMP polling, Packer
 template, container image. Still open: drift check, alerting (webhook / email / syslog rules), IPAM
 allocation, ZTP by serial, write auth token. Details and what was verified: `docs/HANDOFF.md`.
+
+---
+
+## 12. Status (2026-10-10)
+
+- **Dropped:** Arista EOS. **Planned, not started:** Juniper Junos (the unverified EOS and Junos parsers that had
+  been written from documentation were removed rather than shipped; the platform registry in
+  `app/platforms.py` is where a vendor is added).
+- **Built since section 11:** the drift check and alerting (webhook, e-mail, syslog rules).
+- **Still open:** IPAM allocation (next-free-IP, planned prefixes), ZTP by serial, write auth token, Junos.

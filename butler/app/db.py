@@ -71,7 +71,8 @@ def init_db():
             last_poll_ok    TEXT,
             reachable       INTEGER,
             last_ping_at    TEXT,
-            ping_fail       INTEGER NOT NULL DEFAULT 0
+            ping_fail       INTEGER NOT NULL DEFAULT 0,
+            drift_status    TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_devices_next_poll ON devices(enabled, poll_state, next_poll_at);
 
@@ -271,10 +272,31 @@ def init_db():
             kind      TEXT NOT NULL,
             severity  TEXT NOT NULL,
             subject   TEXT NOT NULL,
-            detail    TEXT NOT NULL DEFAULT ''
+            detail    TEXT NOT NULL DEFAULT '',
+            alerted   INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_events_at ON events(at);
         CREATE INDEX IF NOT EXISTS idx_events_device ON events(device_id, at);
+
+        -- Alert rules (see alerts.py). target is 'webhook:<url>' or 'mail:<address>';
+        -- the API never returns it in full because a webhook URL often carries a token.
+        CREATE TABLE IF NOT EXISTS alert_rules (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            name                TEXT NOT NULL,
+            enabled             INTEGER NOT NULL DEFAULT 1,
+            source              TEXT NOT NULL,
+            kinds               TEXT NOT NULL DEFAULT '',
+            min_severity        TEXT NOT NULL DEFAULT 'info',
+            syslog_max_severity INTEGER,
+            pattern             TEXT NOT NULL DEFAULT '',
+            device              TEXT NOT NULL DEFAULT '',
+            target              TEXT NOT NULL,
+            cooldown_s          INTEGER NOT NULL DEFAULT 300,
+            last_fired_at       TEXT,
+            fired_count         INTEGER NOT NULL DEFAULT 0,
+            last_error          TEXT,
+            created_at          TEXT NOT NULL
+        );
 
         -- Same shape as confetti-traffic's syslog table. device_id is resolved at
         -- query time against device_aliases, never stamped at insert — a
@@ -304,9 +326,16 @@ def init_db():
 
     # Migration: reachability columns landed with the ICMP checker.
     for col, ddl in (("reachable", "INTEGER"), ("last_ping_at", "TEXT"),
-                     ("ping_fail", "INTEGER NOT NULL DEFAULT 0")):
+                     ("ping_fail", "INTEGER NOT NULL DEFAULT 0"), ("drift_status", "TEXT")):
         if col not in cols:
             db.execute("ALTER TABLE devices ADD COLUMN {} {}".format(col, ddl))
+
+    # Migration: events.alerted landed with alerting. Existing rows are history:
+    # mark them done so enabling alerting never replays them.
+    ev_cols = {r[1] for r in db.execute("PRAGMA table_info(events)").fetchall()}
+    if "alerted" not in ev_cols:
+        db.execute("ALTER TABLE events ADD COLUMN alerted INTEGER NOT NULL DEFAULT 0")
+        db.execute("UPDATE events SET alerted = 1")
 
     # Migration: the confetti-traffic import's source value was 'meshflux'
     # (the sibling's old name). OR IGNORE + DELETE handles a device that

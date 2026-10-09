@@ -69,6 +69,10 @@ table (`device_aliases`, `device_sources`, `credentials`, `interfaces`, `templat
 - `GET /api/devices/<id>/interface-stats?name=&hours=` — error-counter samples; `GET .../interfaces`
   adds `input_errors_24h` / `crc_errors_24h`
 - `GET /api/events` (`device_id`, `kind`, `severity`, `hours`, `limit`) — change events
+- `GET /api/devices/<id>/drift` — live template-vs-running-config result (`status`, `missing`, `skipped`);
+  `drift_status` is also on `GET /api/devices`
+- `GET|POST /api/alert-rules`, `PUT|DELETE /api/alert-rules/<id>`, `POST /api/alert-rules/<id>/test` — a rule's
+  `target` (`webhook:<url>` / `mail:<addr>`) is write-only, `target_display` is returned instead
 - `GET /api/lldp/unknown` — neighbors whose advertised mgmt IP no device owns;
   `POST /api/lldp/adopt {ip, hostname?}` adds one as a device with polling OFF (`enabled=0`)
 
@@ -94,7 +98,7 @@ default overlays all three), `GET /api/adjacencies`
 label values escaped; see `app/metrics.py`).
 
 **Health:** `GET /api/time` (chrony tracking), `GET /api/health` (services, poller_running,
-reach_running, discovery, syslog_listening, load/memory/disk/uptime) — both **never 500**, every check degrades independently
+reach_running, alerts_running, discovery, syslog_listening, load/memory/disk/uptime) — both **never 500**, every check degrades independently
 to `null`/`"unknown"` on a flaky or non-Alpine box.
 
 ## Poller scheduling
@@ -106,8 +110,7 @@ SSH session, each committing its own transaction. Rows a task no longer sees are
 `running` is always released in a `finally`, and reset at poller startup. `role='node'` devices are excluded from the claim query entirely.
 
 The task list belongs to the device's `platform` (`app/platforms.py`): `cisco_ios`/`cisco_xe` run the six
-above, `arista_eos` and `juniper_junos` the same six with their own commands and parsers (not verified
-on real hardware), and `snmp` runs only `version` and `interfaces` through net-snmp.
+above, and `snmp` runs only `version` and `interfaces` through net-snmp.
 
 Success: `fail_count=0`, `next_poll_at = now + poll_interval_s`. Failure:
 `fail_count += 1`, `next_poll_at = now + min(interval * 2**fail_count, POLL_MAX_BACKOFF_S)`.

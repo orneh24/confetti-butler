@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Alerts{% endblock %}
+{% block content %}
+<div class="container stack">
+    <div class="section wide">
+        <div class="section-header"><span>Alert rules</span></div>
+        <div class="section-body">
+            <div class="hint">A rule sends a webhook or an e-mail when an event or a syslog message matches. Each rule sends at most once per cooldown per device; messages held back are counted in the next one. Webhook URLs are not shown after saving (they often hold a token).</div>
+            <table>
+                <thead><tr><th>On</th><th>Name</th><th>Source</th><th>Matches</th><th>Target</th><th>Cooldown</th><th>Last sent</th><th>Sent</th><th></th></tr></thead>
+                <tbody id="rule-rows"></tbody>
+            </table>
+            <div class="empty" id="rule-empty" style="display:none">no rules yet — add one below</div>
+            <div class="msg" id="rule-msg"></div>
+        </div>
+    </div>
+    <div class="section">
+        <div class="section-header"><span>Add a rule</span></div>
+        <div class="section-body">
+            <form id="rule-form" onsubmit="addRule(); return false;" autocomplete="off">
+                <div class="form-grid">
+                    <label for="r-name">name</label><input id="r-name" required>
+                    <label for="r-source">source</label>
+                    <select id="r-source" onchange="sourceChanged()">
+                        <option value="event">event (poller, ping, drift, ...)</option>
+                        <option value="syslog">syslog message</option>
+                    </select>
+                    <label for="r-kinds" class="ev">event kinds</label>
+                    <input id="r-kinds" class="ev" list="kind-list" placeholder="empty = all, or comma list">
+                    <label for="r-minsev" class="ev">minimum severity</label>
+                    <select id="r-minsev" class="ev"><option>info</option><option selected>warning</option><option>critical</option></select>
+                    <label for="r-syssev" class="sl">syslog severity</label>
+                    <select id="r-syssev" class="sl">
+                        <option value="">any</option><option value="2">critical or worse (2)</option>
+                        <option value="3" selected>error or worse (3)</option><option value="4">warning or worse (4)</option>
+                        <option value="6">info or worse (6)</option>
+                    </select>
+                    <label for="r-pattern">text matches (regex)</label><input id="r-pattern" placeholder="optional, e.g. BGP-5-ADJCHANGE">
+                    <label for="r-device">device contains</label><input id="r-device" placeholder="optional, part of the hostname">
+                    <label for="r-target-type">send to</label>
+                    <select id="r-target-type"><option value="webhook">webhook (URL)</option><option value="mail">e-mail (needs BUTLER_SMTP_HOST)</option></select>
+                    <label for="r-target">URL or address</label><input id="r-target" required placeholder="https://ntfy.example/topic  or  name@example.com">
+                    <label for="r-cooldown">cooldown (s)</label><input id="r-cooldown" type="number" min="0" max="86400" value="300">
+                </div>
+                <datalist id="kind-list">
+                    <option value="interface_down"><option value="interface_up"><option value="interface_errors">
+                    <option value="bgp_state"><option value="bgp_peer_added"><option value="bgp_peer_removed">
+                    <option value="ospf_state"><option value="ospf_peer_added"><option value="ospf_peer_removed">
+                    <option value="lldp_neighbor_added"><option value="lldp_neighbor_removed">
+                    <option value="config_changed"><option value="config_drift"><option value="config_compliant">
+                    <option value="os_version_changed"><option value="device_unreachable"><option value="device_recovered">
+                    <option value="ping_down"><option value="ping_up"><option value="device_discovered">
+                </datalist>
+                <button type="submit">Add rule</button><span class="msg" id="add-msg"></span>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s === null || s === undefined ? '' : String(s);
+    return d.innerHTML;
+}
+
+function sourceChanged() {
+    var ev = document.getElementById('r-source').value === 'event';
+    Array.prototype.forEach.call(document.querySelectorAll('.ev'), function (e) { e.style.display = ev ? '' : 'none'; });
+    Array.prototype.forEach.call(document.querySelectorAll('.sl'), function (e) { e.style.display = ev ? 'none' : ''; });
+}
+
+function describe(r) {
+    if (r.source === 'syslog') {
+        var parts = [r.syslog_max_severity === null ? 'any severity' : 'severity <= ' + r.syslog_max_severity];
+    } else {
+        var parts = [(r.kinds || 'all kinds'), 'severity >= ' + r.min_severity];
+    }
+    if (r.pattern) { parts.push('text ~ ' + r.pattern); }
+    if (r.device) { parts.push('device ~ ' + r.device); }
+    return parts.join('; ');
+}
+
+function loadRules() {
+    fetch('/api/alert-rules').then(function (x) { return x.json(); }).then(function (list) {
+        var rows = '';
+        list.forEach(function (r) {
+            var last = r.last_error ? '<span class="pill bad" title="' + esc(r.last_error).replace(/"/g, '&quot;') + '">failed</span> ' : '';
+            last += r.last_fired_at ? new Date(r.last_fired_at).toLocaleString() : 'never';
+            rows += '<tr>' +
+                '<td><input type="checkbox"' + (r.enabled ? ' checked' : '') + ' onchange="toggleRule(' + r.id + ', this.checked)"></td>' +
+                '<td>' + esc(r.name) + '</td><td>' + esc(r.source) + '</td><td>' + esc(describe(r)) + '</td>' +
+                '<td>' + esc(r.target_display) + '</td><td>' + esc(r.cooldown_s) + 's</td><td>' + last + '</td>' +
+                '<td>' + esc(r.fired_count) + '</td>' +
+                '<td><button onclick="testRule(' + r.id + ')">test</button> <button onclick="deleteRule(' + r.id + ')">delete</button></td></tr>';
+        });
+        document.getElementById('rule-rows').innerHTML = rows;
+        document.getElementById('rule-empty').style.display = list.length ? 'none' : 'block';
+    });
+}
+
+function say(id, text, ok) {
+    var m = document.getElementById(id);
+    m.textContent = text;
+    m.className = 'msg ' + (ok ? 'ok' : 'err');
+}
+
+function toggleRule(id, on) {
+    fetch('/api/alert-rules/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: on }) }).then(loadRules);
+}
+
+function deleteRule(id) {
+    fetch('/api/alert-rules/' + id, { method: 'DELETE' }).then(loadRules);
+}
+
+function testRule(id) {
+    say('rule-msg', 'sending test...', true);
+    fetch('/api/alert-rules/' + id + '/test', { method: 'POST' }).then(function (x) { return x.json(); }).then(function (d) {
+        say('rule-msg', d.ok ? 'test sent' : 'test failed: ' + d.error, d.ok);
+    });
+}
+
+function addRule() {
+    var source = document.getElementById('r-source').value;
+    var body = {
+        name: document.getElementById('r-name').value,
+        source: source,
+        pattern: document.getElementById('r-pattern').value,
+        device: document.getElementById('r-device').value,
+        target: document.getElementById('r-target-type').value + ':' + document.getElementById('r-target').value.trim(),
+        cooldown_s: document.getElementById('r-cooldown').value
+    };
+    if (source === 'event') {
+        body.kinds = document.getElementById('r-kinds').value;
+        body.min_severity = document.getElementById('r-minsev').value;
+    } else {
+        body.syslog_max_severity = document.getElementById('r-syssev').value;
+    }
+    fetch('/api/alert-rules', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) }).then(function (x) {
+        return x.json().then(function (d) { return { ok: x.ok, d: d }; });
+    }).then(function (res) {
+        if (res.ok) {
+            say('add-msg', 'rule added', true);
+            document.getElementById('rule-form').reset();
+            sourceChanged();
+            loadRules();
+        } else {
+            say('add-msg', res.d.error, false);
+        }
+    });
+}
+
+sourceChanged();
+loadRules();
+</script>
+{% endblock %}

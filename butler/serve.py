@@ -52,6 +52,13 @@ def _start_background_services():
         reach.start()
 
     try:
+        from app import alerts
+    except ImportError:
+        pass
+    else:
+        alerts.start()
+
+    try:
         from app import discovery
     except ImportError:
         pass

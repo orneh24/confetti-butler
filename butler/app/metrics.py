@@ -82,6 +82,10 @@ def render(conn):
             o.sample("butler_interface_crc_errors", "CRC error counter as last polled", "gauge",
                      i["crc_errors"], **lab)
 
+    o.sample("butler_alert_rules_failing", "alert rules whose last send failed", "gauge",
+             conn.execute("SELECT COUNT(*) FROM alert_rules WHERE last_error IS NOT NULL").fetchone()[0])
+    for r in conn.execute("SELECT name, fired_count FROM alert_rules ORDER BY id"):
+        o.sample("butler_alert_rule_fired", "alerts a rule has sent", "gauge", r["fired_count"], rule=r["name"])
     o.sample("butler_syslog_rows", "syslog messages currently stored", "gauge",
              conn.execute("SELECT COUNT(*) FROM syslog").fetchone()[0])
     o.sample("butler_merge_conflicts_open", "unresolved device merge conflicts", "gauge",

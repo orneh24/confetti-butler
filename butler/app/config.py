@@ -68,6 +68,20 @@ DISCOVERY_SEEDFILE = os.environ.get("BUTLER_DISCOVERY_SEEDFILE", "").strip()
 LLDP_AUTO_ADOPT = _flag("BUTLER_LLDP_AUTO_ADOPT", "false")
 
 # ---------------------------------------------------------------------------
+# Alerting (alerts.py)
+# ---------------------------------------------------------------------------
+ALERTS_ENABLED = _flag("BUTLER_ALERTS_ENABLED", "true")
+ALERT_TICK_S = int(os.environ.get("BUTLER_ALERT_TICK_S", "10"))
+# Events older than this are never alerted on (no replay after a restart or a late rule).
+ALERT_MAX_AGE_S = int(os.environ.get("BUTLER_ALERT_MAX_AGE_S", "600"))
+SMTP_HOST = os.environ.get("BUTLER_SMTP_HOST", "").strip()
+SMTP_PORT = int(os.environ.get("BUTLER_SMTP_PORT", "25"))
+SMTP_USER = os.environ.get("BUTLER_SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("BUTLER_SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("BUTLER_SMTP_FROM", "confetti-butler@localhost")
+SMTP_TLS = _flag("BUTLER_SMTP_TLS", "false")
+
+# ---------------------------------------------------------------------------
 # Default device credentials — a per-device row in the credentials table
 # overrides these. Never hardcode a real lab password here; this is a shared
 # default for an isolated lab, same posture as confetti-traffic's default root password.
