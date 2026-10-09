@@ -87,6 +87,19 @@ backup. `BUTLER_CONFIG_VERSIONS_KEEP` caps versions per device (0 = unlimited). 
 unless `?raw=1`. Because the diff is built from masked text, a changed secret shows no difference.
 The device page's Config history section shows the list, a viewer and the diff.
 
+### Change events
+
+`app/events.py` `emit()` writes a row to `events` (`BUTLER_EVENT_RETENTION_DAYS`, default 30, pruned
+in the poller tick). Callers are the poller's apply steps, which hold the old state just before they
+overwrite it: interface oper up/down and rising CRC errors, BGP/OSPF peer state/added/removed, LLDP
+neighbor added/removed, OS version change, `config_changed`, and `poller._finish` for
+`device_unreachable` / `device_recovered` (first failure and first success after failures only, not
+every poll). `emit()` never commits — the event shares the transaction of the change it describes.
+`events.is_baseline()` is true until a task has an `ok=1` row in `poll_history`; while true, nothing is
+emitted, so adding a device doesn't produce one event per interface/peer. Read via
+`GET /api/events` (`device_id`, `kind`, `severity`, `hours`, `limit`); shown on the dashboard
+(last 15) and each device page. There is no alerting yet — events are only recorded.
+
 ### Config templates — pull delivery
 
 `app/rendering.py` renders a Jinja2 template against `{device, interfaces, vars}` built from a
@@ -189,6 +202,7 @@ butler/
     db.py              — get_db / connect / init_db / sqlite_now / iso / sqlite_ts_arg / like_arg
     identity.py         — device identity ladder, ingest/observe/merge — see above
     poller.py           — background SSH polling scheduler
+    events.py           — emit() change events, is_baseline() first-poll guard
     syslog_server.py    — UDP/514 receiver (ported from confetti-traffic)
     ipam.py              — overlap/duplicate-IP analysis
     rendering.py         — Jinja2 template rendering + safety checks + redact_secrets (stored configs)

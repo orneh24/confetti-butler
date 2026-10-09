@@ -38,6 +38,16 @@
         <div class="section-body" id="services-body"><div class="kv"><span class="k">loading</span></div></div>
     </div>
     <div class="section wide">
+        <div class="section-header"><span>Events — last 15</span></div>
+        <div class="section-body">
+            <table>
+                <thead><tr><th>Time</th><th>Sev</th><th>Event</th><th>Detail</th></tr></thead>
+                <tbody id="event-rows"></tbody>
+            </table>
+            <div class="empty" id="event-empty" style="display:none">no changes recorded yet</div>
+        </div>
+    </div>
+    <div class="section wide">
         <div class="section-header"><span>Syslog — last 15</span><a href="/syslog">view all</a></div>
         <div class="section-body">
             <div class="filters">
@@ -236,11 +246,28 @@ document.getElementById('f-q').addEventListener('input', function () {
     window._q_timer = setTimeout(loadSyslog, 300);
 });
 
+function loadEvents() {
+    fetch('/api/events?limit=15').then(function (r) { return r.json(); }).then(function (list) {
+        var rows = '';
+        for (var i = 0; i < list.length; i++) {
+            var e = list[i];
+            var cls = e.severity === 'info' ? 'ok' : (e.severity === 'warning' ? 'running' : 'bad');
+            var subj = e.device_id ? '<a href="/devices/' + e.device_id + '">' + esc(e.subject) + '</a>' : esc(e.subject);
+            rows += '<tr><td>' + new Date(e.at).toLocaleString() + '</td>' +
+                '<td><span class="pill ' + cls + '">' + esc(e.severity) + '</span></td>' +
+                '<td>' + subj + '</td><td>' + esc(e.detail) + '</td></tr>';
+        }
+        document.getElementById('event-rows').innerHTML = rows;
+        document.getElementById('event-empty').style.display = list.length ? 'none' : 'block';
+    });
+}
+
 function pollAll() {
     poll();
     loadKpis();
     loadSources();
     loadSyslog();
+    loadEvents();
 }
 
 pollAll();

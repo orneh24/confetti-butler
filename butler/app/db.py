@@ -247,6 +247,19 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_config_device ON config_versions(device_id, id);
 
+        -- State changes seen by the poller (see events.py). Age-pruned.
+        CREATE TABLE IF NOT EXISTS events (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            at        TEXT NOT NULL,
+            device_id INTEGER REFERENCES devices(id) ON DELETE CASCADE,
+            kind      TEXT NOT NULL,
+            severity  TEXT NOT NULL,
+            subject   TEXT NOT NULL,
+            detail    TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_events_at ON events(at);
+        CREATE INDEX IF NOT EXISTS idx_events_device ON events(device_id, at);
+
         -- Same shape as confetti-traffic's syslog table. device_id is resolved at
         -- query time against device_aliases, never stamped at insert — a
         -- device added or re-addressed after a message arrives should still

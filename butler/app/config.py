@@ -35,6 +35,7 @@ POLL_WORKERS = int(os.environ.get("BUTLER_POLL_WORKERS", "8"))
 POLL_DEFAULT_INTERVAL_S = int(os.environ.get("BUTLER_POLL_DEFAULT_INTERVAL_S", "300"))
 POLL_MAX_BACKOFF_S = int(os.environ.get("BUTLER_POLL_MAX_BACKOFF_S", "3600"))
 POLL_HISTORY_RETENTION_HOURS = int(os.environ.get("BUTLER_POLL_HISTORY_RETENTION_HOURS", "168"))
+EVENT_RETENTION_DAYS = int(os.environ.get("BUTLER_EVENT_RETENTION_DAYS", "30"))
 # Running-config versions kept per device. 0 = keep all: a version is only
 # stored when the config actually changes, so growth is slow.
 CONFIG_VERSIONS_KEEP = int(os.environ.get("BUTLER_CONFIG_VERSIONS_KEEP", "0"))

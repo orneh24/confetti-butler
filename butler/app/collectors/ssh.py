@@ -16,6 +16,7 @@ from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutExc
 
 from .. import config
 from .. import db
+from .. import events
 from .. import identity
 from ..parsers import ios
 
@@ -164,6 +165,12 @@ def _apply_version(conn, device_id, parsed, now):
     if parsed.get("hostname_hint"):
         candidates.append(("hostname", parsed["hostname_hint"]))
     fields = {"model": parsed.get("model"), "os_version": parsed.get("os_version")}
+    old = conn.execute("SELECT hostname, os_version FROM devices WHERE id = ?", (device_id,)).fetchone()
+    if (old and old["os_version"] and fields["os_version"] and old["os_version"] != fields["os_version"]
+            and not events.is_baseline(conn, device_id, "version")):
+        events.emit(conn, device_id, "os_version_changed", "warning",
+                    "{}: OS version changed".format(old["hostname"]),
+                    "{} -> {}".format(old["os_version"], fields["os_version"]))
 
     if candidates:
         # May raise identity.Conflict — poller.py catches it and marks the
@@ -178,6 +185,24 @@ def _apply_version(conn, device_id, parsed, now):
 
 
 def _apply_interfaces(conn, device_id, parsed, now):
+    if parsed and not events.is_baseline(conn, device_id, "interfaces"):
+        old = {r["name"]: r for r in conn.execute(
+            "SELECT name, oper_status, crc_errors FROM interfaces WHERE device_id = ?", (device_id,))}
+        host = _hostname(conn, device_id)
+        for row in parsed:
+            before = old.get(row["name"])
+            if before is None:
+                continue
+            if before["oper_status"] != row["oper_status"]:
+                events.emit(conn, device_id, "interface_" + ("up" if row["oper_status"] == "up" else "down"),
+                            "info" if row["oper_status"] == "up" else "warning",
+                            "{} {}: {}".format(host, row["name"], row["oper_status"]),
+                            "{} -> {}".format(before["oper_status"], row["oper_status"]))
+            if (row["crc_errors"] is not None and before["crc_errors"] is not None
+                    and row["crc_errors"] > before["crc_errors"]):
+                events.emit(conn, device_id, "interface_errors", "warning",
+                            "{} {}: CRC errors rising".format(host, row["name"]),
+                            "{} -> {}".format(before["crc_errors"], row["crc_errors"]))
     for row in parsed:
         conn.execute(
             """INSERT INTO interfaces (device_id, name, description, ip, prefix_len, network,
@@ -202,7 +227,27 @@ def _apply_interfaces(conn, device_id, parsed, now):
                      (device_id, now))
 
 
+def _hostname(conn, device_id):
+    row = conn.execute("SELECT hostname FROM devices WHERE id = ?", (device_id,)).fetchone()
+    return row["hostname"] if row else str(device_id)
+
+
 def _apply_lldp(conn, device_id, parsed, now):
+    baseline = events.is_baseline(conn, device_id, "lldp")
+    if not baseline:
+        old = {(r["local_if"], r["remote_port"]): r["remote_sysname"] for r in conn.execute(
+            "SELECT local_if, remote_port, remote_sysname FROM lldp_neighbors WHERE device_id = ?",
+            (device_id,))}
+        new = {(r["local_if"], r.get("remote_port")): r.get("remote_sysname") for r in parsed}
+        host = _hostname(conn, device_id)
+        for key in new.keys() - old.keys():
+            events.emit(conn, device_id, "lldp_neighbor_added", "info",
+                        "{} {}: neighbor {}".format(host, key[0], new[key] or key[1] or "?"),
+                        "remote port {}".format(key[1] or "?"))
+        for key in old.keys() - new.keys():
+            events.emit(conn, device_id, "lldp_neighbor_removed", "warning",
+                        "{} {}: lost neighbor {}".format(host, key[0], old[key] or key[1] or "?"),
+                        "remote port {}".format(key[1] or "?"))
     for row in parsed:
         # Resolve by the management IP the neighbor advertises, matched
         # against mgmt_ip aliases. Not by chassis ID: IOS-XE has no command
@@ -236,6 +281,26 @@ def _apply_lldp(conn, device_id, parsed, now):
 
 
 def _apply_adjacencies(conn, device_id, proto, parsed, now):
+    if not events.is_baseline(conn, device_id, proto):
+        old = {r["peer_ip"]: r["state"] for r in conn.execute(
+            "SELECT peer_ip, state FROM adjacencies WHERE device_id = ? AND proto = ?",
+            (device_id, proto))}
+        host = _hostname(conn, device_id)
+        up = "Established" if proto == "bgp" else "FULL"
+        seen = set()
+        for row in parsed:
+            seen.add(row["peer_ip"])
+            before = old.get(row["peer_ip"])
+            if before is None:
+                events.emit(conn, device_id, proto + "_peer_added", "info",
+                            "{} {} peer {}: {}".format(host, proto.upper(), row["peer_ip"], row["state"]))
+            elif before != row["state"]:
+                events.emit(conn, device_id, proto + "_state", "info" if row["state"] == up else "warning",
+                            "{} {} peer {}: {}".format(host, proto.upper(), row["peer_ip"], row["state"]),
+                            "{} -> {}".format(before, row["state"]))
+        for peer in old.keys() - seen:
+            events.emit(conn, device_id, proto + "_peer_removed", "warning",
+                        "{} {} peer {} removed".format(host, proto.upper(), peer))
     for row in parsed:
         # A BGP/OSPF peer_ip is usually the neighbor's loopback or a
         # point-to-point interface address, not its management IP — so
@@ -272,6 +337,9 @@ def _apply_config(conn, device_id, text, now):
     ).fetchone()
     if latest and latest["sha256"] == sha:
         return
+    if latest:
+        events.emit(conn, device_id, "config_changed", "info",
+                    "{}: running-config changed".format(_hostname(conn, device_id)))
     conn.execute(
         "INSERT INTO config_versions (device_id, sha256, body, captured_at) VALUES (?, ?, ?, ?)",
         (device_id, sha, text, now),

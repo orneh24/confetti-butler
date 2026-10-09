@@ -81,6 +81,16 @@
         </div>
     </div>
     <div class="section wide">
+        <div class="section-header"><span>Events</span></div>
+        <div class="section-body">
+            <table>
+                <thead><tr><th>Time</th><th>Sev</th><th>Event</th><th>Detail</th></tr></thead>
+                <tbody id="event-rows"></tbody>
+            </table>
+            <div class="empty" id="event-empty" style="display:none">no changes recorded yet</div>
+        </div>
+    </div>
+    <div class="section wide">
         <div class="section-header"><span>Config history</span></div>
         <div class="section-body">
             <div class="hint">Running-config backups, saved when the config changes. Secrets are masked.</div>
@@ -330,6 +340,21 @@ function loadConfigs() {
     });
 }
 
+function loadEvents() {
+    fetch('/api/events?limit=50&device_id=' + deviceId).then(function (r) { return r.json(); }).then(function (list) {
+        var rows = '';
+        for (var i = 0; i < list.length; i++) {
+            var e = list[i];
+            var cls = e.severity === 'info' ? 'ok' : (e.severity === 'warning' ? 'running' : 'bad');
+            rows += '<tr><td>' + new Date(e.at).toLocaleString() + '</td>' +
+                '<td><span class="pill ' + cls + '">' + esc(e.severity) + '</span></td>' +
+                '<td>' + esc(e.subject) + '</td><td>' + esc(e.detail) + '</td></tr>';
+        }
+        document.getElementById('event-rows').innerHTML = rows;
+        document.getElementById('event-empty').style.display = list.length ? 'none' : 'block';
+    });
+}
+
 function pollNow() {
     var btn = document.getElementById('poll-btn');
     var msg = document.getElementById('poll-msg');
@@ -349,6 +374,7 @@ function pollNow() {
         loadDevice();
         loadInterfaces();
         loadConfigs();
+        loadEvents();
     }).catch(function () {
         msg.textContent = 'poll failed';
         btn.disabled = false;
@@ -358,6 +384,7 @@ function pollNow() {
 loadDevice();
 loadInterfaces();
 loadConfigs();
+loadEvents();
 loadCredentials();
 </script>
 {% endblock %}

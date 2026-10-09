@@ -698,6 +698,42 @@ def api_discover_confetti():
 # interpreted — same posture as confetti-traffic's syslog page.
 # ---------------------------------------------------------------------------
 
+@app.route("/api/events", methods=["GET"])
+def api_events():
+    """Change events from the poller (events.py), newest first.
+
+    ?device_id=N, ?kind=, ?severity=info|warning|critical, ?hours=N (default
+    168), ?limit=N (default 100, max 1000).
+    """
+    args = request.args
+    where = ["e.at >= datetime('now', ? || ' hours')"]
+    try:
+        hours = int(args.get("hours", "168"))
+    except ValueError:
+        hours = 168
+    params = ["-{:d}".format(abs(hours))]
+    for col, key in (("e.device_id", "device_id"), ("e.kind", "kind"), ("e.severity", "severity")):
+        if args.get(key):
+            where.append(col + " = ?")
+            params.append(args[key])
+    try:
+        limit = max(1, min(int(args.get("limit", "100")), 1000))
+    except ValueError:
+        limit = 100
+    rows = db.get_db().execute(
+        """SELECT e.id, e.at, e.device_id, d.hostname, e.kind, e.severity, e.subject, e.detail
+           FROM events e LEFT JOIN devices d ON d.id = e.device_id
+           WHERE {} ORDER BY e.id DESC LIMIT ?""".format(" AND ".join(where)),
+        params + [limit],
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["at"] = db.iso(d["at"])
+        out.append(d)
+    return jsonify(out)
+
+
 SYSLOG_MAX_LIMIT = 2000
 
 

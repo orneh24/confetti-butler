@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from . import config
 from . import db
+from . import events
 from . import identity
 from .collectors import ssh as ssh_collector
 
@@ -94,6 +95,10 @@ def _tick(executor):
             "DELETE FROM poll_history WHERE received_at < datetime('now', ? || ' hours')",
             ("-{:d}".format(config.POLL_HISTORY_RETENTION_HOURS),),
         )
+        conn.execute(
+            "DELETE FROM events WHERE at < datetime('now', ? || ' days')",
+            ("-{:d}".format(config.EVENT_RETENTION_DAYS),),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -167,6 +172,18 @@ def _finish(conn, device_id, any_ok):
         "SELECT poll_interval_s, fail_count FROM devices WHERE id = ?", (device_id,)
     ).fetchone()
     interval = row["poll_interval_s"] if row else config.POLL_DEFAULT_INTERVAL_S
+
+    # Only the transitions: one event when a device stops answering, one when
+    # it comes back — not one per failed poll.
+    if row:
+        name = conn.execute("SELECT hostname FROM devices WHERE id = ?", (device_id,)).fetchone()["hostname"]
+        if not any_ok and row["fail_count"] == 0:
+            events.emit(conn, device_id, "device_unreachable", "warning",
+                        "{}: polling failed".format(name))
+        elif any_ok and row["fail_count"] > 0:
+            events.emit(conn, device_id, "device_recovered", "info",
+                        "{}: polling recovered".format(name),
+                        "after {} failed poll(s)".format(row["fail_count"]))
 
     if any_ok:
         conn.execute(
