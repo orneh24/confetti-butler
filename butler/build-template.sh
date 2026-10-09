@@ -214,6 +214,8 @@ BUTLER_POLL_HISTORY_RETENTION_HOURS=168
 BUTLER_EVENT_RETENTION_DAYS=30
 # Running-config versions kept per device; 0 keeps all.
 BUTLER_CONFIG_VERSIONS_KEEP=0
+# Nightly database backups kept (/var/lib/confetti-butler/backups).
+BUTLER_BACKUP_KEEP=7
 
 # --- Default device credentials -----------------------------------------
 # Shared lab defaults; override per device via PUT /api/devices/<id>/credentials.
@@ -228,52 +230,22 @@ BUTLER_SNMP_VERSION=2c
 BUTLER_HEALTH_SERVICES=confetti-butler,chronyd,dropbear,open-vm-tools,lldpd
 BUTLER_HEALTH_SERVICE_TIMEOUT_S=3
 ENVEOF
+# Holds the default SSH password (and anything guestinfo adds): root only.
+chmod 600 "$INSTALL_DIR/butler.env"
 
 # -------------------------------------------------------------------
 # 7. Create OpenRC init script
 # -------------------------------------------------------------------
 log "Creating OpenRC init script"
-cat > /etc/init.d/confetti-butler <<'INITEOF'
-#!/sbin/openrc-run
-
-name="confetti-butler"
-description="confetti-butler device inventory, IPAM, templates and topology"
-
-directory="/opt/confetti-butler"
-command="/usr/bin/python3"
-command_args="/opt/confetti-butler/serve.py"
-command_background="yes"
-pidfile="/run/confetti-butler.pid"
-output_log="/var/log/confetti-butler.log"
-error_log="/var/log/confetti-butler.log"
-
-# Load environment from butler.env.
-#
-# command_args is expanded when this script is PARSED, before start_pre
-# runs — interpolating ${BUTLER_PORT} here would freeze it at parse time
-# and ignore any later edit to butler.env. serve.py reads the port itself
-# at runtime instead; see confetti-traffic's hub init script (confettid-hub) for the same note,
-# this is the identical constraint.
-start_pre() {
-    if [ -f /opt/confetti-butler/butler.env ]; then
-        while IFS= read -r line; do
-            case "$line" in
-                \#*|"") continue ;;
-                *=*) export "$line" ;;
-            esac
-        done < /opt/confetti-butler/butler.env
-    fi
-
-    checkpath --directory --mode 0700 /var/lib/confetti-butler
-}
-
-depend() {
-    need net
-    after firewall confetti-butler-firstboot
-}
-INITEOF
+cp -f "${SCRIPT_DIR}/services/confetti-butler.initd" /etc/init.d/confetti-butler
 
 chmod +x /etc/init.d/confetti-butler
+
+# Nightly database backup. run-parts (Alpine's crond runs /etc/periodic/daily
+# at 02:00) skips file names containing a dot, hence no .sh.
+mkdir -p /etc/periodic/daily
+cp -f "${SCRIPT_DIR}/services/butler-backup.sh" /etc/periodic/daily/butler-backup
+chmod +x /etc/periodic/daily/butler-backup
 
 # First-boot autoconfiguration from guestinfo — same pattern as the hub's
 # confettid-hub-firstboot: stands down without both required keys rather
@@ -292,6 +264,7 @@ log "Enabling services"
 
 rc-update add confetti-butler default
 rc-update add confetti-butler-firstboot default
+rc-update add crond default
 
 apk add --no-cache dropbear
 rc-update add dropbear default
@@ -375,12 +348,13 @@ find /var/log -type f -exec truncate -s 0 {} \; 2>/dev/null || true
 apk cache clean 2>/dev/null || true
 rm -rf /var/cache/apk/*
 
-# Remove the DB if it was created during testing.
+# Remove the DB and its backups if they were created during testing.
 rm -f "$DB_DIR/butler.db"
+rm -rf "$DB_DIR/backups"
 
 # Remove any setup stamp left from build-time testing, or every clone would
 # consider itself already configured and skip butler-setup.sh.
-rm -f /etc/confetti-butler/.setup-done
+rm -f /etc/confetti-butler/.setup-done /etc/confetti-butler/.env-done
 
 rm -f "${SCRIPT_DIR}/build-template.sh"
 
@@ -401,6 +375,8 @@ log "  1. Clone from template"
 log "  2. Set these guestinfo keys on the clone in vCenter, then boot:"
 log "     guestinfo.butler.ip       10.0.0.101/24"
 log "     guestinfo.butler.gateway  10.0.0.1"
+log "     optional: guestinfo.butler.ssh_username / ssh_password / ssh_secret /"
+log "               poll_interval_s  (written into butler.env on first boot)"
 log "  3. The dashboard starts automatically on port 80"
 log ""
 log "To deploy a clone (manual):"

@@ -190,6 +190,22 @@ rollback, import failure, unhealthy start → auto rollback) and then on a real 
 (update, unhealthy start → auto rollback; 2026-10-09). A successful auto-rollback consumes `.prev`, so a
 manual `--rollback` right after one has nothing to go back to.
 
+### Backups, first boot, migration
+
+- **Nightly backup:** `services/butler-backup.sh` is installed as `/etc/periodic/daily/butler-backup` (no
+  dot in the name — run-parts skips those; `crond` is enabled by the build). `sqlite3 .backup` into
+  `/var/lib/confetti-butler/backups/butler-daily-YYYYMMDD.db`, newest `BUTLER_BACKUP_KEEP` (default 7)
+  kept, folder 0700, files 0600. Pre-update backups share the folder and rotate separately.
+- **Guestinfo first boot:** besides `butler.ip`/`butler.gateway`, `firstboot.initd` applies
+  `butler.ssh_username`, `ssh_password`, `ssh_secret` and `poll_interval_s` to `butler.env` once per clone
+  (stamp `/etc/confetti-butler/.env-done`, independent of the IP stamp). Guestinfo is visible to anyone who
+  can see the VM's advanced settings in vCenter. `butler.env` is 0600. There is no hub-URL key: the
+  confetti-traffic import takes its URL in the request, not from config.
+- **Pre-rename VMs:** `scripts/migrate-from-lab-butler.sh <butler-dir>` moves `/opt`, `/var/lib` and `/etc`
+  `lab-butler` to `confetti-butler`, rewrites `butler.env`, swaps the OpenRC services and login hook, and
+  checks health. It refuses if both names exist. Run `butler-update.sh` afterwards for the code. The OpenRC
+  main script now lives in `services/confetti-butler.initd` (the build copies it) so the migration can use it.
+
 ## Seeding paths (device discovery)
 
 All five are meant to run together and land on the same `devices` row when they observe the same
@@ -247,8 +263,8 @@ butler/
                           next-change time live in confetti-butler-theme-shuffle so every page stays in step (the same state carries a `layout` pick, as in confetti-traffic: not saved as the viewer's layout, a hand pick holds until the next change). Retro 95 / the CRT layouts disable the theme picker
   static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
   seed/devices.yaml.sample
-  services/ — firstboot.initd, login-setup.sh
-  scripts/ — butler-setup.sh, butler-update.sh (in-place update with backup + rollback), seed_mock_lab.py (fake lab in a new scratch DB),
+  services/ — confetti-butler.initd, firstboot.initd, login-setup.sh, butler-backup.sh
+  scripts/ — butler-setup.sh, butler-update.sh (in-place update with backup + rollback), migrate-from-lab-butler.sh, seed_mock_lab.py (fake lab in a new scratch DB),
            capture_readme.py (re-records docs/img/ from that mock lab; run after any UI change)
 .claude/skills/  — 6 vendor/protocol reference skills (this app's domain knowledge) +
            confetti-butler-hub-api (this app's own HTTP contract, mirroring confetti-hub-api) +

@@ -16,6 +16,8 @@ command_background="no"
 
 CONF_DIR="/etc/confetti-butler"
 STAMP="${CONF_DIR}/.setup-done"
+ENV_STAMP="${CONF_DIR}/.env-done"
+ENV_FILE="/opt/confetti-butler/butler.env"
 
 _guestinfo() {
     if command -v vmware-rpctool >/dev/null 2>&1; then
@@ -25,7 +27,50 @@ _guestinfo() {
     fi
 }
 
+# A guestinfo value, or nothing if the key is unset.
+_guestinfo_value() {
+    _v=$(_guestinfo "$1")
+    case "$_v" in *"No value found"*) _v="" ;; esac
+    printf '%s' "$_v"
+}
+
+# Set KEY=value in butler.env: drop any existing line, append the new one.
+# (No sed: a password can contain any character sed would treat as special.)
+_env_set() {
+    _tmp="${ENV_FILE}.tmp"
+    grep -v "^$1=" "$ENV_FILE" > "$_tmp" || true
+    printf '%s=%s
+' "$1" "$2" >> "$_tmp"
+    chmod 600 "$_tmp"
+    mv -f "$_tmp" "$ENV_FILE"
+}
+
+# Poller defaults from guestinfo, applied once per clone. Independent of the
+# IP setup below: a clone on DHCP can still get credentials this way.
+#   guestinfo.butler.ssh_username / ssh_password / ssh_secret / poll_interval_s
+# Anything stored in guestinfo is visible to whoever can view the VM's
+# advanced settings in vCenter; per-device credentials can still be set later.
+_apply_env() {
+    [ -f "$ENV_STAMP" ] && return 0
+    [ -f "$ENV_FILE" ] || return 0
+    _any=""
+    for _pair in ssh_username:BUTLER_SSH_USERNAME ssh_password:BUTLER_SSH_PASSWORD                  ssh_secret:BUTLER_SSH_SECRET poll_interval_s:BUTLER_POLL_DEFAULT_INTERVAL_S; do
+        _val=$(_guestinfo_value "butler.${_pair%%:*}")
+        if [ -n "$_val" ]; then
+            _env_set "${_pair#*:}" "$_val"
+            _any="yes"
+        fi
+    done
+    if [ -n "$_any" ]; then
+        mkdir -p "$CONF_DIR"
+        date -u '+%Y-%m-%dT%H:%M:%SZ applied (guestinfo)' > "$ENV_STAMP"
+        einfo "applied butler.* guestinfo settings to butler.env"
+    fi
+}
+
 start() {
+    _apply_env
+
     if [ -f "$STAMP" ]; then
         einfo "confetti-butler already configured; nothing to do"
         return 0

@@ -203,6 +203,16 @@ Three features, each its own commit, then a real-VM test of the deployment piece
   the VM reboots (expected for a template, but it ends the session that ran the build). A non-login SSH
   command has no `/usr/local/bin` in PATH, so use the full path to `butler-update.sh`. `requests` came
   from apk as 2.33.1, not the 2.34.2 pin.
+- **Remaining Phase C items** (same day, tested on the real VM after rebuilding it with the new script):
+  nightly backup (`services/butler-backup.sh`: backup, 0700/0600, rotation of 7, listed by `run-parts`),
+  guestinfo `ssh_username`/`ssh_password`/`ssh_secret`/`poll_interval_s` (set with `vmware-rpctool info-set`,
+  including a password with `$ & | " #` and spaces, applied once, reached the service environment), and
+  `scripts/migrate-from-lab-butler.sh` (VM turned back into the lab-butler layout, migrated, data kept,
+  re-run is a no-op). Re-running `build-template.sh` on an already built VM also worked. The OpenRC main script
+  moved to `services/confetti-butler.initd`; `butler.env` is now 0600.
+- **Not tested:** the nightly job firing from `crond` at 02:00 (script run by hand and listed by run-parts);
+  guestinfo set from vCenter rather than from inside the guest; the migrate script's both-names-exist refusal.
+  The test guestinfo values on the build VM can only be cleared by powering it off.
 - **Validation still pending** against real routers: config backup, the diff, and the events.
   Only tested on a scratch DB so far.
 
