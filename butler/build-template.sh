@@ -291,7 +291,7 @@ BUTLER_ALERT_MAX_AGE_S=600
 BUTLER_SSH_USERNAME=admin
 BUTLER_SSH_PASSWORD=
 BUTLER_SSH_SECRET=
-BUTLER_SNMP_COMMUNITY=public
+BUTLER_SNMP_COMMUNITY=confetti
 BUTLER_SNMP_VERSION=2c
 
 # --- Self-health (/api/health) ------------------------------------------

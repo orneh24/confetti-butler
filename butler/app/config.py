@@ -85,7 +85,7 @@ SMTP_TLS = _flag("BUTLER_SMTP_TLS", "false")
 DEFAULT_SSH_USERNAME = os.environ.get("BUTLER_SSH_USERNAME", "admin")
 DEFAULT_SSH_PASSWORD = os.environ.get("BUTLER_SSH_PASSWORD", "")
 DEFAULT_SSH_SECRET = os.environ.get("BUTLER_SSH_SECRET", "")
-DEFAULT_SNMP_COMMUNITY = os.environ.get("BUTLER_SNMP_COMMUNITY", "public")
+DEFAULT_SNMP_COMMUNITY = os.environ.get("BUTLER_SNMP_COMMUNITY", "confetti")
 DEFAULT_SNMP_VERSION = os.environ.get("BUTLER_SNMP_VERSION", "2c")
 
 # ---------------------------------------------------------------------------
