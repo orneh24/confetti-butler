@@ -191,7 +191,7 @@ try {
     if (shuffling) { var st0 = JSON.parse(localStorage.getItem('confetti-butler-theme-shuffle')); if (st0) shuffleLayout(st0); }
 } catch (e) {}
 
-// "Confetti!" button: a burst from the button, then rain from the top, in the
+// "Make it rain!" button: a burst from the button, then rain from the top, in the
 // current theme's colours. Plain canvas, no library (the server may be offline).
 // Each click gets its own overlay canvas, removed when the last piece falls off.
 function confettiBlast(btn) {

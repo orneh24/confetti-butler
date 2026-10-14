@@ -12,7 +12,7 @@ case "$-" in
             /opt/confetti-butler/butler-setup.sh || true
         elif [ -t 0 ]; then
             echo "  To re-run setup script:       butler-setup.sh"
-            echo "  To re-configure static IP:    set-static-ip <ip/cidr> <gateway>"
+            echo "  To re-configure static IP:    set-static-ip <ip/cidr> <gateway> [dns] [hostname]"
             echo
         fi
         ;;

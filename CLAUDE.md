@@ -240,7 +240,7 @@ arrives still correlates retroactively.
 
 ## Updating a deployed VM
 
-`butler-update.sh <butler-dir|tarball>` (also `--rollback`) runs the new tree's `build-template.sh --update`
+`butler-update.sh [-y] <butler-dir|tarball>` (also `--rollback`; without `-y` it shows the installed build and asks, a closed stdin cancels) runs the new tree's `build-template.sh --update`
 (the build's own install steps, so no second file list: apk packages, code into `/opt/confetti-butler.new`
 via `BUTLER_STAGE_DIR`, OpenRC/cron/login scripts, motd; `--update` skips the root password, `butler.env`,
 host-key/DB/log clean-up and zero-fill). It then import-checks the staged tree against a throwaway DB
@@ -264,7 +264,9 @@ manual `--rollback` right after one has nothing to go back to.
   dot in the name — run-parts skips those; `crond` is enabled by the build). `sqlite3 .backup` into
   `/var/lib/confetti-butler/backups/butler-daily-YYYYMMDD.db`, newest `BUTLER_BACKUP_KEEP` (default 7)
   kept, folder 0700, files 0600. Pre-update backups share the folder and rotate separately.
-- **Guestinfo first boot:** besides `butler.ip`/`butler.gateway`, `firstboot.initd` applies
+- **Guestinfo first boot:** besides `butler.ip`/`butler.gateway` (and optional `butler.dns`/`butler.hostname`;
+  the hostname is re-applied on every boot, `set-static-ip <ip/cidr> <gateway> [dns] [hostname]` and the setup
+  wizard take the same two), `firstboot.initd` applies
   `butler.ssh_username`, `ssh_password`, `ssh_secret` and `poll_interval_s` to `butler.env` once per clone
   (stamp `/etc/confetti-butler/.env-done`, independent of the IP stamp). Guestinfo is visible to anyone who
   can see the VM's advanced settings in vCenter. `butler.env` is 0600. There is no hub-URL key: the

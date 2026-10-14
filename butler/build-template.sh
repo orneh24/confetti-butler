@@ -36,7 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_DIR="/opt/confetti-butler"
 DEST_DIR="${BUTLER_STAGE_DIR:-$INSTALL_DIR}"
 DB_DIR="/var/lib/confetti-butler"
-LAB_ROOT_PASSWORD="${LAB_ROOT_PASSWORD:-lab123}"
+LAB_ROOT_PASSWORD="${LAB_ROOT_PASSWORD:-confetti}"
 
 # -------------------------------------------------------------------
 # Helpers
@@ -86,11 +86,21 @@ fi
 # net-snmp-tools provides snmpwalk/snmpget for SNMP collection — shelling
 # out to it rather than a Python SNMP library, see the plan's SNMP decision.
 # -------------------------------------------------------------------
+# A failed apk step is fatal for a build, but only a warning for --update: the
+# new code is still staged and import-checked, so a VM without internet (or a
+# mirror that is down) can take a code-only update.
+apk_step() {
+    if ! "$@"; then
+        [ -n "$UPDATE" ] || die "'$*' failed"
+        log "WARNING: '$1 $2' failed (mirror unreachable?) -- updating the code anyway"
+    fi
+}
+
 log "Updating package index"
-apk update
+apk_step apk update
 
 log "Installing packages"
-apk add --no-cache \
+apk_step apk add --no-cache \
     python3 \
     py3-pip \
     py3-flask \
@@ -108,6 +118,16 @@ apk add --no-cache \
 log "Packages installed"
 
 rc-update add open-vm-tools default
+
+# Never route. Alpine already defaults forwarding off; pinned so nothing
+# installed later can turn it on (same as the hub).
+mkdir -p /etc/sysctl.d
+cat > /etc/sysctl.d/99-confetti.conf <<'SYSEOF'
+net.ipv4.ip_forward = 0
+net.ipv6.conf.all.forwarding = 0
+SYSEOF
+rc-update add sysctl boot >/dev/null 2>&1 || true
+sysctl -p /etc/sysctl.d/99-confetti.conf >/dev/null 2>&1 || true
 
 # confetti-butler stamps every poll and syslog message with its own receipt
 # time, and the syslog page pins correlation windows around it — same
@@ -164,8 +184,7 @@ cp -f "${SCRIPT_DIR}/scripts/butler-update.sh" "$DEST_DIR/"
 # rollback brings the old id back with the old code.
 BUILD_ID=$(cd "$SCRIPT_DIR" && find app templates static serve.py -type f -not -path '*__pycache__*' |
     LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-8)
-printf 'build %s, installed %s UTC
-' "$BUILD_ID" "$(date -u '+%Y-%m-%d %H:%M')" > "$DEST_DIR/BUILD"
+printf 'build %s, installed %s UTC\n' "$BUILD_ID" "$(date -u '+%Y-%m-%d %H:%M')" > "$DEST_DIR/BUILD"
 chmod +x "$DEST_DIR/run.sh" "$DEST_DIR/serve.py" "$DEST_DIR/butler-setup.sh" "$DEST_DIR/butler-update.sh"
 ln -sf "$INSTALL_DIR/butler-setup.sh" /usr/local/bin/butler-setup.sh
 ln -sf "$INSTALL_DIR/butler-update.sh" /usr/local/bin/butler-update.sh
@@ -316,7 +335,7 @@ rc-update add confetti-butler default
 rc-update add confetti-butler-firstboot default
 rc-update add crond default
 
-apk add --no-cache dropbear
+apk_step apk add --no-cache dropbear
 rc-update add dropbear default
 
 log "Services enabled"
@@ -346,25 +365,27 @@ cat > /etc/motd <<'MOTDEOF'
 MOTDEOF
 
 # -------------------------------------------------------------------
-# 10. Static IP configuration helper (identical to the hub's)
+# 10. Static IP configuration helper (same as the hub's confettictl-set-static-ip)
 # -------------------------------------------------------------------
 log "Creating static IP helper script"
 cat > /usr/local/bin/set-static-ip <<'SIPEOF'
 #!/bin/sh
 # Helper to configure a static IP on this VM.
-# Usage: set-static-ip <ip/cidr> <gateway>
-# Example: set-static-ip 10.0.0.100/24 10.0.0.1
+# Usage: set-static-ip <ip/cidr> <gateway> [dns] [hostname]
+# Example: set-static-ip 10.0.0.101/24 10.0.0.1 10.0.0.53 confetti-butler
 
 set -eu
 
 if [ $# -lt 2 ]; then
-    echo "Usage: set-static-ip <ip/cidr> <gateway>"
-    echo "Example: set-static-ip 10.0.0.100/24 10.0.0.1"
+    echo "Usage: set-static-ip <ip/cidr> <gateway> [dns] [hostname]"
+    echo "Example: set-static-ip 10.0.0.101/24 10.0.0.1 10.0.0.53 confetti-butler"
     exit 1
 fi
 
 IP_CIDR="$1"
 GATEWAY="$2"
+DNS="${3:-}"
+NEW_HOSTNAME="${4:-}"
 
 IFACE=$(ip -o link show | awk -F': ' '!/lo/{print $2; exit}')
 
@@ -380,6 +401,29 @@ EOF
 
 echo "Static IP configured on ${IFACE}: ${IP_CIDR} via ${GATEWAY}"
 echo "Restart networking: rc-service networking restart"
+
+if [ -n "$DNS" ]; then
+    printf 'nameserver %s\n' "$DNS" > /etc/resolv.conf
+    echo "DNS configured: ${DNS} (written to /etc/resolv.conf)"
+else
+    echo "DNS is not configured -- pass a third argument, or edit"
+    echo "/etc/resolv.conf by hand, if the VM needs name resolution"
+    echo "(an NTP pool name, a hostname in a confetti-traffic import URL)."
+fi
+
+if [ -n "$NEW_HOSTNAME" ]; then
+    CURRENT_HOSTNAME=$(hostname)
+    if [ "$CURRENT_HOSTNAME" != "$NEW_HOSTNAME" ]; then
+        printf '%s\n' "$NEW_HOSTNAME" > /etc/hostname
+        hostname "$NEW_HOSTNAME"
+        if grep -q "127.0.1.1" /etc/hosts 2>/dev/null; then
+            sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t${NEW_HOSTNAME}/" /etc/hosts
+        else
+            printf '127.0.1.1\t%s\n' "$NEW_HOSTNAME" >> /etc/hosts
+        fi
+        echo "Hostname set: ${CURRENT_HOSTNAME} -> ${NEW_HOSTNAME}"
+    fi
+fi
 SIPEOF
 
 chmod +x /usr/local/bin/set-static-ip
@@ -397,6 +441,10 @@ log "Cleaning up for template conversion"
 
 rm -f /etc/dropbear/dropbear_*_host_key
 : > /etc/machine-id 2>/dev/null || true
+# DHCP wrote resolv.conf during the build's internet access. Once the VM goes
+# static nothing refreshes it, so a clone would keep resolving through the
+# build network's DNS server. Empty it (set-static-ip / the wizard set DNS).
+: > /etc/resolv.conf 2>/dev/null || true
 find /var/log -type f -exec truncate -s 0 {} \; 2>/dev/null || true
 : > /root/.ash_history 2>/dev/null || true
 apk cache clean 2>/dev/null || true
@@ -429,7 +477,8 @@ log "  1. Clone from template"
 log "  2. Set these guestinfo keys on the clone in vCenter, then boot:"
 log "     guestinfo.butler.ip       10.0.0.101/24"
 log "     guestinfo.butler.gateway  10.0.0.1"
-log "     optional: guestinfo.butler.ssh_username / ssh_password / ssh_secret /"
+log "     optional: guestinfo.butler.dns 10.0.0.53, guestinfo.butler.hostname"
+log "               guestinfo.butler.ssh_username / ssh_password / ssh_secret /"
 log "               poll_interval_s  (written into butler.env on first boot)"
 log "  3. The dashboard starts automatically on port 80"
 log ""

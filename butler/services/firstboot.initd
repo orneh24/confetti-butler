@@ -39,8 +39,7 @@ _guestinfo_value() {
 _env_set() {
     _tmp="${ENV_FILE}.tmp"
     grep -v "^$1=" "$ENV_FILE" > "$_tmp" || true
-    printf '%s=%s
-' "$1" "$2" >> "$_tmp"
+    printf '%s=%s\n' "$1" "$2" >> "$_tmp"
     chmod 600 "$_tmp"
     mv -f "$_tmp" "$ENV_FILE"
 }
@@ -68,16 +67,46 @@ _apply_env() {
     fi
 }
 
+# Later boots: apply guestinfo.butler.hostname if it is set and differs from
+# the current name, so a rename in vCenter takes effect at the next reboot
+# (the hub does the same). Only the hostname: the network keys stay one-shot,
+# since a wrong IP applied at boot would cut the VM off.
+_apply_hostname() {
+    _hn=$(_guestinfo_value "butler.hostname")
+    [ -n "$_hn" ] || return 0
+    case "$_hn" in
+        *[!A-Za-z0-9-]*|-*)
+            ewarn "guestinfo.butler.hostname '$_hn' is not a valid hostname; ignored"
+            return 0 ;;
+    esac
+    [ "$_hn" = "$(hostname)" ] && return 0
+
+    ebegin "Renaming from guestinfo: $(hostname) -> $_hn"
+    printf '%s\n' "$_hn" > /etc/hostname
+    hostname "$_hn"
+    if grep -q "127.0.1.1" /etc/hosts 2>/dev/null; then
+        sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t${_hn}/" /etc/hosts
+    else
+        printf '127.0.1.1\t%s\n' "$_hn" >> /etc/hosts
+    fi
+    eend 0
+}
+
 start() {
     _apply_env
 
     if [ -f "$STAMP" ]; then
-        einfo "confetti-butler already configured; nothing to do"
+        _apply_hostname
         return 0
     fi
 
     _ip=$(_guestinfo "butler.ip")
     _gw=$(_guestinfo "butler.gateway")
+
+    # Optional, like the wizard's prompts. Empty is passed through and
+    # set-static-ip skips it.
+    _dns=$(_guestinfo_value "butler.dns")
+    _hn=$(_guestinfo_value "butler.hostname")
 
     case "$_ip" in *"No value found"*) _ip="" ;; esac
     case "$_gw" in *"No value found"*) _gw="" ;; esac
@@ -90,7 +119,7 @@ start() {
 
     ebegin "Configuring confetti-butler static IP from guestinfo"
     mkdir -p "$CONF_DIR"
-    if set-static-ip "$_ip" "$_gw" && rc-service networking restart; then
+    if set-static-ip "$_ip" "$_gw" "$_dns" "$_hn" && rc-service networking restart; then
         date -u '+%Y-%m-%dT%H:%M:%SZ configured (guestinfo)' > "$STAMP"
         eend 0
     else

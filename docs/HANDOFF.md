@@ -398,3 +398,17 @@ handling there); compare ids between VMs only.
 failure was run); a real SSH login showing the banner (the login script was run in an interactive shell); a poll
 of real routers after the update (the topology-removal build is on the VM, but version/interfaces/config polling
 was not checked).
+
+## Aligned with confetti-traffic and confetti-topo (2026-10-14)
+
+From the interop check of the three repos. **Not run on a VM yet** (`sh -n` and the regression gate only).
+
+- `set-static-ip <ip/cidr> <gateway> [dns] [hostname]`, the setup wizard (DNS, hostname, gateway default of
+  network+1, closed stdin handled) and guestinfo `butler.dns` / `butler.hostname` (hostname re-applied each
+  boot) now match the hub's. The template clean-up empties `resolv.conf`.
+- `build-template.sh`: an apk failure is only a warning on `--update`; IP forwarding is pinned off.
+- `butler-update.sh [-y]`: asks first without `-y` (closed stdin cancels), as `confettictl-update` does.
+- Button renamed "Make it rain!" (as in the hub). confetti-topo got the same update flow, build id and login
+  hints; confetti-traffic's hub update got butler's DB backup, health check and rollback (tested in an
+  `alpine:3.20` container with a fake `rc-service`).
+- Root password default is now `confetti` (variable `LAB_ROOT_PASSWORD`; the hub calls it `CONFETTI_ROOT_PASSWORD`).

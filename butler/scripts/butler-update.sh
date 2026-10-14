@@ -2,8 +2,11 @@
 # butler-update.sh — update a running confetti-butler VM in place, with rollback.
 #
 # Usage:
-#   butler-update.sh <butler-dir | butler.tar.gz>   update from a copy of butler/
-#   butler-update.sh --rollback                     go back to the previous version
+#   butler-update.sh [-y] <butler-dir | butler.tar.gz>   update from a copy of butler/
+#   butler-update.sh --rollback                          go back to the previous version
+#
+# Without -y it shows the installed build and the source and asks first (a
+# closed stdin counts as "no"). Pass -y from scripts and over a non-tty SSH.
 #
 # What it does: runs the new tree's build-template.sh --update (the same
 # install steps as the build, so there is no second file list here): apk
@@ -38,7 +41,12 @@ log() { printf '[butler-update] %s\n' "$1"; }
 die() { printf '[butler-update] FATAL: %s\n' "$1" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "Must run as root"
-[ $# -eq 1 ] || die "Usage: butler-update.sh <butler-dir | butler.tar.gz> | --rollback"
+AUTO_YES=""
+if [ "${1:-}" = "-y" ] || [ "${1:-}" = "--yes" ]; then
+    AUTO_YES="1"
+    shift
+fi
+[ $# -eq 1 ] || die "Usage: butler-update.sh [-y] <butler-dir | butler.tar.gz> | --rollback"
 
 TMP_DIR=""
 cleanup() {
@@ -108,6 +116,23 @@ for _f in serve.py app/app.py templates static requirements.txt build-template.s
     [ -e "${SRC_DIR}/${_f}" ] || die "${SRC_DIR} does not look like butler/: missing ${_f}"
 done
 sh -n "${SRC_DIR}/build-template.sh" || die "${SRC_DIR}/build-template.sh does not parse — nothing was changed"
+
+if [ -z "$AUTO_YES" ]; then
+    log "Installed: $(cat "${INSTALL_DIR}/BUILD" 2>/dev/null || echo 'no build id')"
+    log "From:      $SRC"
+    echo "This installs the new code and packages, restarts confetti-butler and keeps"
+    echo "butler.env and the database (backed up first). It rolls back if the new"
+    echo "version does not come up healthy."
+    printf 'Update now? [y/N] '
+    read -r ANSWER || ANSWER=""
+    case "$ANSWER" in
+        [yY]*) ;;
+        *)
+            log "Cancelled. Nothing changed."
+            exit 0
+            ;;
+    esac
+fi
 
 # -------------------------------------------------------------------
 # 2. Install the new tree into a staging dir and check it before stopping anything
