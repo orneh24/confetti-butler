@@ -336,15 +336,6 @@ cat > /etc/motd <<'MOTDEOF'
   | DB:        /var/lib/confetti-butler/butler.db |
   | Logs:      rc-service confetti-butler status  |
   |                                               |
-  | Not configured yet? Log in and run:           |
-  |   butler-setup.sh                             |
-  | (runs automatically at first login if the     |
-  |  static IP hasn't been set)                   |
-  |                                               |
-  | If IP needs changing later:                   |
-  |   set-static-ip <ip/cidr> <gateway>           |
-  |   rc-service networking restart               |
-  |                                               |
   | To update this VM to a newer build:           |
   |   copy butler/ here (scp -r butler root@<ip>: |
   |   from the repo), then run:                   |

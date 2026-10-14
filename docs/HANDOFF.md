@@ -372,3 +372,29 @@ Verified: `python dev/regress.py` CLEAR (live tier included) on the stripped tre
 **Not done:** the stripped build has not been deployed to the lab VM; run `butler-update.sh` and check
 `/api/health`, one poll (version, interfaces, config) and that the existing database starts.
 
+
+## Update flow tested on the lab VM (2026-10-14)
+
+`butler-update.sh` now runs `build-template.sh --update` (code staged in `/opt/confetti-butler.new` through
+`BUTLER_STAGE_DIR`), and the login shows a build id. Run on the lab VM (Alpine 3.24.2, OpenRC), which was
+still on the previous build. The repo copy was sent as a tarball and the **new** script was run from it, since
+the VM's installed script was the old one.
+
+- **Update:** packages, services and motd installed; import check passed; DB backed up; swap; healthy.
+  `butler.env`, the database and the dropbear host keys were kept. `/usr/local/bin/butler-update.sh` is the new script.
+- **Login:** an interactive shell prints `confetti-butler build <id>, installed <time> UTC`; the motd lists the
+  update steps.
+- **`--rollback`:** old code back, healthy; the old version has no `BUILD` file.
+- **Broken code:** a syntax error in `app/app.py` stopped at the import check; the running version was not swapped
+  and `/api/health` stayed up.
+- **Second update** after the rollback: healthy, `.prev` kept.
+
+Notes: dropbear has no SFTP, so upload by streaming over an exec channel (`cat > file`), not scp/sftp. The
+first update of an older VM runs the VM's old script (no `--update`); the new one takes over afterwards.
+The build id computed on a Windows PC differed from the one on the VM for the same code (probably file
+handling there); compare ids between VMs only.
+
+**Not verified:** the automatic rollback for a version that imports but never gets healthy (only the import
+failure was run); a real SSH login showing the banner (the login script was run in an interactive shell); a poll
+of real routers after the update (the topology-removal build is on the VM, but version/interfaces/config polling
+was not checked).

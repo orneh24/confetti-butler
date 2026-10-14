@@ -10,6 +10,10 @@ case "$-" in
         fi
         if [ -t 0 ] && [ ! -f /etc/confetti-butler/.setup-done ]; then
             /opt/confetti-butler/butler-setup.sh || true
+        elif [ -t 0 ]; then
+            echo "  To re-run setup script:       butler-setup.sh"
+            echo "  To re-configure static IP:    set-static-ip <ip/cidr> <gateway>"
+            echo
         fi
         ;;
 esac
