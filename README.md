@@ -84,7 +84,7 @@ page (Credentials), then click **Poll now**. The database is `butler.db` in the 
 `butler/build-template.sh` builds an Alpine Linux VM template (OpenRC service, waitress, port 80),
 following the same pattern as confetti-traffic's hub. It has been run on a real Alpine 3.24 VM.
 
-- **Update a running VM:** `butler-update.sh [-y] <butler-dir|tarball>` (asks first without `-y`) installs the new code and packages
+- **Update a running VM:** `butler-update.sh` (no arguments: downloads the latest build from GitHub; a `<butler-dir|tarball>` argument updates from that instead and asks first without `-y`) installs the new code and packages
   (`build-template.sh --update`), checks it, backs up the database, swaps it in, and rolls back by itself if it does not come up. `--rollback` goes back one version.
 - **Backups:** the database is backed up nightly (7 kept) to `/var/lib/confetti-butler/backups`.
 - **Clone settings:** `guestinfo.butler.ip` / `gateway` set a static IP; `ssh_username`, `ssh_password`,

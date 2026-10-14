@@ -2,11 +2,14 @@
 # butler-update.sh — update a running confetti-butler VM in place, with rollback.
 #
 # Usage:
-#   butler-update.sh [-y] <butler-dir | butler.tar.gz>   update from a copy of butler/
+#   butler-update.sh                                     update to the latest build (no questions)
+#   butler-update.sh [-y] <butler-dir | butler.tar.gz>   update from a copy of butler/ (lab use)
 #   butler-update.sh --rollback                          go back to the previous version
 #
-# Without -y it shows the installed build and the source and asks first (a
-# closed stdin counts as "no"). Pass -y from scripts and over a non-tty SSH.
+# With no arguments it downloads the main branch from BUTLER_UPDATE_URL
+# (default: the project's GitHub tarball) and installs it. With a directory or
+# tarball it shows the installed build and the source and asks first (a closed
+# stdin counts as "no"); pass -y from scripts and over a non-tty SSH.
 #
 # What it does: runs the new tree's build-template.sh --update (the same
 # install steps as the build, so there is no second file list here): apk
@@ -46,7 +49,12 @@ if [ "${1:-}" = "-y" ] || [ "${1:-}" = "--yes" ]; then
     AUTO_YES="1"
     shift
 fi
-[ $# -eq 1 ] || die "Usage: butler-update.sh [-y] <butler-dir | butler.tar.gz> | --rollback"
+FETCH=""
+if [ $# -eq 0 ]; then
+    FETCH="1"
+    AUTO_YES="1"
+fi
+[ $# -le 1 ] || die "Usage: butler-update.sh   (latest build)  |  [-y] <butler-dir | butler.tar.gz>  |  --rollback"
 
 TMP_DIR=""
 cleanup() {
@@ -82,7 +90,7 @@ swap_back() {
     rc-service "$SERVICE" start >/dev/null 2>&1 || true
 }
 
-if [ "$1" = "--rollback" ]; then
+if [ "${1:-}" = "--rollback" ]; then
     [ -d "$PREV_DIR" ] || die "No previous version at $PREV_DIR"
     log "Rolling back to the previous version"
     swap_back "${INSTALL_DIR}.rolled-back"
@@ -91,13 +99,19 @@ if [ "$1" = "--rollback" ]; then
     exit 0
 fi
 
-SRC="$1"
+SRC="${1:-}"
 [ -d "$INSTALL_DIR" ] || die "$INSTALL_DIR not found — run build-template.sh first"
 
 # -------------------------------------------------------------------
 # 1. Locate the new code
 # -------------------------------------------------------------------
 TMP_DIR=$(mktemp -d)
+if [ -n "$FETCH" ]; then
+    SRC="${BUTLER_UPDATE_URL:-https://github.com/orneh24/confetti-butler/archive/refs/heads/main.tar.gz}"
+    log "Downloading the latest build from $SRC"
+    curl -fsSL -m 120 -o "${TMP_DIR}/latest.tar.gz" "$SRC" || die "Download failed — nothing was changed"
+    SRC="${TMP_DIR}/latest.tar.gz"
+fi
 if [ -f "$SRC" ]; then
     log "Unpacking $SRC"
     tar -xzf "$SRC" -C "$TMP_DIR" || die "Could not unpack $SRC"

@@ -19,7 +19,7 @@
 #   3. Shutdown and convert to template in vCenter
 #
 # Updating an already-deployed VM (backup, health check and rollback):
-#   butler-update.sh <butler-dir | butler.tar.gz>     (see scripts/butler-update.sh)
+#   butler-update.sh   (latest build; or <butler-dir | butler.tar.gz>)     (see scripts/butler-update.sh)
 # runs this script with --update. That mode installs everything the build
 # does (packages, code, OpenRC and cron scripts, motd) but leaves the root
 # password, butler.env, the database, host keys and the template clean-up
@@ -445,11 +445,10 @@ cat > /etc/motd <<'MOTDEOF'
   | DB:        /var/lib/confetti-butler/butler.db |
   | Logs:      rc-service confetti-butler status  |
   |                                               |
-  | To update this VM to a newer build:           |
-  |   copy butler/ here (scp -r butler root@<ip>: |
-  |   from the repo), then run:                   |
-  |     butler-update.sh /root/butler             |
-  |   (butler-update.sh --rollback goes back)     |
+  | To update this VM to the latest build, run:   |
+  |     butler-update.sh                          |
+  | (settings and data are kept; butler-update.sh |
+  |  --rollback goes back one version)            |
   +-----------------------------------------------+
 
 MOTDEOF
