@@ -57,6 +57,7 @@ fi
 [ $# -le 1 ] || die "Usage: butler-update.sh   (latest build)  |  [-y] <butler-dir | butler.tar.gz>  |  --rollback"
 
 TMP_DIR=""
+COMMIT_ID=""
 cleanup() {
     [ -z "$TMP_DIR" ] || rm -rf "$TMP_DIR"
 }
@@ -108,6 +109,8 @@ SRC="${1:-}"
 TMP_DIR=$(mktemp -d)
 if [ -n "$FETCH" ]; then
     SRC="${BUTLER_UPDATE_URL:-https://github.com/orneh24/confetti-butler/archive/refs/heads/main.tar.gz}"
+    # The commit id is kept in COMMIT so the login banner can tell if a newer build exists.
+    COMMIT_ID=$(curl -fsL -m 10 -H 'Accept: application/vnd.github.sha' "https://api.github.com/repos/orneh24/confetti-butler/commits/main" 2>/dev/null | head -c 40 || true)
     log "Downloading the latest build from $SRC"
     curl -fsSL -m 120 -o "${TMP_DIR}/latest.tar.gz" "$SRC" || die "Download failed — nothing was changed"
     SRC="${TMP_DIR}/latest.tar.gz"
@@ -156,6 +159,10 @@ rm -rf "$NEW_DIR"
 BUTLER_STAGE_DIR="$NEW_DIR" sh "${SRC_DIR}/build-template.sh" --update ||
     { rm -rf "$NEW_DIR"; die "build-template.sh --update failed (see above) — the running version was not swapped"; }
 # Settings and credentials stay as they are.
+case "${COMMIT_ID:-}" in
+    [0-9a-f]*) printf '%s
+' "$COMMIT_ID" > "$NEW_DIR/COMMIT" ;;
+esac
 if [ -f "${INSTALL_DIR}/butler.env" ]; then
     cp -p "${INSTALL_DIR}/butler.env" "$NEW_DIR/butler.env"
 fi

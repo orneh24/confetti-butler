@@ -248,7 +248,7 @@ arrives still correlates retroactively.
 
 ## Updating a deployed VM
 
-`butler-update.sh` with no arguments downloads the main branch tarball from GitHub (`BUTLER_UPDATE_URL` overrides) and updates without asking; `butler-update.sh [-y] <butler-dir|tarball>` (also `--rollback`; with a dir/tarball and no `-y` it shows the installed build and asks, a closed stdin cancels) runs the new tree's `build-template.sh --update`
+The login banner compares the installed `COMMIT` file (written by a no-argument update) with GitHub's newest commit and says whether a newer build exists (3 s timeout, so no internet only prints a notice). `butler-update.sh` with no arguments downloads the main branch tarball from GitHub (`BUTLER_UPDATE_URL` overrides) and updates without asking; `butler-update.sh [-y] <butler-dir|tarball>` (also `--rollback`; with a dir/tarball and no `-y` it shows the installed build and asks, a closed stdin cancels) runs the new tree's `build-template.sh --update`
 (the build's own install steps, so no second file list: apk packages, code into `/opt/confetti-butler.new`
 via `BUTLER_STAGE_DIR`, OpenRC/cron/login scripts, motd; `--update` skips the root password, `butler.env`,
 host-key/DB/log clean-up and zero-fill). It then import-checks the staged tree against a throwaway DB
