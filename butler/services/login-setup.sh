@@ -5,6 +5,9 @@
 
 case "$-" in
     *i*)
+        if [ -t 0 ] && [ -f /opt/confetti-butler/BUILD ]; then
+            echo "  confetti-butler $(cat /opt/confetti-butler/BUILD)"
+        fi
         if [ -t 0 ] && [ ! -f /etc/confetti-butler/.setup-done ]; then
             /opt/confetti-butler/butler-setup.sh || true
         fi

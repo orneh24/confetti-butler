@@ -159,6 +159,13 @@ cp -f "${SCRIPT_DIR}/serve.py" "$DEST_DIR/"
 cp -f "${SCRIPT_DIR}/run.sh" "$DEST_DIR/"
 cp -f "${SCRIPT_DIR}/scripts/butler-setup.sh" "$DEST_DIR/"
 cp -f "${SCRIPT_DIR}/scripts/butler-update.sh" "$DEST_DIR/"
+# Build id shown at login (services/login-setup.sh): a hash of the code, so two
+# VMs with the same code show the same id. It lives in the code dir, so a
+# rollback brings the old id back with the old code.
+BUILD_ID=$(cd "$SCRIPT_DIR" && find app templates static serve.py -type f -not -path '*__pycache__*' |
+    LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-8)
+printf 'build %s, installed %s UTC
+' "$BUILD_ID" "$(date -u '+%Y-%m-%d %H:%M')" > "$DEST_DIR/BUILD"
 chmod +x "$DEST_DIR/run.sh" "$DEST_DIR/serve.py" "$DEST_DIR/butler-setup.sh" "$DEST_DIR/butler-update.sh"
 ln -sf "$INSTALL_DIR/butler-setup.sh" /usr/local/bin/butler-setup.sh
 ln -sf "$INSTALL_DIR/butler-update.sh" /usr/local/bin/butler-update.sh
@@ -337,6 +344,12 @@ cat > /etc/motd <<'MOTDEOF'
   | If IP needs changing later:                   |
   |   set-static-ip <ip/cidr> <gateway>           |
   |   rc-service networking restart               |
+  |                                               |
+  | To update this VM to a newer build:           |
+  |   copy butler/ here (scp -r butler root@<ip>: |
+  |   from the repo), then run:                   |
+  |     butler-update.sh /root/butler             |
+  |   (butler-update.sh --rollback goes back)     |
   +-----------------------------------------------+
 
 MOTDEOF

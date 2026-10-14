@@ -247,7 +247,9 @@ host-key/DB/log clean-up and zero-fill). It then import-checks the staged tree a
 *before* stopping the service, backs up the DB with `sqlite3 .backup`
 (`/var/lib/confetti-butler/backups`, 0700, newest 5 kept), swaps `/opt/confetti-butler` (old one kept as
 `.prev`), restarts, waits for `/api/health` and swaps back by itself if it never comes up. `butler.env`
-is carried over; the DB is not restored on rollback (new versions only add tables/columns). Rollback restores the
+is carried over; the DB is not restored on rollback (new versions only add tables/columns). The build writes `/opt/confetti-butler/BUILD` (a hash of
+the code plus the install time); `login-setup.sh` prints it at every interactive login and the motd carries
+the update steps. It is in the code dir, so a rollback brings the old id back. Rollback restores the
 app code only: packages and the OpenRC/cron scripts are written before the swap and stay new. pip
 packages are installed only if missing, so a changed pin is not applied. `requirements.txt` holds exact tested versions;
 `build-template.sh` pip-installs only netmiko/waitress/flask-if-missing from those pins, the rest come
