@@ -440,7 +440,6 @@ cat > /etc/motd <<'MOTDEOF'
   |                                               |
   | confetti-butler VM                            |
   |                                               |
-  | Dashboard: http://<this-vm-ip>/               |
   | Config:    /opt/confetti-butler/butler.env    |
   | DB:        /var/lib/confetti-butler/butler.db |
   | Logs:      rc-service confetti-butler status  |

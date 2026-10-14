@@ -27,6 +27,11 @@ case "$-" in
         if [ -t 0 ] && [ ! -f /etc/confetti-butler/.setup-done ]; then
             /opt/confetti-butler/butler-setup.sh || true
         elif [ -t 0 ]; then
+            _ip=$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $4; exit}' | cut -d/ -f1)
+            _port=$(sed -n 's/^BUTLER_PORT=//p' /opt/confetti-butler/butler.env 2>/dev/null | tr -d '"' | tail -n 1)
+            case "$_port" in ""|80) _port="" ;; *) _port=":$_port" ;; esac
+            [ -z "$_ip" ] || echo "  Dashboard:                    http://${_ip}${_port}/"
+            unset _ip _port
             echo "  To re-run setup script:       butler-setup.sh"
             echo "  To re-configure static IP:    set-static-ip <ip/cidr> <gateway> [dns] [hostname]"
             echo
