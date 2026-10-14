@@ -43,6 +43,14 @@ add a config-push path without it being asked for explicitly.
   - A background **poller** thread pool (device SSH polling — see below)
   - UDP syslog receiver on port 514, in a daemon thread — its own receiver, deliberately not shared
     with confetti-traffic's hub syslog listener
+- SSH server is OpenSSH (`sshd`, with `openssh-sftp-server`), not Dropbear (switched 2026-10-14: Dropbear has no
+  SFTP and drops large packets). `/etc/ssh/sshd_config.d/10-confetti.conf` keeps root password login on
+  (`PermitRootLogin yes`; the lab logins depend on it) and sets `MaxStartups 100:30:200`; only an ed25519 host key
+  is generated (`key_types_to_generate` in `/etc/conf.d/sshd`). `build-template.sh` `switch_ssh_server()` (called
+  last, above the `--update` exit) moves a VM that still has Dropbear over: converts its ed25519 host key so
+  clients see no change, stops Dropbear, starts sshd, and only then removes Dropbear and rewrites `dropbear` to
+  `sshd` in `butler.env`'s health list. If sshd does not start, Dropbear is started again. Rollback does not undo
+  it. R33 checks it.
 - Installed to `/opt/confetti-butler/`, started by OpenRC service `confetti-butler`
 - Entrypoint is `serve.py` — reads `BUTLER_PORT` at runtime. Do not move the port into the init
   script's `command_args`: OpenRC expands that at parse time, before `start_pre` sources
@@ -463,7 +471,7 @@ butler/
 the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above; `R16`..`R19`
 are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
 lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21` (drift check),
-`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery) cover the features added since (platform
+`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery) and `R33` (OpenSSH, not Dropbear) cover the features added since (platform
 registry, SNMP, ICMP state machine, `/metrics` format, interface history, scheduled discovery); `R29` checks
 the container and Packer files against the repo. `R27` (LLDP crawl) and `R30` (BGP `Idle (Admin)`) moved to
 confetti-topo on 2026-10-14 and the numbers are not reused. Output is one line per check and a verdict:

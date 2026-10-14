@@ -14,6 +14,9 @@ PROXYOPTS="none"
 # First mirror, community repository enabled (build-template.sh needs it too).
 APKREPOSOPTS="-1 -c"
 USEROPTS="none"
+# Dropbear on purpose: setup-alpine installs OpenSSH with root password login off, and
+# Packer logs in as root with a password. build-template.sh switches the VM to
+# OpenSSH (with root login on) as its last install step; the Packer connection survives.
 SSHDOPTS="-c dropbear"
 NTPOPTS="-c chrony"
 DISKOPTS="-m sys /dev/sda"

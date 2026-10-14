@@ -10,7 +10,7 @@
 FROM alpine:3.24
 
 # Same package set as build-template.sh, minus what only makes sense on a VM
-# (open-vm-tools, chrony, lldpd, dropbear, OpenRC services). curl is for the
+# (open-vm-tools, chrony, lldpd, sshd, OpenRC services). curl is for the
 # HEALTHCHECK, sqlite for the backup tool, net-snmp-tools for platform "snmp".
 RUN apk add --no-cache \
         python3 py3-pip py3-flask py3-paramiko py3-yaml py3-requests py3-jinja2 \

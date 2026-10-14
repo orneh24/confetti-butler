@@ -554,6 +554,30 @@ def sample(name):
     return read(SAMPLES + name)
 
 
+@check("R33", "SSH server is OpenSSH: sshd installed, root password login on, switched from Dropbear last, health list says sshd")
+def _():
+    # Dropbear has no SFTP server and drops large packets (found 2026-10-14). The build
+    # installs sshd, and on a VM that still has Dropbear it switches only after sshd is
+    # confirmed running. The switch must sit above the --update exit, or a deployed VM
+    # would never get it.
+    p = []
+    bt = read("butler/build-template.sh")
+    need(re.search(r"^switch_ssh_server\(\) \{", bt, re.M), "build-template.sh lost switch_ssh_server()", p)
+    need("openssh-server openssh-sftp-server" in bt, "build must install openssh-server and openssh-sftp-server", p)
+    need("PermitRootLogin yes" in bt, "sshd drop-in must keep root password login on (the lab logins depend on it)", p)
+    need(not re.search(r"^[^#\n]*apk add[^\n]*\bdropbear\b(?!-convert)", bt, re.M), "build installs dropbear again", p)
+    call = [m.start() for m in re.finditer(r"^switch_ssh_server$", bt, re.M)]
+    exit_at = bt.find('log "=== Update install complete ==="')
+    need(call and 0 <= exit_at and call[0] < exit_at,
+         "switch_ssh_server must be called before the --update exit", p)
+    need("rc-update del dropbear" in bt and bt.find("rc-update del dropbear") > bt.find("rc-service sshd start"),
+         "Dropbear must only be removed after sshd was started", p)
+    need("dropbear" not in read("butler/app/config.py").split("HEALTH_SERVICES")[1].split(")")[0],
+         "config.py health default still lists dropbear", p)
+    need(re.search(r"HEALTH_SERVICES=[^\n]*\bsshd\b", bt), "butler.env health list must name sshd", p)
+    return p
+
+
 @check("R22", "platform registry: same tasks everywhere, config last, unknown platform = IOS")
 def _():
     p = []

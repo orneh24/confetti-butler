@@ -9,7 +9,7 @@ origin: confetti-butler
 The user prefers real routers over mocks. Real addresses are in the auto-memory file `reference_lab_routers.md`; never commit them.
 
 1. **Confirm** the VM and routers are on. Credentials come from the user in chat only.
-2. **Update the VM:** copy `butler/` over and run `butler-update.sh -y <dir>` (without `-y` it asks first and a closed stdin cancels). Full path `/usr/local/bin/...` (non-login SSH has no `/usr/local/bin` in PATH). After a fresh build the dropbear host keys are gone until reboot.
+2. **Update the VM:** copy `butler/` over and run `butler-update.sh -y <dir>` (without `-y` it asks first and a closed stdin cancels). Full path `/usr/local/bin/...` is safest (a non-login SSH session may not have it in PATH). The SSH server is OpenSSH (`sshd`) since 2026-10-14, so `scp`/`sftp` work; a VM still on Dropbear is switched by its first `--update`. After a fresh build the SSH host keys are gone until reboot. Snapshot the VM before the first update that switches the SSH server.
 3. **Add the devices** through the API, set credentials per device, wait for a poll, and read results from the API.
 4. **Compare with the router itself** (`show` output over SSH), not only with butler's own view.
 5. **Change the router only with a revert ready** (a loopback or description line is enough). Always undo it and confirm butler sees the revert.

@@ -102,9 +102,10 @@ source "vsphere-iso" "butler" {
   ssh_password = var.root_password
   ssh_timeout  = "30m"
 
-  # build-template.sh deletes the SSH host keys and zero-fills free space as
-  # its last steps; the connection that started it survives, so the script's
-  # exit status still reaches Packer.
+  # build-template.sh switches the SSH server from Dropbear to OpenSSH, then
+  # deletes the SSH host keys and zero-fills free space as its last steps; the
+  # connection that started it survives, so the script's exit status still
+  # reaches Packer.
   shutdown_command = "poweroff"
   shutdown_timeout = "10m"
 

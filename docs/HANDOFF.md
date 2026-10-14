@@ -412,3 +412,23 @@ From the interop check of the three repos. **Not run on a VM yet** (`sh -n` and 
   hints; confetti-traffic's hub update got butler's DB backup, health check and rollback (tested in an
   `alpine:3.20` container with a fake `rc-service`).
 - Root password default is now `confetti` (variable `LAB_ROOT_PASSWORD`; the hub calls it `CONFETTI_ROOT_PASSWORD`).
+
+## SSH server switched from Dropbear to OpenSSH (2026-10-14)
+
+Dropbear has no SFTP (scp and Paramiko uploads failed) and drops packets over about 32 KB, so all three projects
+move to `sshd` + `openssh-sftp-server`. `build-template.sh` `switch_ssh_server()` does it on a fresh build and on
+`--update`. Root password login stays on through `/etc/ssh/sshd_config.d/10-confetti.conf`.
+
+- Tested in an `alpine:3.24` container with the real `dropbear` and `sshd` binaries and a fake `rc-service`:
+  switch from Dropbear (host key fingerprint unchanged, Dropbear removed, health line rewritten), second run,
+  sshd that cannot start (Dropbear comes back, stays enabled), and a VM with no Dropbear.
+- The Packer answers file still installs Dropbear on purpose: `setup-alpine` installs OpenSSH with root password
+  login off, and Packer logs in as root with a password. The build switches it at the end.
+- Rollback restores code only; the SSH switch is not undone.
+- **Run on the lab VM (2026-10-14):** `butler-update.sh -y` from a Dropbear session. The switch ran inside that
+  session and it survived. Afterwards: sshd on port 22, Dropbear package and service gone, root password login,
+  key login, `sftp` upload (Paramiko) and plain `scp` (no `-O`) all work, the remote PATH now includes
+  `/usr/local/bin`, `/api/health` lists `sshd` as up and `butler.env` says `sshd`, the ed25519 host key is the
+  same after a reboot, `--rollback` and a second update both left sshd running.
+- **Not verified:** sshd failing to start on a real VM (only in the container test), and the Packer path.
+- Dropbear needed the upload sent in 8 KB pieces (bigger packets are dropped); OpenSSH does not.
