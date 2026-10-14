@@ -5,15 +5,18 @@
 #   butler-update.sh <butler-dir | butler.tar.gz>   update from a copy of butler/
 #   butler-update.sh --rollback                     go back to the previous version
 #
-# What it does: checks the new code imports cleanly (before touching anything),
-# backs up the database, swaps /opt/confetti-butler, restarts the service and
-# waits for /api/health. If the new version does not come up healthy it swaps
-# the old one back by itself. The previous version stays in
-# /opt/confetti-butler.prev for a manual --rollback.
+# What it does: runs the new tree's build-template.sh --update (the same
+# install steps as the build, so there is no second file list here): apk
+# packages, the app code into /opt/confetti-butler.new, the OpenRC, cron and
+# login scripts, the motd. Then it checks the new code imports, backs up the
+# database, swaps /opt/confetti-butler, restarts the service and waits for
+# /api/health. If the new version does not come up healthy it swaps the old
+# code back by itself. The previous version stays in /opt/confetti-butler.prev
+# for a manual --rollback.
 #
-# What it does NOT do: update apk or pip packages (re-run build-template.sh for
-# that), change the OpenRC service or first-boot scripts, or touch butler.env
-# (it is carried over). It warns when any of these look out of date.
+# butler.env is carried over; the root password, host keys and database are
+# not touched. Rollback restores the app code only: packages and the OpenRC /
+# cron scripts stay at the new version (they are written before the swap).
 #
 # The database is not restored on rollback: new versions only add tables and
 # columns, which the old code ignores. The pre-update backup path is printed
@@ -101,25 +104,18 @@ else
     die "$SRC is neither a directory nor a file"
 fi
 
-for _f in serve.py app/app.py templates static requirements.txt; do
+for _f in serve.py app/app.py templates static requirements.txt build-template.sh; do
     [ -e "${SRC_DIR}/${_f}" ] || die "${SRC_DIR} does not look like butler/: missing ${_f}"
 done
+sh -n "${SRC_DIR}/build-template.sh" || die "${SRC_DIR}/build-template.sh does not parse — nothing was changed"
 
 # -------------------------------------------------------------------
-# 2. Stage the new tree and check it before stopping anything
+# 2. Install the new tree into a staging dir and check it before stopping anything
 # -------------------------------------------------------------------
-log "Staging new version in $NEW_DIR"
+log "Running build-template.sh --update (new code goes to $NEW_DIR)"
 rm -rf "$NEW_DIR"
-mkdir -p "$NEW_DIR"
-cp -r "${SRC_DIR}/app" "${SRC_DIR}/templates" "${SRC_DIR}/static" "$NEW_DIR/"
-mkdir -p "$NEW_DIR/seed"
-if [ -d "${SRC_DIR}/seed" ]; then
-    cp -r "${SRC_DIR}/seed/." "$NEW_DIR/seed/"
-fi
-cp -f "${SRC_DIR}/requirements.txt" "${SRC_DIR}/serve.py" "${SRC_DIR}/run.sh" "$NEW_DIR/"
-cp -f "${SRC_DIR}/scripts/butler-setup.sh" "$NEW_DIR/"
-cp -f "${SRC_DIR}/scripts/butler-update.sh" "$NEW_DIR/"
-chmod +x "$NEW_DIR/run.sh" "$NEW_DIR/serve.py" "$NEW_DIR/butler-setup.sh" "$NEW_DIR/butler-update.sh"
+BUTLER_STAGE_DIR="$NEW_DIR" sh "${SRC_DIR}/build-template.sh" --update ||
+    { rm -rf "$NEW_DIR"; die "build-template.sh --update failed (see above) — the running version was not swapped"; }
 # Settings and credentials stay as they are.
 if [ -f "${INSTALL_DIR}/butler.env" ]; then
     cp -p "${INSTALL_DIR}/butler.env" "$NEW_DIR/butler.env"
@@ -131,18 +127,9 @@ log "Checking the new code imports"
 if ! (cd "$NEW_DIR" && BUTLER_DB_PATH="${TMP_DIR}/check.db" python3 -c "import app.app" 2>"${TMP_DIR}/import.err"); then
     cat "${TMP_DIR}/import.err" >&2
     rm -rf "$NEW_DIR"
-    die "New version does not import — nothing was changed"
+    die "New version does not import — the running version was not swapped"
 fi
 find "$NEW_DIR" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
-
-# Things this script does not update — say so rather than leave it a surprise.
-if ! cmp -s "${SRC_DIR}/requirements.txt" "${INSTALL_DIR}/requirements.txt" 2>/dev/null; then
-    log "WARNING: requirements.txt changed. Python packages are not updated by this script; re-run build-template.sh if the new version needs them."
-fi
-if [ -f "${SRC_DIR}/services/firstboot.initd" ] &&
-   ! cmp -s "${SRC_DIR}/services/firstboot.initd" /etc/init.d/confetti-butler-firstboot 2>/dev/null; then
-    log "WARNING: services/firstboot.initd changed. The OpenRC scripts are not updated by this script."
-fi
 
 # -------------------------------------------------------------------
 # 3. Back up the database (WAL-safe: sqlite3 .backup, not a file copy)

@@ -1,6 +1,6 @@
 ---
 name: confetti-butler-hub-api
-description: confetti-butler's own HTTP contract — device identity/merge rule, poller scheduling, config-template rendering and pull delivery, IPAM, topology, and syslog correlation. Read before changing app/app.py, identity.py, poller.py, rendering.py, or any schema in db.py.
+description: confetti-butler's own HTTP contract — device identity/merge rule, poller scheduling, config-template rendering and pull delivery, IPAM, and syslog correlation (topology moved to confetti-topo). Read before changing app/app.py, identity.py, poller.py, rendering.py, or any schema in db.py.
 origin: confetti-butler
 ---
 
@@ -36,12 +36,11 @@ Both raise `identity.Conflict` on ambiguity — >1 existing device matched, or a
 disagreeing with what's on file for the one device matched via a weaker identifier. A
 `merge_conflicts` row is written before the raise. **Nothing auto-merges.** The operator resolves
 via `POST /api/devices/<survivor_id>/merge` with `{"loser_id": N}`, which re-points every child
-table (`device_aliases`, `device_sources`, `credentials`, `interfaces`, `template_vars`,
-`lldp_neighbors`, `adjacencies`) at the survivor and deletes the loser.
+table (`device_aliases`, `device_sources`, `credentials`, `interfaces`, `template_vars`) at the survivor and deletes the loser.
 
 ## Routes
 
-**Pages:** `/` `/devices` `/devices/<id>` `/conflicts` `/ipam` `/templates` `/topology` `/syslog`
+**Pages:** `/` `/devices` `/devices/<id>` `/conflicts` `/ipam` `/templates` `/syslog` `/alerts`
 
 **Devices:**
 - `GET|POST /api/devices` — POST goes through `identity.ingest`, so a manual add of an
@@ -73,8 +72,6 @@ table (`device_aliases`, `device_sources`, `credentials`, `interfaces`, `templat
   `drift_status` is also on `GET /api/devices`
 - `GET|POST /api/alert-rules`, `PUT|DELETE /api/alert-rules/<id>`, `POST /api/alert-rules/<id>/test` — a rule's
   `target` (`webhook:<url>` / `mail:<addr>`) is write-only, `target_display` is returned instead
-- `GET /api/lldp/unknown` — neighbors whose advertised mgmt IP no device owns;
-  `POST /api/lldp/adopt {ip, hostname?}` adds one as a device with polling OFF (`enabled=0`)
 
 **Templates:** `GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/<name>`,
 `GET /api/templates/<name>/versions`, `POST /api/templates/<name>/preview` (body:
@@ -86,9 +83,6 @@ by design, plain text, 404 if the device or its assigned template doesn't exist,
 
 **IPAM:** `GET /api/ipam/{prefixes,addresses,findings}`, `POST /api/ipam/analyze` (rebuilds
 `ipam_findings` wholesale — not incremental)
-
-**Topology/adjacencies:** `GET /api/topology?layer=lldp|bgp|ospf` (vis.js `{nodes, edges}` shape,
-default overlays all three), `GET /api/adjacencies`
 
 **Syslog:** `GET /api/syslog` (`?minutes=`, `?from=&to=`, `?host=`, `?severity=`, `?q=`,
 `?device_id=` — device_id resolved via a join at query time, not stored at insert),
@@ -105,11 +99,11 @@ to `null`/`"unknown"` on a flaky or non-Alpine box.
 
 `devices.poll_state` (`idle`/`running`) is the per-device lock; `next_poll_at` is the schedule.
 Each tick claims due devices, marks them `running` (so a slow poll is never picked up twice), and
-runs six independent tasks per device — `version`, `interfaces`, `lldp`, `bgp`, `ospf`, `config` — over one
+runs three independent tasks per device — `version`, `interfaces`, `config` — over one
 SSH session, each committing its own transaction. Rows a task no longer sees are deleted.
 `running` is always released in a `finally`, and reset at poller startup. `role='node'` devices are excluded from the claim query entirely.
 
-The task list belongs to the device's `platform` (`app/platforms.py`): `cisco_ios`/`cisco_xe` run the six
+The task list belongs to the device's `platform` (`app/platforms.py`): `cisco_ios`/`cisco_xe` run the three
 above, and `snmp` runs only `version` and `interfaces` through net-snmp.
 
 Success: `fail_count=0`, `next_poll_at = now + poll_interval_s`. Failure:
@@ -157,5 +151,5 @@ jinja2.Environment(undefined=jinja2.Undefined)
 
 - netmiko-ssh-automation (the SSH collector's connection/error-handling pattern)
 - network-config-validation (dangerous-command / security-check source for rendering.py)
-- network-bgp-diagnostics, network-interface-health (parser logic source for parsers/ios.py)
+- network-interface-health (parser logic source for parsers/ios.py)
 - cisco-ios-patterns (command syntax reference for template authoring)

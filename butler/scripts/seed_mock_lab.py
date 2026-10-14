@@ -1,7 +1,7 @@
 """Fill a NEW scratch database with a fake lab, for README screenshots and demos.
 
 Three routers (documentation-range IPs, fake serials 9SIMLAB000x), their
-interfaces, LLDP/OSPF/BGP neighbours, one identity conflict, one IPAM overlap,
+interfaces, one identity conflict, one IPAM overlap,
 one duplicate IP, a base template and 14 recent syslog lines. No real lab data.
 
     python scripts/seed_mock_lab.py mock-lab.db
@@ -50,24 +50,6 @@ INTERFACES = {
         ("Loopback0", "router id", "10.255.0.3", 32),
         ("Loopback1", "test", "10.255.0.1", 32)],                  # same IP as lab-rtr-a Lo0: duplicate
 }
-
-# device index, local_if, remote sysname, remote port, remote device index (None = ghost), remote mgmt ip
-LLDP = [
-    (0, "GigabitEthernet2", "lab-rtr-b", "GigabitEthernet2", 1, "192.0.2.171"),
-    (1, "GigabitEthernet2", "lab-rtr-a", "GigabitEthernet2", 0, "192.0.2.10"),
-    (1, "GigabitEthernet3", "lab-rtr-c", "GigabitEthernet2", 2, "192.0.2.167"),
-    (2, "GigabitEthernet2", "lab-rtr-b", "GigabitEthernet3", 1, "192.0.2.171"),
-    (2, "GigabitEthernet4", "sw-access-1", "Fa0/24", None, None),
-]
-
-# device index, proto, peer_ip, remote_as, area, state, uptime, prefixes, local_if
-ADJACENCIES = [
-    (0, "ospf", "10.255.0.2", None, "0", "FULL", "2d03h", None, "GigabitEthernet2"),
-    (1, "ospf", "10.255.0.1", None, "0", "FULL", "2d03h", None, "GigabitEthernet2"),
-    (0, "bgp", "203.0.113.9", 64500, None, "Established", "1d02h", 14, None),
-    (1, "bgp", "198.51.100.7", 64501, None, "Established", "05:12:44", 6, None),
-    (2, "bgp", "198.51.100.8", 64501, None, "Active", "never", None, None),
-]
 
 # minutes ago, router index, severity, mnemonic, message
 SYSLOG = [
@@ -127,18 +109,6 @@ def main():
                 "VALUES (?,?,?,?,?,?,?,?,?,?,0,0,1500,?)",
                 (dev_id, name, desc, ip, plen, ios._network(ip, plen),
                  "up", "up", "1000", "full", now))
-
-    for idx, local_if, sysname, port, remote_idx, rip in LLDP:
-        conn.execute(
-            "INSERT INTO lldp_neighbors (device_id, local_if, remote_sysname, remote_port, "
-            "remote_mgmt_ip, remote_device_id, last_seen) VALUES (?,?,?,?,?,?,?)",
-            (ids[idx], local_if, sysname, port, rip,
-             ids[remote_idx] if remote_idx is not None else None, now))
-    for idx, proto, peer, asn, area, state, up, pfx, lif in ADJACENCIES:
-        conn.execute(
-            "INSERT INTO adjacencies (device_id, proto, peer_ip, remote_as, area, state, uptime, "
-            "prefixes, local_if, last_seen) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (ids[idx], proto, peer, asn, area, state, up, pfx, lif, now))
 
     for ago, idx, sev, mnem, msg in SYSLOG:
         host, ip = ROUTERS[idx][0], ROUTERS[idx][1]

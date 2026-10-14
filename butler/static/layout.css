@@ -89,7 +89,7 @@ a:hover { text-decoration: underline; }
 .theme-select { cursor: pointer; }
 .theme-select option { background: var(--bg-card); color: var(--text); }
 
-/* Page body. Full-height pages (topology, template editor) fill the viewport
+/* Page body. Full-height pages (the template editor) fill the viewport
    and let their own content scroll. */
 body.full-height { height: 100vh; display: flex; flex-direction: column; }
 .page { min-width: 0; }
@@ -417,7 +417,7 @@ button.primary { border-color: var(--blue); color: var(--blue); }
 }
 :root[data-layout="retro95"] .theme-select:disabled { color: #808080; text-shadow: 1px 1px #fff; cursor: default; }
 :root[data-layout="retro95"] .container { padding: 8px; gap: 8px; }
-/* Full-height pages (topology, template editor) become one big window. */
+/* Full-height pages (the template editor) become one big window. */
 :root[data-layout="retro95"] body.full-height .page {
     margin: 8px 8px 0;
     background: #c0c0c0;

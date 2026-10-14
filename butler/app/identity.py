@@ -99,7 +99,7 @@ def ingest(conn, candidates, fields, source, ref=""):
         applied — a partial observation (e.g. a bare seed-file entry with
         just a hostname) never blanks a field a richer source already
         populated.
-    source: manual | sweep | vcenter | confetti | seedfile | lldp
+    source: manual | sweep | vcenter | confetti | seedfile
     ref: a source-specific reference (filename, sweep CIDR, vCenter moref) —
         distinguishes repeat runs of the same source from each other.
 
@@ -260,7 +260,7 @@ def add_operator_aliases(conn, device_id, values):
 
     PUT bypasses ingest (it is authoritative), but without this a new
     mgmt_ip set by hand never became an alias, so syslog correlation and
-    LLDP/BGP/OSPF resolution kept using the old one. Aliases are unique per
+    syslog correlation kept using the old one. Aliases are unique per
     (kind, value): a value already owned by a DIFFERENT device is not moved
     (that is merge's job) — it is returned so the caller can warn.
     """
@@ -337,7 +337,7 @@ def merge(conn, survivor_id, loser_id):
     (kind, value) aliases already belong to exactly one device_id each (the
     primary key enforces it), so repointing them can never collide. Tables
     with their own per-device uniqueness (device_sources, credentials,
-    interfaces, template_vars, lldp_neighbors, adjacencies) move whatever
+    interfaces, template_vars) move whatever
     the survivor doesn't already have and drop the rest — the survivor's
     existing data always wins over the loser's.
     """
@@ -359,10 +359,6 @@ def merge(conn, survivor_id, loser_id):
         ("interfaces", "name, description, ip, prefix_len, network, vrf, admin_status, "
                        "oper_status, speed, duplex, input_errors, crc_errors, mtu, last_seen"),
         ("template_vars", "key, value"),
-        ("lldp_neighbors", "local_if, remote_chassis, remote_sysname, remote_port, "
-                           "remote_mgmt_ip, remote_device_id, last_seen"),
-        ("adjacencies", "proto, peer_ip, peer_device_id, remote_as, area, state, "
-                        "uptime, prefixes, local_if, last_seen"),
     ):
         conn.execute(
             "INSERT OR IGNORE INTO {t} (device_id, {c}) "
@@ -377,10 +373,6 @@ def merge(conn, survivor_id, loser_id):
     conn.execute("UPDATE config_versions SET device_id = ? WHERE device_id = ?",
                  (survivor_id, loser_id))
     conn.execute("UPDATE events SET device_id = ? WHERE device_id = ?", (survivor_id, loser_id))
-    conn.execute("UPDATE lldp_neighbors SET remote_device_id = ? WHERE remote_device_id = ?",
-                 (survivor_id, loser_id))
-    conn.execute("UPDATE adjacencies SET peer_device_id = ? WHERE peer_device_id = ?",
-                 (survivor_id, loser_id))
 
     conn.execute("DELETE FROM devices WHERE id = ?", (loser_id,))
     conn.execute(

@@ -1,8 +1,8 @@
 // Colour theme picker, shared by every page. The palettes live in theme.css
 // as :root[data-theme="NAME"]; dark is the default and has no attribute.
 // Loaded synchronously in <head> so a saved choice is applied before first
-// paint (no dark flash). Pages that draw with JS-held colours (the topology
-// graph) listen for the 'themechange' event and redraw; a layout change fires
+// paint (no dark flash). Pages that draw with JS-held colours
+// listen for the 'themechange' event and redraw; a layout change fires
 // it too, since Retro 95 and the CRT layouts swap the whole palette.
 var THEMES = [
     ['dark', 'Dark'],

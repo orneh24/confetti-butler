@@ -12,9 +12,6 @@ from . import poller
 from . import reach
 from . import syslog_server
 
-BGP_UP = "Established"
-OSPF_UP = "FULL"
-
 
 def _esc(value):
     """Label values: backslash, double quote and newline must be escaped."""
@@ -61,13 +58,6 @@ def render(conn):
                      d["reachable"], **lab)
         o.sample("butler_device_poll_failures", "consecutive failed SSH/SNMP polls", "gauge",
                  d["fail_count"], **lab)
-
-    for a in conn.execute(
-            """SELECT d.hostname, a.proto, a.peer_ip, a.state FROM adjacencies a
-               JOIN devices d ON d.id = a.device_id ORDER BY d.hostname, a.peer_ip"""):
-        up = BGP_UP if a["proto"] == "bgp" else OSPF_UP
-        o.sample("butler_adjacency_up", "1 if the BGP session is Established / OSPF neighbor is FULL",
-                 "gauge", int(a["state"] == up), device=a["hostname"], proto=a["proto"], peer=a["peer_ip"])
 
     for i in conn.execute(
             """SELECT d.hostname, i.name, i.oper_status, i.input_errors, i.crc_errors FROM interfaces i

@@ -18,8 +18,13 @@
 #   2. Run: sh /root/butler/build-template.sh
 #   3. Shutdown and convert to template in vCenter
 #
-# Updating an already-deployed VM (code only, with backup and rollback):
+# Updating an already-deployed VM (backup, health check and rollback):
 #   butler-update.sh <butler-dir | butler.tar.gz>     (see scripts/butler-update.sh)
+# runs this script with --update. That mode installs everything the build
+# does (packages, code, OpenRC and cron scripts, motd) but leaves the root
+# password, butler.env, the database, host keys and the template clean-up
+# alone. BUTLER_STAGE_DIR (set by butler-update.sh) is where the app code
+# is copied instead of /opt/confetti-butler.
 #
 # After cloning:
 #   1. Set a static IP (or a DHCP reservation)
@@ -29,6 +34,7 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_DIR="/opt/confetti-butler"
+DEST_DIR="${BUTLER_STAGE_DIR:-$INSTALL_DIR}"
 DB_DIR="/var/lib/confetti-butler"
 LAB_ROOT_PASSWORD="${LAB_ROOT_PASSWORD:-lab123}"
 
@@ -47,6 +53,12 @@ die() {
 # -------------------------------------------------------------------
 # Sanity checks
 # -------------------------------------------------------------------
+UPDATE=""
+case "${1:-}" in
+    "") ;;
+    --update) UPDATE=1 ;;
+    *) die "Usage: build-template.sh [--update]" ;;
+esac
 [ "$(id -u)" -eq 0 ] || die "Must run as root"
 
 log "=== confetti-butler template builder ==="
@@ -110,42 +122,44 @@ rc-update add lldpd default
 # -------------------------------------------------------------------
 # 2b. Set default lab credentials
 # -------------------------------------------------------------------
-log "Setting root password"
-echo "root:${LAB_ROOT_PASSWORD}" | chpasswd
+if [ -z "$UPDATE" ]; then
+    log "Setting root password"
+    echo "root:${LAB_ROOT_PASSWORD}" | chpasswd
 
-log "Credentials: root / ${LAB_ROOT_PASSWORD}"
+    log "Credentials: root / ${LAB_ROOT_PASSWORD}"
+fi
 
 # -------------------------------------------------------------------
 # 3. Create directories
 # -------------------------------------------------------------------
 log "Creating directories"
-mkdir -p "$INSTALL_DIR" "$DB_DIR"
+mkdir -p "$DEST_DIR" "$DB_DIR"
 
 # -------------------------------------------------------------------
 # 4. Copy application
 # -------------------------------------------------------------------
-log "Installing application to $INSTALL_DIR"
+log "Installing application to $DEST_DIR"
 
-cp -r "${SCRIPT_DIR}/app" "$INSTALL_DIR/"
-cp -r "${SCRIPT_DIR}/templates" "$INSTALL_DIR/"
+cp -r "${SCRIPT_DIR}/app" "$DEST_DIR/"
+cp -r "${SCRIPT_DIR}/templates" "$DEST_DIR/"
 
-# static/ carries the vendored CodeMirror and vis-network bundles — real
+# static/ carries the vendored CodeMirror bundle — real
 # content, not empty like the hub's static/, so this is a real copy, not
 # the hub's mkdir-then-maybe-copy.
-mkdir -p "$INSTALL_DIR/static"
-cp -r "${SCRIPT_DIR}/static/"* "$INSTALL_DIR/static/"
+mkdir -p "$DEST_DIR/static"
+cp -r "${SCRIPT_DIR}/static/"* "$DEST_DIR/static/"
 
-mkdir -p "$INSTALL_DIR/seed"
+mkdir -p "$DEST_DIR/seed"
 if [ -d "${SCRIPT_DIR}/seed" ]; then
-    cp -r "${SCRIPT_DIR}/seed/"* "$INSTALL_DIR/seed/" 2>/dev/null || true
+    cp -r "${SCRIPT_DIR}/seed/"* "$DEST_DIR/seed/" 2>/dev/null || true
 fi
 
-cp -f "${SCRIPT_DIR}/requirements.txt" "$INSTALL_DIR/"
-cp -f "${SCRIPT_DIR}/serve.py" "$INSTALL_DIR/"
-cp -f "${SCRIPT_DIR}/run.sh" "$INSTALL_DIR/"
-cp -f "${SCRIPT_DIR}/scripts/butler-setup.sh" "$INSTALL_DIR/"
-cp -f "${SCRIPT_DIR}/scripts/butler-update.sh" "$INSTALL_DIR/"
-chmod +x "$INSTALL_DIR/run.sh" "$INSTALL_DIR/serve.py" "$INSTALL_DIR/butler-setup.sh"     "$INSTALL_DIR/butler-update.sh"
+cp -f "${SCRIPT_DIR}/requirements.txt" "$DEST_DIR/"
+cp -f "${SCRIPT_DIR}/serve.py" "$DEST_DIR/"
+cp -f "${SCRIPT_DIR}/run.sh" "$DEST_DIR/"
+cp -f "${SCRIPT_DIR}/scripts/butler-setup.sh" "$DEST_DIR/"
+cp -f "${SCRIPT_DIR}/scripts/butler-update.sh" "$DEST_DIR/"
+chmod +x "$DEST_DIR/run.sh" "$DEST_DIR/serve.py" "$DEST_DIR/butler-setup.sh" "$DEST_DIR/butler-update.sh"
 ln -sf "$INSTALL_DIR/butler-setup.sh" /usr/local/bin/butler-setup.sh
 ln -sf "$INSTALL_DIR/butler-update.sh" /usr/local/bin/butler-update.sh
 
@@ -184,6 +198,7 @@ fi
 # -------------------------------------------------------------------
 # 6. Create configuration file
 # -------------------------------------------------------------------
+if [ -z "$UPDATE" ]; then
 log "Creating configuration"
 cat > "$INSTALL_DIR/butler.env" <<'ENVEOF'
 # confetti-butler environment configuration.
@@ -231,8 +246,6 @@ BUTLER_DISCOVERY_INTERVAL_S=0
 # BUTLER_DISCOVERY_CONFETTI_URL=http://10.0.0.100
 # BUTLER_DISCOVERY_SWEEP_CIDRS=10.0.1.0/24,10.0.2.0/24
 # BUTLER_DISCOVERY_SEEDFILE=/opt/confetti-butler/seed/devices.yaml
-# Add LLDP neighbors with an unknown management IP as inventory-only devices.
-BUTLER_LLDP_AUTO_ADOPT=false
 
 # --- Alerting (rules are created on the Alerts page) ----------------------
 BUTLER_ALERTS_ENABLED=true
@@ -261,6 +274,7 @@ BUTLER_HEALTH_SERVICE_TIMEOUT_S=3
 ENVEOF
 # Holds the default SSH password (and anything guestinfo adds): root only.
 chmod 600 "$INSTALL_DIR/butler.env"
+fi
 
 # -------------------------------------------------------------------
 # 7. Create OpenRC init script
@@ -306,23 +320,24 @@ log "Services enabled"
 log "Creating first-boot instructions"
 cat > /etc/motd <<'MOTDEOF'
 
-  ┌───────────────────────────────────────────────┐
-  │         confetti-butler VM                         │
-  │                                               │
-  │  Dashboard: http://<this-vm-ip>/              │
-  │  Config:    /opt/confetti-butler/butler.env        │
-  │  DB:        /var/lib/confetti-butler/butler.db     │
-  │  Logs:      rc-service confetti-butler status      │
-  │                                               │
-  │  Not configured yet? Log in and run:          │
-  │    butler-setup.sh                            │
-  │  (runs automatically at first login if the    │
-  │   static IP hasn't been set)                  │
-  │                                               │
-  │  If IP needs changing later:                  │
-  │    set-static-ip <ip/cidr> <gateway>          │
-  │    rc-service networking restart              │
-  └───────────────────────────────────────────────┘
+  +-----------------------------------------------+
+  |                                               |
+  | confetti-butler VM                            |
+  |                                               |
+  | Dashboard: http://<this-vm-ip>/               |
+  | Config:    /opt/confetti-butler/butler.env    |
+  | DB:        /var/lib/confetti-butler/butler.db |
+  | Logs:      rc-service confetti-butler status  |
+  |                                               |
+  | Not configured yet? Log in and run:           |
+  |   butler-setup.sh                             |
+  | (runs automatically at first login if the     |
+  |  static IP hasn't been set)                   |
+  |                                               |
+  | If IP needs changing later:                   |
+  |   set-static-ip <ip/cidr> <gateway>           |
+  |   rc-service networking restart               |
+  +-----------------------------------------------+
 
 MOTDEOF
 
@@ -366,8 +381,14 @@ SIPEOF
 chmod +x /usr/local/bin/set-static-ip
 
 # -------------------------------------------------------------------
-# 11. Clean up for template conversion
+# 11. Clean up for template conversion (not on --update: this would delete
+# the database and the host keys of a VM in use)
 # -------------------------------------------------------------------
+if [ -n "$UPDATE" ]; then
+    log "=== Update install complete ==="
+    exit 0
+fi
+
 log "Cleaning up for template conversion"
 
 rm -f /etc/dropbear/dropbear_*_host_key

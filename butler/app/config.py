@@ -63,10 +63,6 @@ DISCOVERY_INTERVAL_S = int(os.environ.get("BUTLER_DISCOVERY_INTERVAL_S", "0"))
 DISCOVERY_CONFETTI_URL = os.environ.get("BUTLER_DISCOVERY_CONFETTI_URL", "").strip()
 DISCOVERY_SWEEP_CIDRS = [c.strip() for c in os.environ.get("BUTLER_DISCOVERY_SWEEP_CIDRS", "").split(",") if c.strip()]
 DISCOVERY_SEEDFILE = os.environ.get("BUTLER_DISCOVERY_SEEDFILE", "").strip()
-# Add LLDP neighbors that advertise an unknown management IP as devices
-# (inventory-only: polling stays off until an operator enables them).
-LLDP_AUTO_ADOPT = _flag("BUTLER_LLDP_AUTO_ADOPT", "false")
-
 # ---------------------------------------------------------------------------
 # Alerting (alerts.py)
 # ---------------------------------------------------------------------------

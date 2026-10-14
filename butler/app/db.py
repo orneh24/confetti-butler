@@ -190,39 +190,9 @@ def init_db():
             PRIMARY KEY (device_id, key)
         );
 
-        CREATE TABLE IF NOT EXISTS lldp_neighbors (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            device_id        INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-            local_if         TEXT NOT NULL,
-            remote_chassis   TEXT,
-            remote_sysname   TEXT,
-            remote_port      TEXT,
-            remote_mgmt_ip   TEXT,
-            remote_device_id INTEGER,
-            last_seen        TEXT NOT NULL,
-            UNIQUE(device_id, local_if, remote_port)
-        );
-
-        CREATE TABLE IF NOT EXISTS adjacencies (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            device_id      INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-            proto          TEXT NOT NULL,
-            peer_ip        TEXT NOT NULL,
-            peer_device_id INTEGER,
-            remote_as      INTEGER,
-            area           TEXT,
-            state          TEXT NOT NULL,
-            uptime         TEXT,
-            prefixes       INTEGER,
-            local_if       TEXT,
-            last_seen      TEXT NOT NULL,
-            UNIQUE(device_id, proto, peer_ip)
-        );
-        CREATE INDEX IF NOT EXISTS idx_adj_state ON adjacencies(state);
-
         -- Append-only, age-pruned like confetti-traffic's results table. One row
-        -- per poll task (version/interfaces/lldp/bgp/ospf/config), not per device —
-        -- a device's LLDP task failing must not hide that its interfaces task
+        -- per poll task (version/interfaces/config), not per device —
+        -- a device's config task failing must not hide that its interfaces task
         -- just succeeded.
         CREATE TABLE IF NOT EXISTS poll_history (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -344,6 +314,9 @@ def init_db():
     db.execute("DELETE FROM device_sources WHERE source = 'meshflux'")
     db.execute("UPDATE merge_conflicts SET source = 'confetti' WHERE source = 'meshflux'")
 
+    # Databases created before 2026-10-14 may still hold lldp_neighbors and
+    # adjacencies tables: the topology moved to confetti-topo. Nothing reads or
+    # drops them (updates only ever add), so an older build can still start on this file.
     db.commit()
     db.close()
 

@@ -193,13 +193,9 @@ def _():
     return p
 
 
-@check("R3", "IOS-XE commands: no invalid LLDP self-query, no textfsm, brief-table fallback present")
+@check("R3", "IOS-XE parsing is pure regex: no use_textfsm=True (needs ntc-templates on Alpine)")
 def _():
     p = []
-    ssh_src = read("butler/app/collectors/ssh.py")
-    cmds = " | ".join(app_modules()["ssh"].COMMANDS.values())
-    for bad in ("lldp local-info", "lldp entry local"):
-        need(bad not in cmds, "COMMANDS uses '%s' (invalid / always empty on IOS-XE 17.3)" % bad, p)
     import ast
     for path in py_files():
         for node in ast.walk(ast.parse(read(path))):
@@ -207,8 +203,6 @@ def _():
                 for kw in node.keywords:
                     if kw.arg == "use_textfsm" and getattr(kw.value, "value", None) is True:
                         p.append("%s:%d use_textfsm=True (needs ntc-templates on Alpine)" % (path, node.lineno))
-    need("fill_lldp_local_if" in ssh_src, "ssh.py no longer fills Local Intf from the brief table", p)
-    need("fill_lldp_local_if" in read("butler/app/parsers/ios.py"), "ios.fill_lldp_local_if is missing", p)
     return p
 
 
@@ -272,7 +266,7 @@ def _():
     conn.close()
     client = m["appmod"].app.test_client()
     for url in ("/", "/devices", "/devices/%d" % did, "/conflicts", "/ipam", "/templates",
-                "/topology", "/syslog", "/alerts"):
+                "/syslog", "/alerts"):
         code = client.get(url).status_code
         need(code == 200, "GET %s -> %s" % (url, code), p)
     ed = read("butler/templates/templates_editor.html")
@@ -485,7 +479,7 @@ def _():
 def _():
     p = []
     tasks = app_modules()["ssh"].TASKS
-    words = {"four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9}
+    words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9}
     doc = read("CLAUDE.md")
     for pat in (r"Per device, (\w+) tasks", r"All (\w+) tasks share"):
         m = re.search(pat, doc)
@@ -537,11 +531,10 @@ def _():
     return p
 
 
-@check("R19", "every repo file the build/update/migrate scripts copy exists")
+@check("R19", "every repo file the build/update scripts copy exists")
 def _():
     p = []
-    for script in ("butler/build-template.sh", "butler/scripts/butler-update.sh",
-                   "butler/scripts/migrate-from-lab-butler.sh"):
+    for script in ("butler/build-template.sh", "butler/scripts/butler-update.sh"):
         for ref in sorted(set(re.findall(r'\$\{(?:SCRIPT_DIR|SRC_DIR|SRC)\}/([\w./-]+?)["\s]', read(script)))):
             if ref.endswith("/") or "*" in ref:
                 continue
@@ -667,8 +660,6 @@ def _():
     p = []
     m, conn = fresh_db()
     did = add_device(conn, "192.0.2.1", 'a"b\\c')
-    conn.execute("INSERT INTO adjacencies (device_id, proto, peer_ip, state, last_seen) VALUES (?, 'bgp', '192.0.2.9', 'Active', ?)",
-                 (did, m["db"].sqlite_now()))
     conn.execute("UPDATE devices SET reachable = 0 WHERE id = ?", (did,))
     conn.commit()
     conn.close()
@@ -685,8 +676,7 @@ def _():
         elif not sample_rx.match(ln):
             p.append("not valid exposition format: %r" % ln)
     need(len(declared) == len(set(declared)), "a metric is declared (# HELP) more than once", p)
-    for want in ('butler_up 1', 'butler_adjacency_up{device="a\\"b\\\\c",peer="192.0.2.9",proto="bgp"} 0',
-                 'butler_device_reachable{device="a\\"b\\\\c",role="router"} 0'):
+    for want in ('butler_up 1', 'butler_device_reachable{device="a\\"b\\\\c",role="router"} 0'):
         need(want in text, "missing line: %s" % want, p)
     return p
 
@@ -720,40 +710,8 @@ def _():
     return p
 
 
-@check("R27", "LLDP crawl: adopted devices are inventory-only; off by default; bad IPs refused")
-def _():
-    p = []
-    cfg_src = read("butler/app/config.py")
-    need('"BUTLER_LLDP_AUTO_ADOPT", "false"' in cfg_src, "BUTLER_LLDP_AUTO_ADOPT must default to false", p)
-    need('"BUTLER_DISCOVERY_INTERVAL_S", "0"' in cfg_src, "BUTLER_DISCOVERY_INTERVAL_S must default to 0 (off)", p)
-    m, conn = fresh_db()
-    from app import lldp_crawl as crawl
-    ssh, config = m["ssh"], m["config"]
-    did = add_device(conn, "192.0.2.1", "r1")
-
-    def nb(ip, name, port):
-        return [dict(local_if="Gi1", remote_chassis="aa", remote_sysname=name, remote_port=port, remote_mgmt_ip=ip)]
-    ssh.apply_result(conn, did, "lldp", nb("192.0.2.50", "sw9", "Gi0/1"))
-    need([u["ip"] for u in crawl.unknown_neighbors(conn)] == ["192.0.2.50"], "unknown neighbor not listed", p)
-    need(conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0] == 1, "a neighbor became a device with auto-adopt off", p)
-    new = crawl.adopt(conn, "192.0.2.50", "sw9", "r1")
-    conn.commit()
-    row = conn.execute("SELECT enabled, hostname FROM devices WHERE id = ?", (new,)).fetchone()
-    need(row and row["enabled"] == 0 and row["hostname"] == "sw9", "adopted device must start disabled: %r" % (dict(row) if row else None), p)
-    need(conn.execute("SELECT COUNT(*) FROM events WHERE kind = 'device_discovered'").fetchone()[0] == 1, "no device_discovered event", p)
-    need(conn.execute("SELECT remote_device_id FROM lldp_neighbors").fetchone()[0] == new, "lldp row not linked to the adopted device", p)
-    need(crawl.unknown_neighbors(conn) == [], "adopted neighbor still listed as unknown", p)
-    for bad in ("127.0.0.1", "0.0.0.0", "224.0.0.1", "999.1.1.1", "not-an-ip", ""):
-        need(crawl.adopt(conn, bad, "x", "r1") is None, "adopt accepted %r" % bad, p)
-    config.LLDP_AUTO_ADOPT = True
-    try:
-        ssh.apply_result(conn, did, "lldp", nb("192.0.2.51", "sw10", "Gi0/2"))
-    finally:
-        config.LLDP_AUTO_ADOPT = False
-    auto = conn.execute("SELECT enabled FROM devices WHERE mgmt_ip = '192.0.2.51'").fetchone()
-    need(auto is not None and auto["enabled"] == 0, "auto-adopt did not create a disabled device", p)
-    conn.close()
-    return p
+# R27 (LLDP crawl) and R30 (BGP "Idle (Admin)" parse) moved to confetti-topo on 2026-10-14
+# (R23 and R26 there). The numbers are not reused here.
 
 
 @check("R28", "scheduled discovery: one source failing keeps the others; new devices announced once")
@@ -806,17 +764,6 @@ def _():
     need(os.path.isfile("packer/http/answers"), "packer/http/answers is missing", p)
     need("http_directory" in read("packer/confetti-butler.pkr.hcl"), "Packer template lost http_directory", p)
     need("packer/vars.pkrvars.hcl" in read(".gitignore"), "packer/vars.pkrvars.hcl (passwords) is not git-ignored", p)
-    return p
-
-
-@check("R30", "IOS BGP summary: an administratively shut peer keeps '(Admin)' (found on a real 15.4 router)")
-def _():
-    p = []
-    ios = app_modules()["ios"]
-    rows = {r["peer_ip"]: r for r in ios.parse_bgp_summary(sample("ios_bgp_summary_15_4.txt"))}
-    need(rows.get("192.0.2.250", {}).get("state") == "Idle (Admin)", "admin-down peer parsed as %r" % rows.get("192.0.2.250"), p)
-    need(rows.get("198.51.100.81", {}).get("state") == "Established" and rows["198.51.100.81"]["prefixes"] == 4, "established peer: %r" % rows.get("198.51.100.81"), p)
-    need(rows.get("198.51.100.164", {}).get("state") == "Idle", "idle peer: %r" % rows.get("198.51.100.164"), p)
     return p
 
 
@@ -1153,7 +1100,7 @@ def run_live():
         need(health.get("reach_running") is True, "ICMP checker is not running", problems)
         need(health.get("alerts_running") is True, "alert thread is not running", problems)
         need(b"butler_up 1" in get("/metrics")[1], "/metrics does not answer", problems)
-        for url in ("/", "/devices", "/topology", "/ipam", "/templates", "/syslog", "/conflicts", "/alerts"):
+        for url in ("/", "/devices", "/ipam", "/templates", "/syslog", "/conflicts", "/alerts"):
             code = get(url)[0]
             need(code == 200, "GET %s -> %s" % (url, code), problems)
         req = urllib.request.Request(base + "/api/devices", method="POST",

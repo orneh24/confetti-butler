@@ -1,5 +1,7 @@
 # confetti-butler — Build Handoff
 
+> **2026-10-14:** the LLDP/BGP/OSPF topology described below moved to confetti-topo; see the last section.
+
 Point-in-time record of the initial build, 2026-09-14/15, plus follow-up sessions on 2026-09-27
 and 2026-09-28 (see the "Follow-up session" sections below). Read `CLAUDE.md` at the repo root first —
 it's the architecture reference and carries the numbered "do not regress" constraints. This file is
@@ -207,7 +209,7 @@ Three features, each its own commit, then a real-VM test of the deployment piece
   nightly backup (`services/butler-backup.sh`: backup, 0700/0600, rotation of 7, listed by `run-parts`),
   guestinfo `ssh_username`/`ssh_password`/`ssh_secret`/`poll_interval_s` (set with `vmware-rpctool info-set`,
   including a password with `$ & | " #` and spaces, applied once, reached the service environment), and
-  `scripts/migrate-from-lab-butler.sh` (VM turned back into the lab-butler layout, migrated, data kept,
+  `scripts/migrate-from-lab-butler.sh` (removed 2026-10-14; VM turned back into the lab-butler layout, migrated, data kept,
   re-run is a no-op). Re-running `build-template.sh` on an already built VM also worked. The OpenRC main script
   moved to `services/confetti-butler.initd`; `butler.env` is now 0600.
 - **Not tested:** the nightly job firing from `crond` at 02:00 (script run by hand and listed by run-parts);
@@ -341,5 +343,32 @@ credentials were removed from the VM afterwards and the database vacuumed; a sea
   Alpine package list `build-template.sh` installs is the authoritative list for a real deployment;
   it has not been cross-checked against the live Alpine package index (see constraint 3 in
   `CLAUDE.md` and the `py3-paramiko`/`netmiko` note in `build-template.sh` itself).
-- CodeMirror 5.65.16 and vis-network 9.1.9 are vendored under `butler/static/vendor/` (pinned
-  versions, downloaded directly, no CDN dependency at runtime).
+- CodeMirror 5.65.16 is vendored under `butler/static/vendor/` (pinned version, downloaded directly,
+  no CDN dependency at runtime). vis-network 9.1.9 was too, until the topology moved to confetti-topo.
+
+## Follow-up session (2026-10-14): topology moved to confetti-topo
+
+The topology mapping now lives in its own project, `../confetti-topo` (standalone: own inventory, poller,
+crawl, events and graph). Everything below that mentions LLDP, BGP/OSPF, the topology page, the LLDP crawl or
+their events and checks describes how butler *used to* work; it stays here as history.
+
+Removed from butler:
+- Pages and API: `/topology`, `/api/topology`, `/api/adjacencies`, `/api/lldp/unknown`, `/api/lldp/adopt`;
+  `templates/topology.html`, the vendored `static/vendor/vis-network/`, `app/lldp_crawl.py`,
+  `docs/TOPOLOGY-MAPPING.md` (now in confetti-topo).
+- Polling: the `lldp`, `bgp` and `ospf` tasks, their parsers (`parse_lldp_*`, `parse_bgp_summary`,
+  `parse_ospf_neighbors`, `fill_lldp_local_if`) and the apply steps. A poll is now `version`, `interfaces`,
+  `config` (three tasks).
+- Data: `lldp_neighbors` and `adjacencies` are no longer created. A database made earlier keeps them,
+  unused, on purpose (updates only add; a rollback must still start on the file). `identity.merge` no longer
+  re-points them. `BUTLER_LLDP_AUTO_ADOPT` and the `butler_adjacency_up` metric are gone.
+- Regression checks: R27 (LLDP crawl) and R30 (BGP `Idle (Admin)`) moved to confetti-topo (R23, R26 there);
+  R3 now only checks "no textfsm"; R7 and R20 no longer fetch `/topology`; R16 expects three tasks. The two
+  numbers are not reused.
+- Alert rules on `bgp_*`, `ospf_*` and `lldp_*` events no longer match anything new (the event-kind list in the
+  rule editor lost them). Butler's own `lldpd` on the VM is unchanged.
+
+Verified: `python dev/regress.py` CLEAR (live tier included) on the stripped tree, and the pages render.
+**Not done:** the stripped build has not been deployed to the lab VM; run `butler-update.sh` and check
+`/api/health`, one poll (version, interfaces, config) and that the existing database starts.
+

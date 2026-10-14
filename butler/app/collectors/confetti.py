@@ -1,4 +1,4 @@
-"""Import confetti-traffic's node fleet as topology context.
+"""Import confetti-traffic's node fleet as inventory.
 
 GET <hub_url>/endpoints returns confetti-traffic's Alpine test VMs, not managed
 routers — imported with role='node' and vendor/platform set explicitly so

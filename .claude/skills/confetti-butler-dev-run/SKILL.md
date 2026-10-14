@@ -35,7 +35,7 @@ cd butler && BUTLER_PORT=8080 BUTLER_SYSLOG_PORT=5514 python serve.py
    "enable_secret": ...}`. Write the JSON to a temp file and send it with `--data @file`. Passwords
    often contain `!` or `$`, which the shell would otherwise mangle. Delete the file afterwards.
 3. Poll now: `POST /api/devices/<id>/poll`. It is synchronous and can take up to about a minute. It
-   returns ok/error for each of the six tasks (version, interfaces, lldp, bgp, ospf, config).
+   returns ok/error for each of the three tasks (version, interfaces, config).
 4. Check: `GET /api/devices/<id>` (the key should now be `serial:...`) and
    `GET /api/devices/<id>/interfaces`.
 
@@ -43,5 +43,4 @@ cd butler && BUTLER_PORT=8080 BUTLER_SYSLOG_PORT=5514 python serve.py
 
 - CSR1000v at `192.0.2.10`, IOS-XE 17.3.8a, hostname `lab-rtr-a`, serial `9SIMLAB0001`.
 - Credentials are **not** stored here. Ask the user for them each session.
-- LLDP is disabled and there are no BGP/OSPF peers, so those three tasks succeed but return nothing.
-  That is expected, not a parser bug.
+- LLDP and BGP/OSPF are not polled here any more; they moved to confetti-topo (see its `confetti-topo-dev-run` skill).

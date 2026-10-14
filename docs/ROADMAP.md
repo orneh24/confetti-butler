@@ -1,5 +1,8 @@
 # confetti-butler — architecture review and feature roadmap
 
+> **Note (2026-10-14):** the LLDP/BGP/OSPF topology items in this review (topology colouring, the LLDP crawl,
+> adjacency events and metrics) moved to confetti-topo with the feature. See its `docs/ROADMAP.md`.
+
 ## Context
 You asked for an analysis of the current architecture against the project's aim: *inventory, IPAM,
 pull-delivered config, syslog, LLDP/BGP/OSPF topology for an ESXi + CSR1000v lab*. It should compare
@@ -344,8 +347,8 @@ Section 10 narrows sections 7 and 9: the drift check, alerting and the unselecte
 
 Built: Phases A, B, C (backup + diff + retention, events + timeline, pinned requirements, update script,
 real-VM build, nightly backup, guestinfo settings, lab-butler migration), then the optional features from
-section 9: ICMP reachability, interface counter trends, `/metrics`, topology state colours, scheduled
-discovery, LLDP neighbor crawl, regression script, multi-vendor dispatch (IOS + SNMP; the EOS and Junos parsers were removed 2026-10-10), SNMP polling, Packer
+section 9: ICMP reachability, interface counter trends, `/metrics`, scheduled
+discovery, and (since moved to confetti-topo) topology state colours and the LLDP neighbor crawl, regression script, multi-vendor dispatch (IOS + SNMP; the EOS and Junos parsers were removed 2026-10-10), SNMP polling, Packer
 template, container image. Still open: drift check, alerting (webhook / email / syslog rules), IPAM
 allocation, ZTP by serial, write auth token. Details and what was verified: `docs/HANDOFF.md`.
 

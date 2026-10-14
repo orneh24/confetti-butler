@@ -4,10 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A simplistic server for deploying, documenting and visualizing network devices — inventory, IPAM,
-config templates served for devices to pull, syslog, LLDP neighbor discovery, and routing-adjacency
-(BGP/OSPF) monitoring, visualized as a topology graph. Infrastructure is ESXi 7.0 with Cisco
-CSR1000v routers initially; other vendors later.
+A simplistic server for deploying and documenting network devices — inventory, IPAM, config templates
+served for devices to pull, running-config backup and drift, syslog, change events and alerting.
+Infrastructure is ESXi 7.0 with Cisco CSR1000v routers initially; other vendors later.
+
+**The topology map (LLDP neighbors, BGP/OSPF adjacencies, the graph, the LLDP crawl) moved to its own project,
+`../confetti-topo`, on 2026-10-14.** Butler no longer polls LLDP/BGP/OSPF and has no topology page. Its alert
+rules on `bgp_*`, `ospf_*` and `lldp_*` events stop matching anything (old events stay in the table). An older
+database may still hold unused `lldp_neighbors` and `adjacencies` tables; they are left alone on purpose so the
+previous build can still start on the file.
 
 This is a companion project to `../confetti-traffic` (a separate repo, network connectivity test
 harness; formerly mesh-flux — the import route, `collectors/confetti.py` and the `confetti` `source`
@@ -15,7 +20,7 @@ value were renamed from `meshflux` on 2026-10-07; `db.init_db` migrates old rows
 was called lab-butler until 2026-10-08.
 The split is deliberate: confetti-traffic treats the network between its nodes as *"an opaque path it
 tests, not something it configures."* confetti-traffic owns *is the path healthy*; confetti-butler owns *what
-are the devices, how are they addressed, how are they connected, and how do they get configured*.
+are the devices, how are they addressed, and how do they get configured* (how they are connected is confetti-topo's).
 confetti-butler's six vendor/protocol reference skills under `.claude/skills/` were evicted from
 confetti-traffic (then lab-tester) on 2026-09-14, when it was re-scoped to hub + node only — they are
 confetti-butler's domain knowledge now, not leftovers.
@@ -53,15 +58,15 @@ Each tick (`BUTLER_POLL_TICK_S`, default 15s): claim devices with `poll_state='i
 `next_poll_at <= now`, mark them `'running'` (this is the per-device lock — a device whose SSH hangs
 is never queued twice), and hand each to a `ThreadPoolExecutor` (`BUTLER_POLL_WORKERS`, default 8).
 
-Per device, six tasks run independently, **each committing its own transaction**: `version`,
-`interfaces`, `lldp`, `bgp`, `ospf`, `config`. Partial failure is the normal case — an LLDP timeout must never
+Per device, three tasks run independently, **each committing its own transaction**: `version`,
+`interfaces`, `config`. Partial failure is the normal case — a config read timing out must never
 discard interface data collected 200ms earlier. `role='node'` devices (confetti-traffic's imported Alpine
 fleet) are never polled — `poller.py`'s device-selection query filters `role != 'node'`.
 
-All six tasks share **one SSH session** per poll (`ssh.run_tasks` is a generator, so each task still
-commits before the next command runs). Each apply step deletes that device's rows not seen in this
-poll — a removed peer or cable must not stay on the topology forever. `interfaces` skips the delete
-on an empty result, since empty there means a parse failure, not a router with no interfaces. The
+All three tasks share **one SSH session** per poll (`ssh.run_tasks` is a generator, so each task still
+commits before the next command runs). The `interfaces` apply step deletes that device's rows not seen in this
+poll, but skips the delete on an empty result, since empty there means a parse failure, not a router
+with no interfaces. The
 per-device `'running'` lock is always released in a `finally`, and `poller.start()` resets any
 `'running'` rows left by a server that stopped mid-poll.
 
@@ -71,15 +76,14 @@ A dead device backs off toward an hour instead of burning a worker every 5 minut
 Commands and parsers (`app/collectors/ssh.py`, `app/parsers/ios.py`) use **pure regex, not
 `use_textfsm=True`** — deliberately, to avoid a hard dependency on the `ntc-templates` package, whose
 Alpine availability is unverified (same caution as confetti-traffic CLAUDE.md constraint 14). This was
-confirmed against a real IOS-XE 17.3 CSR1000v; see constraint 3 below for command-name gotchas found
-that way.
+confirmed against a real IOS-XE 17.3 CSR1000v; see constraint 3 below.
 
 ### Platforms and SNMP
 
 `app/platforms.py` maps a device's `platform` to its commands and parsers: `cisco_ios` / `cisco_xe`
 (verified on real hardware) and `snmp`. Arista was dropped from the roadmap and Junos is planned but not started;
 both were removed rather than shipped unverified (constraint 3 is why: IOS-XE output was "known" too, until a real
-router disagreed). Every ssh platform has the same six task names, `config`
+router disagreed). Every ssh platform has the same three task names, `config`
 last; an unknown platform falls back to the IOS entry. `ssh.COMMANDS` / `PARSERS` / `TASKS` still name the
 IOS entry because the regression script reads them. `snmp` (`collectors/snmp.py`) shells out to
 `snmpget` / `snmpwalk -Oqn` (net-snmp-tools), v1 and v2c only, tasks `version` and `interfaces`; the host
@@ -92,8 +96,7 @@ must be an IP address. Its parser was written against output captured from a rea
   device with a `mgmt_ip`, including `role='node'`, and keeps `devices.reachable` (1 / 0 / NULL = not
   checked). A device is marked down after `BUTLER_PING_FAILS_TO_DOWN` (2) failures in a row; the first
   result is a baseline and emits no event (the same rule as `events.is_baseline`). `_ping` refuses any
-  string that is not an IP address before it reaches a subprocess. Shown on the Devices and device pages
-  and as a red outline on the topology; BGP/OSPF sessions that are not Established / FULL are drawn red and dashed.
+  string that is not an IP address before it reaches a subprocess. Shown on the Devices and device pages.
 - **Interface error history:** `ssh._record_interface_stats` stores a sample in `interface_stats` when an
   interface's error counters change, plus one an hour; pruned after `BUTLER_STATS_RETENTION_DAYS` (7).
   `ssh.growth()` sums increases and ignores a counter that went down (a reload). The device page shows
@@ -101,17 +104,14 @@ must be an IP address. Its parser was written against output captured from a rea
 - **`GET /metrics`** (`app/metrics.py`): Prometheus text built from the database at scrape time, hand-written
   (no client library). Label values are escaped; each metric is declared once.
 
-### Discovery on a timer, and the LLDP crawl
+### Discovery on a timer
 
 - `app/discovery.py` runs the confetti-traffic import, subnet sweeps and the seed file every
   `BUTLER_DISCOVERY_INTERVAL_S` seconds (default 0 = never; nothing runs unless configured via
   `BUTLER_DISCOVERY_CONFETTI_URL` / `_SWEEP_CIDRS` / `_SEEDFILE`). Each source commits on its own, so one
   failing source never discards another's work. A device that did not exist before gets a
   `device_discovered` event. `POST /api/discover/run` runs it once by hand.
-- `app/lldp_crawl.py`: an LLDP neighbor advertising a management IP no device owns is listed by
-  `GET /api/lldp/unknown` and added by `POST /api/lldp/adopt` (or automatically with
-  `BUTLER_LLDP_AUTO_ADOPT=true`, default false). It goes through `identity.ingest`, and the new device is
-  created with `enabled=0`: inventory only, never polled until an operator sets credentials and enables it.
+
 
 ### Drift check
 
@@ -167,12 +167,11 @@ The device page's Config history section shows the list, a viewer and the diff.
 
 `app/events.py` `emit()` writes a row to `events` (`BUTLER_EVENT_RETENTION_DAYS`, default 30, pruned
 in the poller tick). Callers are the poller's apply steps, which hold the old state just before they
-overwrite it: interface oper up/down and rising CRC errors, BGP/OSPF peer state/added/removed, LLDP
-neighbor added/removed, OS version change, `config_changed`, and `poller._finish` for
+overwrite it: interface oper up/down and rising CRC errors, OS version change, `config_changed`, and `poller._finish` for
 `device_unreachable` / `device_recovered` (first failure and first success after failures only, not
 every poll). `emit()` never commits — the event shares the transaction of the change it describes.
 `events.is_baseline()` is true until a task has an `ok=1` row in `poll_history`; while true, nothing is
-emitted, so adding a device doesn't produce one event per interface/peer. Read via
+emitted, so adding a device doesn't produce one event per interface. Read via
 `GET /api/events` (`device_id`, `kind`, `severity`, `hours`, `limit`); shown on the dashboard
 (last 15) and each device page. Alerting (below) reads the same table.
 
@@ -230,18 +229,6 @@ incrementally. Ported from the `network-config-validation` skill's `find_subnet_
 (a point-to-point link, a shared segment) is the normal case and is excluded; only a genuine partial
 overlap (a `/24` that swallows an already-configured `/30`) is flagged.
 
-### Topology
-
-`GET /api/topology` returns a vis.js-shaped `{nodes, edges}` graph over LLDP neighbors and BGP/OSPF
-adjacencies. A neighbor/peer that hasn't resolved to a known `device_id` renders as a **ghost node**
-(`ghost:lldp:<sysname>`, or `ghost:peer:<ip>` shared by BGP and OSPF) rather than being dropped — an edge to nowhere reads as a bug, a distinctly
-styled ghost node reads as "something is out there, unidentified." A link both ends report over LLDP is
-drawn once. LLDP resolves via the management IP a
-neighbor advertises (`remote_mgmt_ip`) matching a device's `mgmt_ip` alias — see constraint 3 for why
-not chassis ID. BGP/OSPF resolve the same way via `peer_ip`, which is why those resolve far
-less often — a peer IP is usually a loopback or point-to-point address, not the neighbor's mgmt IP.
-NULL there is the expected common case, not a bug.
-
 ### Syslog
 
 `app/syslog_server.py` is a near-verbatim port of confetti-traffic's hub syslog receiver — same RFC3164
@@ -253,20 +240,23 @@ arrives still correlates retroactively.
 
 ## Updating a deployed VM
 
-`butler-update.sh <butler-dir|tarball>` (also `--rollback`) updates the code only: it import-checks the
-new tree against a throwaway DB *before* stopping anything, backs up the DB with `sqlite3 .backup`
+`butler-update.sh <butler-dir|tarball>` (also `--rollback`) runs the new tree's `build-template.sh --update`
+(the build's own install steps, so no second file list: apk packages, code into `/opt/confetti-butler.new`
+via `BUTLER_STAGE_DIR`, OpenRC/cron/login scripts, motd; `--update` skips the root password, `butler.env`,
+host-key/DB/log clean-up and zero-fill). It then import-checks the staged tree against a throwaway DB
+*before* stopping the service, backs up the DB with `sqlite3 .backup`
 (`/var/lib/confetti-butler/backups`, 0700, newest 5 kept), swaps `/opt/confetti-butler` (old one kept as
 `.prev`), restarts, waits for `/api/health` and swaps back by itself if it never comes up. `butler.env`
-is carried over; the DB is not restored on rollback (new versions only add tables/columns). It does not
-touch apk/pip packages or the OpenRC scripts — it warns when `requirements.txt` or `firstboot.initd`
-changed; re-run `build-template.sh` for those. `requirements.txt` holds exact tested versions;
+is carried over; the DB is not restored on rollback (new versions only add tables/columns). Rollback restores the
+app code only: packages and the OpenRC/cron scripts are written before the swap and stay new. pip
+packages are installed only if missing, so a changed pin is not applied. `requirements.txt` holds exact tested versions;
 `build-template.sh` pip-installs only netmiko/waitress/flask-if-missing from those pins, the rest come
 from apk. Tested in an `alpine:3.20` container with a fake `rc-service` (update from dir and tarball,
 rollback, import failure, unhealthy start → auto rollback) and then on a real Alpine 3.24.2 VM under OpenRC
 (update, unhealthy start → auto rollback; 2026-10-09). A successful auto-rollback consumes `.prev`, so a
 manual `--rollback` right after one has nothing to go back to.
 
-### Backups, first boot, migration
+### Backups, first boot
 
 - **Nightly backup:** `services/butler-backup.sh` is installed as `/etc/periodic/daily/butler-backup` (no
   dot in the name — run-parts skips those; `crond` is enabled by the build). `sqlite3 .backup` into
@@ -277,10 +267,6 @@ manual `--rollback` right after one has nothing to go back to.
   (stamp `/etc/confetti-butler/.env-done`, independent of the IP stamp). Guestinfo is visible to anyone who
   can see the VM's advanced settings in vCenter. `butler.env` is 0600. There is no hub-URL key: the
   confetti-traffic import takes its URL in the request, not from config.
-- **Pre-rename VMs:** `scripts/migrate-from-lab-butler.sh <butler-dir>` moves `/opt`, `/var/lib` and `/etc`
-  `lab-butler` to `confetti-butler`, rewrites `butler.env`, swaps the OpenRC services and login hook, and
-  checks health. It refuses if both names exist. Run `butler-update.sh` afterwards for the code. The OpenRC
-  main script now lives in `services/confetti-butler.initd` (the build copies it) so the migration can use it.
 
 ### Other ways to deploy
 
@@ -322,7 +308,6 @@ butler/
     platforms.py        — per-platform commands/parsers (IOS, snmp)
     reach.py            — ICMP reachability thread
     discovery.py        — scheduled discovery thread (off by default)
-    lldp_crawl.py       — adopt unknown LLDP neighbors as inventory-only devices
     metrics.py          — /metrics Prometheus text
     drift.py            — template vs running-config check
     alerts.py           — alert rules, webhook / mail sender thread
@@ -333,7 +318,7 @@ butler/
     parsers/             — ios.py, regex only
   templates/            — base.html (head, header/nav, theme + layout pickers, footer, Retro taskbar,
                           written once) + dashboard, devices, device, conflicts, ipam, templates_editor,
-                          topology, syslog, each `{% extends "base.html" %}` and holding only its own
+                          syslog, alerts, each `{% extends "base.html" %}` and holding only its own
                           content/CSS/JS (Jinja2 HTML — see constraint 7 re: {% raw %}). The look is
                           copied from confetti-traffic's hub UI; keep the two in step by hand.
   static/theme.css       — the ONE place colours live: dark :root + one :root[data-theme=NAME] block
@@ -353,16 +338,18 @@ butler/
                           every 5-10 min (each timer-driven change also fires the confettiBlast() rain, as in
                           confetti-traffic's hub; not on page load or a selector pick); its pick and
                           next-change time live in confetti-butler-theme-shuffle so every page stays in step (the same state carries a `layout` pick, as in confetti-traffic: not saved as the viewer's layout, a hand pick holds until the next change). Retro 95 / the CRT layouts disable the theme picker
-  static/vendor/         — codemirror/, vis-network/ (vendored pinned versions, no CDN)
+  static/vendor/         — codemirror/ (vendored pinned version, no CDN)
   seed/devices.yaml.sample
   services/ — confetti-butler.initd, firstboot.initd, login-setup.sh, butler-backup.sh
   dev/regress.py — the regression gate (see "Regression gate" below); dev/samples/ = parser fixtures
   container/ — Dockerfile + compose; packer/ — vSphere template (untested)
-  scripts/ — butler-setup.sh, butler-update.sh (in-place update with backup + rollback), migrate-from-lab-butler.sh, seed_mock_lab.py (fake lab in a new scratch DB),
+  scripts/ — butler-setup.sh, butler-update.sh (in-place update with backup + rollback), seed_mock_lab.py (fake lab in a new scratch DB),
            capture_readme.py (re-records docs/img/ from that mock lab; run after any UI change)
 .claude/skills/  — 6 vendor/protocol reference skills (this app's domain knowledge) +
            confetti-butler-hub-api (this app's own HTTP contract, mirroring confetti-hub-api) +
-           confetti-butler-dev-run (running it locally on Windows)
+           confetti-butler-dev-run (running it locally on Windows), -add-platform, -lab-validation, -release
+.claude/agents/  — lab-validator, leak-scanner (regression-gate, docs-drift-checker and
+           confetti-interop-checker are user-level agents in ~/.claude/agents)
 ```
 
 ## Design Decisions
@@ -399,16 +386,12 @@ butler/
    actually produced the match. This was a real bug caught mid-build: matching a device via `mgmt_ip`
    while a *different* `serial` came in used to silently overwrite the stored serial. Get this
    backwards and either legitimate re-IPs start false-conflicting, or real device swaps go unnoticed.
-3. **IOS-XE command names are not assumed, they're checked.** `show lldp local-info` is invalid
-   syntax on a real IOS-XE 17.3 CSR1000v. `show lldp entry local` is *not* an equivalent: it looks up
-   a neighbor named "local" and always returns 0 entries (confirmed live, LLDP enabled, 2026-09-27).
-   No IOS-XE 17.3 command shows a device its own LLDP chassis ID (it is the chassis base MAC, e.g.
-   `001e.e64c.3d00`, absent from `show version`/`inventory`/`diag` output), which is why LLDP
-   neighbors resolve by advertised management IP, not chassis ID. Older IOS (XE 3.11 / 15.4) omits
-   `Local Intf:` from `show lldp neighbors detail`; the collector then fetches the brief
-   `show lldp neighbors` table for it (`ios.fill_lldp_local_if`). `show interfaces` is parsed with pure regex rather than
-   `use_textfsm=True` for the same "don't assume an Alpine package is there" reason as constraint 14
-   in confetti-traffic's CLAUDE.md — verified working against real hardware, not assumed.
+3. **IOS-XE command names and output are not assumed, they're checked on a real device.** The LLDP
+   gotchas that taught this (`show lldp local-info` is invalid, `show lldp entry local` is not "my own LLDP
+   data") now live in confetti-topo's constraint 3, with the LLDP/BGP/OSPF collectors. `show interfaces` is
+   parsed with pure regex rather than `use_textfsm=True` for the same "don't assume an Alpine package is
+   there" reason as constraint 14 in confetti-traffic's CLAUDE.md — verified working against real hardware,
+   not assumed.
 4. **Timestamps: everything stores `db.sqlite_now()`'s `'YYYY-MM-DD HH:MM:SS'` form and converts with
    `db.iso()` on the way out.** Identical trap to confetti-traffic CLAUDE.md constraints 2/18 — string-
    comparing ISO-8601 against `datetime('now', ...)` lets `'T'` (0x54) sort above `' '` (0x20) and any
@@ -467,7 +450,7 @@ butler/
 15. **Events are written inside the transaction of the change they describe, and not on a task's first
     poll.** `events.emit()` must never commit (an event for a change that then rolled back is a lie).
     `events.is_baseline()` suppresses events until the task has an `ok=1` row in `poll_history`; without
-    it, adding a device emits one event per interface, neighbor and peer. `device_unreachable` /
+    it, adding a device emits one event per interface. `device_unreachable` /
     `device_recovered` fire only on the 0 → failing and failing → ok transitions of `fail_count`.
 
 ## Regression gate
@@ -475,13 +458,13 @@ butler/
 `python dev/regress.py` (stdlib only; `--static` skips the live tier, `-v` shows detail for passes) is
 the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above; `R16`..`R19`
 are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
-lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21` (drift check), `R22`..`R28` and
-`R31`/`R32` (alert rules and delivery) cover the
-features added since (platform registry, SNMP, ICMP state machine,
-`/metrics` format, interface history, LLDP crawl, scheduled discovery); `R29` checks the container and Packer
-files against the repo; `R30` pins the BGP `Idle (Admin)` parse found on a real 15.4 router.  Output is one line
-per check and a verdict: `CLEAR`, `CLEAR WITH GAPS` (something not run) or `BLOCKED`. The unit tier
-imports the app, so it needs the app's own Python packages (else those checks are `NOT RUN`). Each check
-was proven red by reverting its fix in a scratch copy. Adding a constraint means adding its check with the
-same number; the `regression-gate` agent runs this script. Doc-only changes need `docs-drift-checker`
+lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21` (drift check),
+`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery) cover the features added since (platform
+registry, SNMP, ICMP state machine, `/metrics` format, interface history, scheduled discovery); `R29` checks
+the container and Packer files against the repo. `R27` (LLDP crawl) and `R30` (BGP `Idle (Admin)`) moved to
+confetti-topo on 2026-10-14 and the numbers are not reused. Output is one line per check and a verdict:
+`CLEAR`, `CLEAR WITH GAPS` (something not run) or `BLOCKED`. The unit tier imports the app, so it needs the
+app's own Python packages (else those checks are `NOT RUN`). Each check was proven red by reverting its fix
+in a scratch copy. Adding a constraint means adding its check with the same number; the `regression-gate`
+agent runs this script. Doc-only changes need `docs-drift-checker`
 instead.

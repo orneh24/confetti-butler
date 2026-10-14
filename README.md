@@ -3,11 +3,14 @@
 > **AI disclaimer:** This project was created using [Claude Code](https://claude.com/claude-code).
 
 A companion server for the routers in a network lab. It polls each router over SSH (read-only
-`show` commands) and shows what is in use right now: interfaces and addresses (IPAM), LLDP
-neighbors and BGP/OSPF peers drawn as a topology graph, and syslog. It also renders config
-templates that a router pulls for itself. confetti-butler never writes to a device.
+`show` commands) and shows what is in use right now: interfaces and addresses (IPAM), the
+running config and its history, and syslog. It also renders config templates that a router pulls for
+itself. confetti-butler never writes to a device.
 
-![Tour of confetti-butler: devices, a device page, topology with a BGP filter, IPAM findings, a template preview with security warnings, syslog, an identity conflict, then the colour themes, the five layouts and the Confetti button](docs/img/confetti-butler-demo.gif)
+The topology map (LLDP neighbors, BGP/OSPF sessions) moved to its own project,
+[confetti-topo](https://github.com/orneh24/confetti-topo), on 2026-10-14.
+
+![Tour of confetti-butler: devices, a device page, IPAM findings, a template preview with security warnings, syslog, an identity conflict, then the colour themes, the five layouts and the Confetti button](docs/img/confetti-butler-demo.gif)
 
 *Mock data from a made-up lab, using documentation-range addresses. See
 [Running locally](#running-locally).*
@@ -34,29 +37,25 @@ and the choice is saved in your browser.
   import the test nodes from [confetti-traffic](https://github.com/orneh24/confetti-traffic). The same router seen by two sources lands
   on one device. When the identifiers disagree (the same IP now answers with a different serial),
   confetti-butler raises a conflict instead of guessing.
-- **Polling.** Every few minutes it logs in once per router and reads version, interfaces, LLDP,
-  BGP, OSPF and the running config. Anything a router stops reporting drops out of the app.
+- **Polling.** Every few minutes it logs in once per router and reads version, interfaces and the
+  running config. Anything a router stops reporting drops out of the app.
   Platforms: Cisco IOS / IOS-XE, and SNMP v1/v2c for devices without SSH (version and interfaces only).
 - **Config backup.** The running config is saved whenever it changes, with a diff between any two
   versions. Secrets are masked in the UI and API.
-- **Events.** Interface up/down and rising errors, BGP/OSPF and LLDP changes, OS or config
-  changes, and devices going unreachable are listed on the dashboard and on each device page.
+- **Events.** Interface up/down and rising errors, OS or config changes, and devices going unreachable are listed on the dashboard and on each device page.
 - **Template drift.** A device's assigned template is compared with its latest config backup; the
   Devices page flags routers whose running config no longer contains it, and the device page lists the
   missing lines. Secret lines are not compared.
 - **Alerts.** Rules on the Alerts page send a webhook (ntfy, Slack-style, Gotify, ...) or an e-mail when
   an event or a syslog message matches, with a cooldown so a flapping link does not flood you.
 - **Reachability.** Every device is pinged every 30 seconds, so a dead router shows up before its
-  next SSH poll fails. A down device is outlined red on the topology.
-- **Metrics.** `GET /metrics` serves Prometheus text (devices, ping state, BGP/OSPF state,
+  next SSH poll fails.
+- **Metrics.** `GET /metrics` serves Prometheus text (devices, ping state,
   interface state and errors, syslog and conflict counts).
 - **Discovery.** The confetti-traffic import, subnet sweep and seed file can run on a timer
-  (off by default). LLDP neighbors with an unknown management IP are listed on the Devices page
-  and can be added as inventory-only devices.
+  (off by default).
 - **IPAM.** Addresses come from the routers' own interfaces. It flags subnets that partly overlap
   and IPs assigned twice.
-- **Topology.** LLDP links and BGP/OSPF adjacencies on one graph, with a filter per protocol.
-  A neighbor that isn't a known device shows as a dashed "ghost" node.
 - **Config templates.** Jinja2 templates rendered against a router's polled facts and your
   per-device variables. The preview warns about dangerous or insecure lines. A router fetches
   its config itself:
@@ -85,12 +84,11 @@ page (Credentials), then click **Poll now**. The database is `butler.db` in the 
 `butler/build-template.sh` builds an Alpine Linux VM template (OpenRC service, waitress, port 80),
 following the same pattern as confetti-traffic's hub. It has been run on a real Alpine 3.24 VM.
 
-- **Update a running VM:** `butler-update.sh <butler-dir|tarball>` checks the new code, backs up the
-  database, swaps it in, and rolls back by itself if it does not come up. `--rollback` goes back one version.
+- **Update a running VM:** `butler-update.sh <butler-dir|tarball>` installs the new code and packages
+  (`build-template.sh --update`), checks it, backs up the database, swaps it in, and rolls back by itself if it does not come up. `--rollback` goes back one version.
 - **Backups:** the database is backed up nightly (7 kept) to `/var/lib/confetti-butler/backups`.
 - **Clone settings:** `guestinfo.butler.ip` / `gateway` set a static IP; `ssh_username`, `ssh_password`,
   `ssh_secret` and `poll_interval_s` set the polling defaults.
-- **Older VM** (installed as lab-butler): `scripts/migrate-from-lab-butler.sh`.
 - **Container:** `container/` has a Dockerfile and compose file for trying it without ESXi.
   `docker compose -f container/docker-compose.yml up --build`. Tested.
 - **Packer:** `packer/` builds the vCenter template in one command. **Not yet run** (no vCenter was available).

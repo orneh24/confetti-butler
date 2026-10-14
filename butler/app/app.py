@@ -1,4 +1,4 @@
-"""confetti-butler — device inventory, IPAM, config templates, syslog, topology.
+"""confetti-butler — device inventory, IPAM, config templates, syslog, alerting.
 
 Unlike confetti-traffic's hub/app/app.py, which keeps nearly everything in one
 file, a section that outgrows a screenful moves to its own module under app/
@@ -20,7 +20,6 @@ from . import discovery
 from . import drift
 from . import identity
 from . import ipam
-from . import lldp_crawl
 from . import metrics
 from . import poller
 from . import reach
@@ -597,15 +596,8 @@ def api_update_device(device_id):
 def api_delete_device(device_id):
     conn = db.get_db()
     cur = conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))
-    # Child tables cascade, but these three don't: poll_history has no FK,
-    # and other devices' neighbor/peer rows only reference this one. Same
-    # three tables identity.merge re-points. A NULLed reference re-renders
-    # as a ghost node.
+    # Child tables cascade, but poll_history has no FK.
     conn.execute("DELETE FROM poll_history WHERE device_id = ?", (device_id,))
-    conn.execute("UPDATE lldp_neighbors SET remote_device_id = NULL WHERE remote_device_id = ?",
-                 (device_id,))
-    conn.execute("UPDATE adjacencies SET peer_device_id = NULL WHERE peer_device_id = ?",
-                 (device_id,))
     conn.commit()
     if cur.rowcount == 0:
         return jsonify({"error": "not found"}), 404
@@ -731,27 +723,6 @@ def api_discover_run():
 @app.route("/api/discover/status", methods=["GET"])
 def api_discover_status():
     return jsonify(discovery.status())
-
-
-@app.route("/api/lldp/unknown", methods=["GET"])
-def api_lldp_unknown():
-    """LLDP neighbors advertising a management IP no known device owns."""
-    return jsonify(lldp_crawl.unknown_neighbors(db.get_db()))
-
-
-@app.route("/api/lldp/adopt", methods=["POST"])
-def api_lldp_adopt():
-    """Body: {"ip": "192.0.2.9", "hostname": "optional"}. Adds the neighbor as a
-    device with polling off; enable it from its page once credentials are set."""
-    data = request.get_json(force=True, silent=True) or {}
-    ip = (data.get("ip") or "").strip()
-    conn = db.get_db()
-    device_id = lldp_crawl.adopt(conn, ip, (data.get("hostname") or "").strip(), "operator")
-    if device_id is None:
-        conn.rollback()
-        return jsonify({"error": "not a usable IPv4 address, or it conflicts with an existing device"}), 400
-    conn.commit()
-    return jsonify({"status": "ok", "device_id": device_id}), 201
 
 
 # ---------------------------------------------------------------------------
@@ -1365,115 +1336,6 @@ def serve_config(device_key):
     except rendering.RenderError as exc:
         return Response("template render failed: {}\n".format(exc), mimetype="text/plain", status=500)
     return Response(rendered, mimetype="text/plain")
-
-
-# ---------------------------------------------------------------------------
-# Topology
-#
-# Graph shaped for vis.js's DataSet format. A neighbor/peer that hasn't
-# resolved to a known device_id (see identity.py's merge rule and the LLDP/
-# BGP/OSPF resolution in collectors/ssh.py) renders as a "ghost" node rather
-# than being dropped — an unlabelled edge to nowhere would look like a bug,
-# where a distinctly-styled ghost node reads as "something is out there we
-# haven't identified yet".
-# ---------------------------------------------------------------------------
-
-@app.route("/topology")
-def topology_page():
-    return render_template("topology.html")
-
-
-@app.route("/api/topology", methods=["GET"])
-def api_topology():
-    """?layer=lldp|bgp|ospf restricts edges to one source; default overlays
-    all three on the same device nodes."""
-    layer = request.args.get("layer")
-    conn = db.get_db()
-
-    devices = conn.execute(
-        "SELECT id, hostname, role, vendor, platform, enabled, reachable FROM devices"
-    ).fetchall()
-    nodes = {}
-    for d in devices:
-        nid = "dev:{}".format(d["id"])
-        nodes[nid] = {
-            "id": nid, "label": d["hostname"], "group": d["role"],
-            "device_id": d["id"], "ghost": False, "reachable": d["reachable"],
-        }
-
-    ghost_seen = set()
-
-    def ghost_id(kind, key):
-        gid = "ghost:{}:{}".format(kind, key)
-        if gid not in ghost_seen:
-            ghost_seen.add(gid)
-            nodes[gid] = {"id": gid, "label": key, "group": "unknown", "device_id": None, "ghost": True}
-        return gid
-
-    edges = []
-
-    if layer in (None, "", "lldp"):
-        rows = conn.execute(
-            """SELECT device_id, local_if, remote_chassis, remote_sysname, remote_port, remote_device_id
-               FROM lldp_neighbors"""
-        ).fetchall()
-        # Two known devices each report the other, so the same cable shows up
-        # twice. Key a device-to-device link by both (device, interface) ends
-        # and draw it once. If the two sides name a port differently ("Gi1"
-        # vs "GigabitEthernet1") the keys differ and both edges stay — a
-        # duplicate line is safer than hiding a real parallel link.
-        lldp_seen = set()
-        for r in rows:
-            if r["remote_device_id"]:
-                link = frozenset([(r["device_id"], r["local_if"]),
-                                  (r["remote_device_id"], r["remote_port"])])
-                if link in lldp_seen:
-                    continue
-                lldp_seen.add(link)
-            target = ("dev:{}".format(r["remote_device_id"]) if r["remote_device_id"]
-                       else ghost_id("lldp", r["remote_sysname"] or r["remote_chassis"] or "unknown"))
-            edges.append({
-                "from": "dev:{}".format(r["device_id"]), "to": target, "layer": "lldp",
-                "label": "{} - {}".format(r["local_if"], r["remote_port"] or "?"),
-            })
-
-    if layer in (None, "", "bgp", "ospf"):
-        protos = [layer] if layer in ("bgp", "ospf") else ["bgp", "ospf"]
-        qmarks = ",".join("?" * len(protos))
-        rows = conn.execute(
-            "SELECT device_id, proto, peer_ip, peer_device_id, state, local_if FROM adjacencies "
-            "WHERE proto IN ({})".format(qmarks),
-            protos,
-        ).fetchall()
-        for r in rows:
-            # One ghost per peer IP across BGP and OSPF — the same router
-            # peering both ways is one box, not two.
-            target = ("dev:{}".format(r["peer_device_id"]) if r["peer_device_id"]
-                       else ghost_id("peer", r["peer_ip"]))
-            edges.append({
-                "from": "dev:{}".format(r["device_id"]), "to": target, "layer": r["proto"],
-                "label": "{} {}".format(r["proto"], r["state"]),
-                "up": r["state"] == ("Established" if r["proto"] == "bgp" else "FULL"),
-            })
-
-    return jsonify({"nodes": list(nodes.values()), "edges": edges})
-
-
-@app.route("/api/adjacencies", methods=["GET"])
-def api_adjacencies():
-    conn = db.get_db()
-    rows = conn.execute(
-        """SELECT a.device_id, d.hostname, a.proto, a.peer_ip, a.peer_device_id, a.remote_as,
-                  a.area, a.state, a.uptime, a.prefixes, a.local_if, a.last_seen
-           FROM adjacencies a JOIN devices d ON d.id = a.device_id
-           ORDER BY d.hostname, a.proto, a.peer_ip"""
-    ).fetchall()
-    out = []
-    for r in rows:
-        d = dict(r)
-        d["last_seen"] = db.iso(d["last_seen"])
-        out.append(d)
-    return jsonify(out)
 
 
 # ---------------------------------------------------------------------------

@@ -29,7 +29,7 @@ SIZE = {"width": 1280, "height": 720}
 
 THEMES = ["light", "terminal", "confetti-night", "neon"]      # themes.png, in order
 LAYOUTS = ["classic", "modern", "retro95", "amber", "greencrt"]           # layouts.png, in order
-TOUR = ["/", "/devices", "/devices/1", "/topology", "/ipam", "/templates", "/syslog", "/conflicts"]
+TOUR = ["/", "/devices", "/devices/1", "/ipam", "/templates", "/syslog", "/conflicts"]
 
 
 def wait_for_server():
@@ -53,7 +53,7 @@ def shot(browser, path, theme="confetti-night", layout="classic", wait_ms=900):
         "localStorage.setItem('confetti-butler-layout','%s');}catch(e){}" % (theme, layout))
     page.goto(BASE + path)
     page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(wait_ms + (1500 if path == "/topology" else 0))
+    page.wait_for_timeout(wait_ms)
     img = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
     context.close()
     return img
@@ -73,7 +73,7 @@ def main():
     db_path = os.path.join(tmp, "mock-lab.db")
     subprocess.run([sys.executable, os.path.join(HERE, "seed_mock_lab.py"), db_path], check=True)
 
-    env = dict(os.environ, BUTLER_DB_PATH=db_path, BUTLER_PORT=str(PORT), BUTLER_SYSLOG_PORT="5598")
+    env = dict(os.environ, BUTLER_DB_PATH=db_path, BUTLER_PORT=str(PORT), BUTLER_SYSLOG_PORT="5598", BUTLER_PING_ENABLED="false")
     server = subprocess.Popen([sys.executable, os.path.join(BUTLER, "serve.py")], cwd=BUTLER, env=env)
     try:
         wait_for_server()
