@@ -112,6 +112,7 @@ apk_step apk add --no-cache \
     curl \
     net-snmp-tools \
     open-vm-tools \
+    open-vm-tools-guestinfo \
     chrony \
     lldpd
 
