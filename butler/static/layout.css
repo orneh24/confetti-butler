@@ -160,16 +160,17 @@ input[type=text], input[type=number], input[type=password], input:not([type]), s
 }
 button, .btn-small {
     display: inline-block;
-    background: var(--bg-hover);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
+    background: var(--blue);
+    border: 1px solid var(--blue);
+    color: var(--bg);
+    font-weight: bold;
     font-family: inherit;
     font-size: 11px;
     padding: 3px 10px;
     border-radius: 0;
     cursor: pointer;
 }
-button:hover, .btn-small:hover { color: var(--text); border-color: var(--blue); text-decoration: none; }
+button:hover, .btn-small:hover { filter: brightness(1.2); text-decoration: none; }
 button:disabled { opacity: 0.5; cursor: default; }
 button.primary { border-color: var(--blue); color: var(--blue); }
 

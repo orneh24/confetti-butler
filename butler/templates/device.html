@@ -7,6 +7,7 @@
 .form-grid label { color: var(--text-dim); }
 .form-grid input, .form-grid select { width: 100%; }
 .form-grid input[type=checkbox] { width: auto; justify-self: start; }
+.stack { display: flex; flex-direction: column; gap: 15px; align-content: start; }
 .hint { margin-bottom: 8px; }
 .msg { font-size: 11px; margin-left: 8px; }
 </style>
@@ -21,18 +22,20 @@
             <span id="poll-msg" style="font-size:11px;margin-left:8px;"></span>
         </div>
     </div>
-    <div class="section">
-        <div class="section-header"><span>Identifiers</span></div>
-        <div class="section-body">
-            <table><thead><tr><th>Kind</th><th>Value</th><th>First seen</th></tr></thead>
-                <tbody id="alias-rows"></tbody></table>
+    <div class="stack">
+        <div class="section">
+            <div class="section-header"><span>Identifiers</span></div>
+            <div class="section-body">
+                <table><thead><tr><th>Kind</th><th>Value</th><th>First seen</th></tr></thead>
+                    <tbody id="alias-rows"></tbody></table>
+            </div>
         </div>
-    </div>
-    <div class="section">
-        <div class="section-header"><span>Sources</span></div>
-        <div class="section-body">
-            <table><thead><tr><th>Source</th><th>Ref</th><th>Last seen</th></tr></thead>
-                <tbody id="source-rows"></tbody></table>
+        <div class="section">
+            <div class="section-header"><span>Sources</span></div>
+            <div class="section-body">
+                <table><thead><tr><th>Source</th><th>Ref</th><th>Last seen</th></tr></thead>
+                    <tbody id="source-rows"></tbody></table>
+            </div>
         </div>
     </div>
     <div class="section">
