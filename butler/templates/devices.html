@@ -40,6 +40,20 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         </div>
     </div>
     <div class="section">
+        <div class="section-header"><span>Default SSH credentials</span></div>
+        <div class="section-body">
+            <div class="hint" id="cred-status">loading</div>
+            <form class="inline" id="cred-form" autocomplete="off">
+                <input type="text" name="username" placeholder="username" autocomplete="off">
+                <input type="password" name="password" placeholder="password" autocomplete="new-password">
+                <input type="password" name="secret" placeholder="enable secret" autocomplete="new-password">
+                <button type="submit">Save</button>
+                <button type="button" onclick="clearDefaultSecrets()">Clear secrets</button>
+            </form>
+            <div class="msg" id="cred-msg"></div>
+        </div>
+    </div>
+    <div class="section">
         <div class="section-header"><span>Devices</span></div>
         <div class="section-body">
             <table>
@@ -194,6 +208,48 @@ document.getElementById('seedfile-form').addEventListener('submit', function (ev
     runDiscover('/api/discover/seedfile', { path: path }, 'seed file');
 });
 
+function loadDefaultCredentials() {
+    fetch('/api/settings/credentials').then(function (r) { return r.json(); }).then(function (c) {
+        var f = document.getElementById('cred-form');
+        f.username.value = c.username || '';
+        f.username.placeholder = 'username (server default: ' + c.env_username + ')';
+        f.password.value = '';
+        f.password.placeholder = c.password_set ? 'password: stored' : 'password: not set';
+        f.secret.value = '';
+        f.secret.placeholder = c.secret_set ? 'enable secret: stored' : 'enable secret: not set';
+        document.getElementById('cred-status').textContent =
+            'Used for every device without its own credentials. Blank secret fields keep the stored value. Stored in plaintext in butler.db.';
+    });
+}
+
+function sendDefaultCredentials(body, okText) {
+    var msg = document.getElementById('cred-msg');
+    fetch('/api/settings/credentials', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+        msg.textContent = res.ok ? okText : (res.data.error || 'save failed');
+        msg.className = res.ok ? 'msg ok' : 'msg err';
+        if (res.ok) { loadDefaultCredentials(); }
+    });
+}
+
+document.getElementById('cred-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = ev.target;
+    var body = { username: f.username.value.trim() };
+    ['password', 'secret'].forEach(function (k) {
+        if (f[k].value) { body[k] = f[k].value; }
+    });
+    sendDefaultCredentials(body, 'saved — applies on the next poll');
+});
+
+function clearDefaultSecrets() {
+    sendDefaultCredentials({ password: '', secret: '' }, 'secrets cleared');
+}
+
+loadDefaultCredentials();
 loadDevices();
 </script>
 {% endblock %}

@@ -126,6 +126,14 @@ def init_db():
             updated_at     TEXT NOT NULL
         );
 
+        -- Server-wide defaults set from the web UI (ssh_username, ssh_password,
+        -- ssh_secret). Beat the BUTLER_SSH_* environment, lose to a per-device
+        -- credentials row. Plaintext in v1, same as credentials.
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
         -- IPAM is discovery-first: this table IS the source of truth, built
         -- from what devices actually report. No separate prefix-allocation
         -- table in v1.

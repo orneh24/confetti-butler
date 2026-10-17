@@ -31,16 +31,19 @@ TASKS = platforms.tasks(platforms.IOS)
 
 
 def resolve_credentials(conn, device_id):
-    """Per-device credentials row overrides the environment's lab default —
-    see config.py's DEFAULT_SSH_* / DEFAULT_SNMP_*."""
+    """Per-device credentials row beats the defaults set in the web UI
+    (settings table), which beat the environment's lab default — see
+    config.py's DEFAULT_SSH_* / DEFAULT_SNMP_*."""
     row = conn.execute(
         "SELECT username, password, enable_secret, snmp_community, snmp_version "
         "FROM credentials WHERE device_id = ?", (device_id,)
     ).fetchone()
+    ui = {r["key"]: r["value"] for r in conn.execute(
+        "SELECT key, value FROM settings WHERE key LIKE 'ssh\\_%' ESCAPE '\\'")}
     return {
-        "username": (row["username"] if row and row["username"] else config.DEFAULT_SSH_USERNAME),
-        "password": (row["password"] if row and row["password"] else config.DEFAULT_SSH_PASSWORD),
-        "secret": (row["enable_secret"] if row and row["enable_secret"] else config.DEFAULT_SSH_SECRET),
+        "username": (row["username"] if row and row["username"] else ui.get("ssh_username") or config.DEFAULT_SSH_USERNAME),
+        "password": (row["password"] if row and row["password"] else ui.get("ssh_password") or config.DEFAULT_SSH_PASSWORD),
+        "secret": (row["enable_secret"] if row and row["enable_secret"] else ui.get("ssh_secret") or config.DEFAULT_SSH_SECRET),
         "snmp_community": (row["snmp_community"] if row and row["snmp_community"] else config.DEFAULT_SNMP_COMMUNITY),
         "snmp_version": (row["snmp_version"] if row and row["snmp_version"] else config.DEFAULT_SNMP_VERSION),
     }

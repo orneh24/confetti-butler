@@ -245,7 +245,7 @@ function loadCredentials() {
         });
         document.getElementById('cred-status').textContent = c.updated_at
             ? 'Per-device credentials, last changed ' + c.updated_at + '. Unset fields use the server defaults.'
-            : 'No per-device credentials — polling uses the server defaults (BUTLER_SSH_*).';
+            : 'No per-device credentials — polling uses the server defaults (set on the Devices page, else BUTLER_SSH_*).';
     });
 }
 

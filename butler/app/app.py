@@ -486,6 +486,44 @@ CREDENTIAL_FIELDS = ("username", "password", "enable_secret", "snmp_community", 
 CREDENTIAL_SECRETS = ("password", "enable_secret", "snmp_community")
 
 
+DEFAULT_CRED_KEYS = ("ssh_username", "ssh_password", "ssh_secret")
+
+
+@app.route("/api/settings/credentials", methods=["GET"])
+def api_get_default_credentials():
+    """Server-wide default SSH credentials set from the Devices page. Secrets
+    are never returned, only whether each is set."""
+    conn = db.get_db()
+    stored = {r["key"]: r["value"] for r in conn.execute(
+        "SELECT key, value FROM settings WHERE key IN (?, ?, ?)", DEFAULT_CRED_KEYS)}
+    return jsonify({"username": stored.get("ssh_username"),
+                    "password_set": bool(stored.get("ssh_password")),
+                    "secret_set": bool(stored.get("ssh_secret")),
+                    "env_username": config.DEFAULT_SSH_USERNAME})
+
+
+@app.route("/api/settings/credentials", methods=["PUT"])
+def api_default_credentials():
+    """Body: any of username, password, secret. Only fields present change;
+    "" clears one (back to the BUTLER_SSH_* environment value)."""
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Body must be a JSON object"}), 400
+    fields = [k for k in ("username", "password", "secret") if k in data]
+    if not fields:
+        return jsonify({"error": "no credential fields in body"}), 400
+    conn = db.get_db()
+    for k in fields:
+        key = "ssh_" + k
+        if data[k]:
+            conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
+                         "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, str(data[k])))
+        else:
+            conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+    conn.commit()
+    return jsonify({"status": "ok"})
+
+
 @app.route("/api/devices/<int:device_id>/credentials", methods=["GET"])
 def api_get_device_credentials(device_id):
     """What the device page's credentials form needs — never the secrets
