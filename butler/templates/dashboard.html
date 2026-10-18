@@ -212,17 +212,20 @@ function loadSyslog() {
 
     fetch('/api/syslog?' + params.join('&')).then(function (r) { return r.json(); }).then(function (list) {
         var rows = '';
+        var band = false, lastSrc = null;
         for (var i = 0; i < list.length; i++) {
             var m = list[i];
             var sevCls = m.severity === null || m.severity === undefined ? 'sev-null' : 'sev' + m.severity;
             var sevLabel = m.severity === null || m.severity === undefined ? '' : (m.severity + ' ' + (SEV_NAMES[m.severity] || ''));
             var hostCell = m.host || m.source_ip;
+            if (i && hostCell !== lastSrc) band = !band;
+            lastSrc = hostCell;
             if (m.device_id) {
                 hostCell = '<a href="/devices/' + m.device_id + '">' + esc(hostCell) + '</a>';
             } else {
                 hostCell = esc(hostCell);
             }
-            rows += '<tr>' +
+            rows += (band ? '<tr class="stripe">' : '<tr>') +
                 '<td>' + new Date(m.received_at).toLocaleString() + '</td>' +
                 '<td>' + hostCell + '</td>' +
                 '<td class="' + sevCls + '">' + esc(sevLabel) + '</td>' +
