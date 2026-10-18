@@ -347,7 +347,7 @@ butler/
                           change fires 'themechange' too), confettiBlast(), the header health dot
                           (pollHealth; a page may define window.onHealth). Add a theme = one block in
                           theme.css + one THEMES entry. "Shuffle" (a mode, not a palette) rotates them
-                          every 5-10 min (each timer-driven change also fires the confettiBlast() rain, as in
+                          every 5-10 min (each timer-driven change also fires the confettiBlast() cannon, as in
                           confetti-traffic's hub; not on page load or a selector pick); its pick and
                           next-change time live in confetti-butler-theme-shuffle so every page stays in step (the same state carries a `layout` pick, as in confetti-traffic: not saved as the viewer's layout, a hand pick holds until the next change). Retro 95 / the CRT layouts disable the theme picker
   static/vendor/         — codemirror/ (vendored pinned version, no CDN)

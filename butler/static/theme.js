@@ -79,7 +79,7 @@ try {
 try {
     var savedTheme = localStorage.getItem('confetti-butler-theme');
     if (savedTheme === 'shuffle') { shuffling = true; shuffleStep(); }
-    else applyTheme(savedTheme);
+    else applyTheme(savedTheme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
 } catch (e) {}
 
 function setTheme(name) {
@@ -191,15 +191,15 @@ try {
     if (shuffling) { var st0 = JSON.parse(localStorage.getItem('confetti-butler-theme-shuffle')); if (st0) shuffleLayout(st0); }
 } catch (e) {}
 
-// "Make it rain!" button: a burst from the button, then rain from the top, in the
-// current theme's colours. Plain canvas, no library (the server may be offline).
-// Each click gets its own overlay canvas, removed when the last piece falls off.
+// "Make it rain!" button: a party-popper cannon pops in from a random side and
+// fires confetti in the current theme's colours. Plain canvas, no library (the
+// hub may be offline). Each click gets its own overlay canvas, removed when the
+// last piece falls off. btn is unused; kept so the callers stay as they are.
 function confettiBlast(btn) {
     var colors = ['--yellow', '--red', '--green', '--blue', '--cyan']
         .map(themeColor)
         .filter(Boolean);
     if (!colors.length) colors = ['#d29922', '#f85149', '#3fb950', '#58a6ff', '#39c5cf'];
-    var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     var dpr = window.devicePixelRatio || 1;
     var W = window.innerWidth, H = window.innerHeight;
     var cv = document.createElement('canvas');
@@ -217,25 +217,38 @@ function confettiBlast(btn) {
             sway: Math.random() * 6.28,
             color: colors[Math.floor(Math.random() * colors.length)] });
     }
-    if (!calm && btn) {
-        var r = btn.getBoundingClientRect();
-        var bx = r.left + r.width / 2, by = r.top + r.height / 2;
-        for (var i = 0; i < 600; i++) {
-            var a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2;
-            var s = 8 + Math.random() * 14;
-            add(bx, by, Math.cos(a) * s, Math.sin(a) * s);
+    var fired = false;
+    var left = Math.random() < 0.5, dir = left ? 1 : -1, size = 72;
+    var gun = document.createElement('div');
+    gun.textContent = '🎉';
+    gun.style.cssText = 'position:fixed;bottom:12px;' + (left ? 'left' : 'right') + ':0;font-size:' + size +
+        'px;line-height:1;pointer-events:none;z-index:10000;transition:transform .3s ease-out';
+    function pose(x, extra) {
+        gun.style.transform = 'translateX(' + x + ') ' + (left ? '' : 'scaleX(-1) ') + extra;
+    }
+    pose(left ? '-130%' : '130%', '');
+    document.body.appendChild(gun);
+    // The popper's mouth is its top inner corner; shoot up and toward the middle.
+    function fire(n) {
+        fired = true;
+        var mx = left ? size * 0.85 : W - size * 0.85, my = H - 12 - size * 0.85;
+        for (var i = 0; i < n; i++) {
+            var a = (60 + (Math.random() - 0.5) * 120) * Math.PI / 180;
+            var s = 24 + Math.random() * 20;
+            add(mx, my, dir * Math.cos(a) * s, -Math.sin(a) * s);
         }
     }
-    var rainTotal = calm ? 320 : 1000, rainLeft = rainTotal;
+    gun.offsetWidth;
+    pose('0', '');
+    setTimeout(function () { fire(1400); pose('0', 'rotate(' + (-8 * dir) + 'deg) scale(1.15)'); }, 350);
+    setTimeout(function () { pose('0', ''); }, 500);
+    setTimeout(function () { fire(400); }, 550);
+    setTimeout(function () { pose(left ? '-130%' : '130%', ''); }, 4500);
+    setTimeout(function () { gun.remove(); }, 5700);
     var start = performance.now(), last = start;
     function frame(now) {
         var t = now - start, dt = Math.min(2, (now - last) / 16.7);
-        // Rain is spread over the first 2 s: this frame's share of the total.
-        var due = Math.max(1, Math.round(rainTotal * (now - last) / 2000));
         last = now;
-        for (; due > 0 && rainLeft > 0; due--, rainLeft--) {
-            add(Math.random() * W, -20 - Math.random() * 40, (Math.random() - 0.5) * 2, 2 + Math.random() * 3);
-        }
         ctx.clearRect(0, 0, W, H);
         bits = bits.filter(function (b) {
             b.vy += 0.25 * dt;
@@ -253,7 +266,7 @@ function confettiBlast(btn) {
             ctx.restore();
             return b.y < H + 30;
         });
-        if ((bits.length || rainLeft > 0) && t < 7000) requestAnimationFrame(frame);
+        if ((bits.length || !fired) && t < 7000) requestAnimationFrame(frame);
         else cv.remove();
     }
     requestAnimationFrame(frame);
