@@ -338,8 +338,8 @@ butler/
                           Confetti Night, Neon Streamers); also the header confetti strip and Neon's
                           per-card colours. Pages must not define their own :root colours
   static/layout.css      — Classic structure (.header, .section, tables, buttons) + the five layouts:
-                          Classic, Modern (side menu, KPI tiles on the dashboard), Retro 95, Amber CRT, Neon Green CRT (the last two share one block driven by --crt-* palettes, as in confetti-traffic).
-                          Loaded AFTER theme.css on purpose: Retro 95 and Amber bring their own colours
+                          Classic, Modern (side menu, KPI tiles on the dashboard), Retro 95, MS-DOS, Neon Green CRT (the last two share one block driven by --crt-* palettes, as in confetti-traffic; MS-DOS adds an override block and bundles the VT323 font in static/fonts/).
+                          Loaded AFTER theme.css on purpose: Retro 95 and MS-DOS bring their own colours
                           and beat Neon's per-card rules only by coming later. Pages use
                           .section > .section-header + .section-body, not their own card CSS
   static/theme.js        — THEMES + LAYOUTS lists and the two header dropdowns (confetti-butler-theme,

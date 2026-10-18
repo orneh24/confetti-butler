@@ -126,7 +126,7 @@ var LAYOUTS = [
     ['classic', 'Classic'],
     ['modern', 'Modern'],
     ['retro95', 'Retro 95', true],
-    ['amber', 'Amber CRT', true],
+    ['msdos', 'MS-DOS', true],
     ['greencrt', 'Neon Green CRT', true],
 ];
 

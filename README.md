@@ -23,12 +23,12 @@ and the choice is saved in your browser.
 
 ![The dashboard in four themes: Light, Terminal green, Confetti Night and Neon Streamers](docs/img/themes.png)
 
-![The dashboard in five layouts: Classic, Modern, Retro 95, Amber CRT and Neon Green CRT](docs/img/layouts.png)
+![The dashboard in five layouts: Classic, Modern, Retro 95, MS-DOS and Neon Green CRT](docs/img/layouts.png)
 
 - **Themes:** Dark, Light, Monokai, High Contrast, Terminal green, Confetti Night and
   Neon Streamers. **Shuffle** switches between them at random every 5-10 minutes, and picks a random layout each time.
 - **Layouts:** Classic, Modern (side menu and summary tiles on the dashboard), Retro 95,
-  Amber CRT and Neon Green CRT. Retro 95 and the CRT layouts bring their own colours, so the theme picker is
+  MS-DOS and Neon Green CRT. Retro 95 and the CRT layouts bring their own colours, so the theme picker is
   disabled while one is on.
 
 ## What it does
