@@ -61,7 +61,8 @@ def shot(browser, path, theme="confetti-night", layout="classic", wait_ms=900):
 
 def collage(images, out_path):
     w, h = SIZE["width"] // 2, SIZE["height"] // 2
-    sheet = Image.new("RGB", (SIZE["width"], SIZE["height"]))
+    # Two columns, as many rows as it takes: every layout gets a tile.
+    sheet = Image.new("RGB", (SIZE["width"], h * ((len(images) + 1) // 2)))
     for i, img in enumerate(images):
         sheet.paste(img.resize((w, h), Image.LANCZOS), ((i % 2) * w, (i // 2) * h))
     sheet.save(out_path, optimize=True)
