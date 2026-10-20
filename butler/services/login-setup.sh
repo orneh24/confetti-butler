@@ -1,7 +1,7 @@
 # /etc/profile.d/confetti-butler-setup.sh — invite an unconfigured confetti-butler VM
 # to run its setup wizard at first interactive login. Guarded to interactive
 # shells with a real tty so it never fires for scp/rsync/non-interactive SSH
-# commands. Identical pattern to confetti-traffic's hub/services/confettictl-login-setup.sh.
+# commands. Same idea as confetti-traffic's hub/services/confettictl-login-setup.sh.
 
 case "$-" in
     *i*)
@@ -32,7 +32,7 @@ case "$-" in
             case "$_port" in ""|80) _port="" ;; *) _port=":$_port" ;; esac
             [ -z "$_ip" ] || echo "  Dashboard:                    http://${_ip}${_port}/"
             unset _ip _port
-            echo "  To re-run setup script:       butler-setup.sh"
+            echo "  To re-run setup script:       butler-setup.sh --force"
             echo "  To re-configure static IP:    set-static-ip <ip/cidr> <gateway> [dns] [hostname]"
             echo
         fi

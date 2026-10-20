@@ -65,7 +65,7 @@ trap cleanup EXIT
 
 # Port as the service sees it: butler.env wins over the default.
 health_url() {
-    _port=$(sed -n 's/^BUTLER_PORT=//p' "${INSTALL_DIR}/butler.env" 2>/dev/null | tail -1)
+    _port=$(sed -n 's/^BUTLER_PORT=//p' "${INSTALL_DIR}/butler.env" 2>/dev/null | tr -d '"' | tail -1)
     printf 'http://127.0.0.1:%s/api/health' "${_port:-80}"
 }
 
@@ -160,8 +160,7 @@ BUTLER_STAGE_DIR="$NEW_DIR" sh "${SRC_DIR}/build-template.sh" --update ||
     { rm -rf "$NEW_DIR"; die "build-template.sh --update failed (see above) — the running version was not swapped"; }
 # Settings and credentials stay as they are.
 case "${COMMIT_ID:-}" in
-    [0-9a-f]*) printf '%s
-' "$COMMIT_ID" > "$NEW_DIR/COMMIT" ;;
+    [0-9a-f]*) printf '%s\n' "$COMMIT_ID" > "$NEW_DIR/COMMIT" ;;
 esac
 if [ -f "${INSTALL_DIR}/butler.env" ]; then
     cp -p "${INSTALL_DIR}/butler.env" "$NEW_DIR/butler.env"
