@@ -29,7 +29,8 @@ and the choice is saved in your browser.
   Neon Streamers. **Shuffle** switches between them at random every 5-10 minutes, and picks a random layout each time.
 - **Layouts:** Classic, Modern (side menu and summary tiles on the dashboard), Retro 95,
   MS-DOS and Neon Green CRT. Retro 95 and the CRT layouts bring their own colours, so the theme picker is
-  disabled while one is on.
+  disabled while one is on. MS-DOS can be driven from the keyboard: F10 or Alt for the menu bar, Up/Down
+  and Enter on table rows, F6 between panels, F1 for the list.
 
 ## What it does
 
