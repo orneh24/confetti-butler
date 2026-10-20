@@ -747,8 +747,12 @@ button.primary { border-color: var(--blue); color: var(--blue); }
 .ctx-menu { position: fixed; z-index: 1000; display: none; min-width: 200px; background: var(--bg-card); border: 1px solid var(--text-dim);
     border-radius: 4px; padding: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
 .ctx-menu .ctx-title { padding: 3px 8px 5px; font-size: 11px; font-weight: bold; color: var(--text-dim); border-bottom: 1px solid var(--border); margin-bottom: 3px; word-break: break-all; }
-.ctx-menu button { display: block; width: 100%; text-align: left; margin: 1px 0; }
-.ctx-menu button.danger { color: var(--red); }
+:root .ctx-menu button { display: block; width: 100%; text-align: left; margin: 1px 0; padding: 4px 8px; font: inherit; font-size: 12px;
+    text-transform: none; text-shadow: none; box-shadow: none; transform: none; border: 0; border-radius: 2px;
+    background: transparent; color: var(--text); cursor: pointer; }
+:root .ctx-menu button:hover, :root .ctx-menu button:focus { background: var(--bg-hover); color: var(--text); outline: 1px solid var(--border); }
+:root .ctx-menu button:disabled { color: var(--text-dim); opacity: .5; cursor: default; background: transparent; }
+:root .ctx-menu button.danger, :root .ctx-menu button.danger:hover, :root .ctx-menu button.danger:focus { color: var(--red); }
 .ctx-menu hr { border: 0; border-top: 1px solid var(--border); margin: 3px 0; }
 .ctx-toast { position: fixed; z-index: 1001; left: 50%; bottom: 16px; transform: translateX(-50%); display: none; max-width: 80%;
     font-size: 12px; color: var(--text); background: var(--bg-card); border: 1px solid var(--text-dim); border-radius: 4px; padding: 6px 12px; }
