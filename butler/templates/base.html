@@ -74,6 +74,50 @@
     <span class="tray" id="tray-clock"></span>
 </div>
 
+<!-- MS-DOS layout only: menu bar, function-key line and help box, driven from the
+     keyboard (see the keydown handler in theme.js). Hidden in every other layout. -->
+<div class="dos-menubar" id="dos-menubar" role="menubar">
+    <div class="dos-menu" data-menu="f">
+        <button type="button" role="menuitem" aria-haspopup="true"><span class="dos-hot">F</span>ile</button>
+        <div class="dos-drop" role="menu">
+            <button type="button" data-act="refresh" data-key="r"><span class="dos-hot">R</span>eload page</button>
+            <button type="button" data-act="rain" data-key="m"><span class="dos-hot">M</span>ake it rain!</button>
+            <button type="button" data-act="classic" data-key="c"><span class="dos-hot">C</span>lassic layout</button>
+        </div>
+    </div>
+    <div class="dos-menu" data-menu="g">
+        <button type="button" role="menuitem" aria-haspopup="true"><span class="dos-hot">G</span>o</button>
+        <div class="dos-drop" role="menu">
+            {% for path, label in pages %}<a href="{{ path }}" data-key="{{ loop.index }}"><span class="dos-hot">{{ loop.index }}</span> {{ label }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="dos-menu" data-menu="h">
+        <button type="button" role="menuitem" aria-haspopup="true"><span class="dos-hot">H</span>elp</button>
+        <div class="dos-drop" role="menu">
+            <button type="button" data-act="help" data-key="k"><span class="dos-hot">K</span>eyboard help</button>
+        </div>
+    </div>
+</div>
+<div class="dos-fkeys" id="dos-fkeys">
+    <button type="button" data-act="help"><b>F1</b>Help</button>
+    <button type="button" data-act="refresh"><b>F5</b>Reload</button>
+    <button type="button" data-act="panel"><b>F6</b>Panel</button>
+    <button type="button" data-act="menu"><b>F10</b>Menu</button>
+    <button type="button" data-act="esc"><b>Esc</b>Close</button>
+</div>
+<div class="dos-help" id="dos-help" role="dialog" aria-label="Keyboard help">
+    <h2>Keyboard help</h2>
+    <p>Up, Down, Home, End   move the cursor over table rows
+Enter, Space         follow the link in the row under the cursor
+Esc                  close help, menu, or clear the cursor
+F1                   this help
+F5                   reload the page
+F6, Shift+F6         next / previous panel
+F10 or Alt           menu bar (arrows, Enter, hot letters)
+Tab                  move between buttons and fields</p>
+</div>
+
 {% block scripts %}{% endblock %}
 </body>
 </html>

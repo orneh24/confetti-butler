@@ -303,3 +303,168 @@ document.addEventListener('DOMContentLoaded', function () {
     tickTray();
     setInterval(tickTray, 15000);
 });
+
+// MS-DOS keyboard layer: menu bar, function-key line, a cursor over table rows.
+// Active only while the MS-DOS layout is on; the markup is in base.html. Same
+// block in confetti-butler and confetti-topo (and the idea, not the matrix, from
+// confetti-traffic's dashboard).
+(function () {
+    var menuAt = -1;        // index of the open menu, -1 = none
+    var itemAt = -1;        // highlighted item in that menu
+    var altOnly = false;    // Alt went down and nothing else happened yet
+    var rowAt = -1;         // cursor row, by position (pages redraw their tables)
+    var panelAt = -1;
+
+    function isDos() { return document.documentElement.getAttribute('data-layout') === 'msdos'; }
+    function byId(id) { return document.getElementById(id); }
+    function menus() { return document.querySelectorAll('#dos-menubar .dos-menu'); }
+    function itemsOf(menu) { return menu.querySelectorAll('.dos-drop > *'); }
+
+    function markItem(i) {
+        var items = menuAt >= 0 ? itemsOf(menus()[menuAt]) : [];
+        for (var k = 0; k < items.length; k++) items[k].classList.toggle('on', k === i);
+        itemAt = i;
+    }
+    function openMenu(i) {
+        var all = menus();
+        for (var k = 0; k < all.length; k++) all[k].classList.toggle('open', k === i);
+        menuAt = i;
+        markItem(i >= 0 ? 0 : -1);
+    }
+    function toggleHelp(open) {
+        var box = byId('dos-help');
+        if (box) box.classList.toggle('open', open === undefined ? !box.classList.contains('open') : open);
+    }
+
+    function rows() {
+        var all = document.querySelectorAll('.page tbody tr');
+        var out = [];
+        for (var i = 0; i < all.length; i++) if (all[i].offsetParent !== null) out.push(all[i]);
+        return out;
+    }
+    function setRow(list, i) {
+        var old = document.querySelectorAll('tr.kbd-cursor');
+        for (var k = 0; k < old.length; k++) old[k].classList.remove('kbd-cursor');
+        rowAt = i;
+        if (i < 0 || !list[i]) return;
+        list[i].classList.add('kbd-cursor');
+        list[i].scrollIntoView({ block: 'nearest' });
+    }
+    function moveRow(step, edge) {
+        var list = rows();
+        if (!list.length) return;
+        var cur = document.querySelector('tr.kbd-cursor');
+        var at = cur ? list.indexOf(cur) : rowAt;    // a redrawn table lost the class, not the place
+        if (edge) at = edge < 0 ? 0 : list.length - 1;
+        else at = at < 0 ? (step > 0 ? 0 : list.length - 1) : Math.max(0, Math.min(list.length - 1, at + step));
+        setRow(list, at);
+    }
+    function openRow() {
+        var cur = document.querySelector('tr.kbd-cursor');
+        var el = cur && cur.querySelector('a[href], button');
+        if (el) el.click();
+        return !!el;
+    }
+
+    function stepPanel(dir) {
+        var all = document.querySelectorAll('.page .section');
+        var list = [];
+        for (var i = 0; i < all.length; i++) if (all[i].offsetParent !== null) list.push(all[i]);
+        if (!list.length) return;
+        var here = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.section') : null;
+        var at = list.indexOf(here);
+        if (at < 0) at = panelAt;
+        panelAt = (at + dir + list.length) % list.length;
+        list[panelAt].setAttribute('tabindex', '-1');
+        list[panelAt].scrollIntoView({ block: 'start' });
+        list[panelAt].focus({ preventScroll: true });
+    }
+
+    // Esc: help, then menu, then the row cursor.
+    function closeLayer() {
+        var box = byId('dos-help');
+        if (box && box.classList.contains('open')) { toggleHelp(false); return; }
+        if (menuAt >= 0) { openMenu(-1); return; }
+        setRow([], -1);
+    }
+
+    function act(el) {
+        var what = el.getAttribute('data-act');
+        openMenu(-1);
+        if (what === 'refresh') window.location.reload();
+        else if (what === 'rain') confettiBlast(el);
+        else if (what === 'classic') setLayout('classic');
+        else if (what === 'help') toggleHelp();
+        else if (what === 'panel') stepPanel(1);
+        else if (what === 'menu') openMenu(0);
+        else if (what === 'esc') closeLayer();
+        else if (el.tagName === 'A') window.location.href = el.getAttribute('href');
+    }
+
+    function menuKey(e) {
+        var all = menus();
+        var items = itemsOf(all[menuAt]);
+        var k = e.key;
+        if (k === 'ArrowLeft') openMenu((menuAt + all.length - 1) % all.length);
+        else if (k === 'ArrowRight') openMenu((menuAt + 1) % all.length);
+        else if (k === 'ArrowDown') markItem((itemAt + 1) % items.length);
+        else if (k === 'ArrowUp') markItem((itemAt + items.length - 1) % items.length);
+        else if (k === 'Enter' || k === ' ') { if (items[itemAt]) act(items[itemAt]); }
+        else if (k === 'Escape' || k === 'F10') openMenu(-1);
+        else if (k.length === 1) {
+            var ch = k.toLowerCase();
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].getAttribute('data-key') === ch) { act(items[i]); e.preventDefault(); return; }
+            }
+            for (var m = 0; m < all.length; m++) {
+                if (all[m].getAttribute('data-menu') === ch) { openMenu(m); break; }
+            }
+        } else return;
+        e.preventDefault();
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (!isDos()) return;
+        var t = e.target;
+        var typing = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable ||
+                           (t.closest && t.closest('.CodeMirror')));
+        if (e.key === 'Alt') { if (!e.repeat) altOnly = true; return; }
+        altOnly = false;
+        if (typing) { if (e.key === 'Escape' && t.blur) t.blur(); return; }
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.key === 'F5' && e.shiftKey) return;
+        if (e.key === 'F1') { toggleHelp(); e.preventDefault(); return; }
+        if (e.key === 'F5') { window.location.reload(); e.preventDefault(); return; }
+        if (e.key === 'F6') { stepPanel(e.shiftKey ? -1 : 1); e.preventDefault(); return; }
+        if (e.key === 'F10') { openMenu(menuAt >= 0 ? -1 : 0); e.preventDefault(); return; }
+        if (menuAt >= 0) { menuKey(e); return; }
+        if (e.key === 'Escape') { closeLayer(); return; }
+        // Cursor keys work from the page itself, not from a focused button or link.
+        if (t !== document.body) return;
+        if (e.key === 'ArrowDown') { moveRow(1, 0); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { moveRow(-1, 0); e.preventDefault(); }
+        else if (e.key === 'Home') { moveRow(0, -1); e.preventDefault(); }
+        else if (e.key === 'End') { moveRow(0, 1); e.preventDefault(); }
+        else if ((e.key === 'Enter' || e.key === ' ') && openRow()) e.preventDefault();
+    });
+    // A lone Alt press-and-release opens the menu, like DOS programs and old Windows.
+    document.addEventListener('keyup', function (e) {
+        if (e.key !== 'Alt' || !altOnly || !isDos()) return;
+        altOnly = false;
+        openMenu(menuAt >= 0 ? -1 : 0);
+        e.preventDefault();
+    });
+    document.addEventListener('click', function (e) {
+        var bar = byId('dos-menubar');
+        if (!bar) return;
+        var top = e.target.closest('#dos-menubar .dos-menu > button');
+        if (top) {
+            var i = Array.prototype.indexOf.call(menus(), top.parentNode);
+            openMenu(i === menuAt ? -1 : i);
+            return;
+        }
+        var item = e.target.closest('#dos-menubar .dos-drop > *, #dos-fkeys button');
+        if (item) { act(item); return; }
+        if (menuAt >= 0) openMenu(-1);
+    });
+})();

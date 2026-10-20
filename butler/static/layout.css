@@ -686,3 +686,59 @@ button.primary { border-color: var(--blue); color: var(--blue); }
 :root[data-layout="msdos"] button:active,
 :root[data-layout="msdos"] .btn-small:active { box-shadow: none; transform: translate(4px, 4px); }
 :root[data-layout="msdos"] .page-footer::after { content: "C:\\BUTLER>\2588"; }
+/* MS-DOS keyboard layer: menu bar on top, function-key line at the bottom, a help box and a row
+   cursor. Hidden in every other layout; the keys only work here (keydown handler in theme.js). */
+.dos-menubar, .dos-fkeys, .dos-help { display: none; }
+:root[data-layout="msdos"] body { box-sizing: border-box; padding-top: 30px; padding-bottom: 34px; }
+:root[data-layout="msdos"] .dos-menubar,
+:root[data-layout="msdos"] .dos-fkeys {
+    display: flex; position: fixed; left: 0; right: 0; z-index: 50;
+    background: #AAAAAA; color: #000000; font-family: inherit; font-size: 16px; line-height: 24px;
+}
+:root[data-layout="msdos"] .dos-menubar { top: 0; padding: 0 8px; }
+:root[data-layout="msdos"] .dos-fkeys { bottom: 0; padding: 4px 8px; gap: 14px; flex-wrap: wrap; }
+:root[data-layout="msdos"] .dos-menu { position: relative; }
+:root[data-layout="msdos"] .dos-menu > button,
+:root[data-layout="msdos"] .dos-fkeys button {
+    background: transparent; color: #000000; border: 0; font: inherit; padding: 0 10px; cursor: pointer;
+    box-shadow: none; transform: none; text-transform: none;
+}
+:root[data-layout="msdos"] .dos-fkeys button { padding: 0; }
+:root[data-layout="msdos"] .dos-fkeys button b { background: #000000; color: #AAAAAA; font-weight: 400; padding: 0 3px; margin-right: 4px; }
+:root[data-layout="msdos"] .dos-hot { color: #AA0000; }
+:root[data-layout="msdos"] .dos-menu.open > button,
+:root[data-layout="msdos"] .dos-menu > button:hover,
+:root[data-layout="msdos"] .dos-menu > button:focus-visible { background: #000000; color: #AAAAAA; outline: none; }
+:root[data-layout="msdos"] .dos-menu.open > button .dos-hot { color: #FF5555; }
+:root[data-layout="msdos"] .dos-drop {
+    display: none; position: absolute; top: 24px; left: 0; min-width: 240px; background: #AAAAAA;
+    border: 3px double #000000; box-shadow: 6px 6px 0 #000000; flex-direction: column; padding: 2px 0;
+}
+:root[data-layout="msdos"] .dos-menu.open > .dos-drop { display: flex; }
+:root[data-layout="msdos"] .dos-drop button,
+:root[data-layout="msdos"] .dos-drop a {
+    background: transparent; color: #000000; border: 0; font: inherit; text-align: left; text-decoration: none;
+    padding: 0 12px; cursor: pointer; white-space: nowrap; display: block; box-shadow: none; transform: none; text-transform: none;
+}
+:root[data-layout="msdos"] .dos-drop .on,
+:root[data-layout="msdos"] .dos-drop button:hover,
+:root[data-layout="msdos"] .dos-drop a:hover { background: #000000; color: #AAAAAA; text-decoration: none; }
+:root[data-layout="msdos"] .dos-drop .on .dos-hot { color: #FF5555; }
+:root[data-layout="msdos"] .dos-help.open {
+    display: block; position: fixed; z-index: 60; top: 15%; left: 50%; transform: translateX(-50%);
+    background: #AAAAAA; color: #000000; border: 3px double #000000; box-shadow: 8px 8px 0 #000000;
+    padding: 8px 18px 12px; max-width: 92vw; font-size: 16px; line-height: 1.35;
+}
+:root[data-layout="msdos"] .dos-help h2 { margin: 0 0 6px; font-size: 16px; font-weight: 400; text-align: center; background: #000000; color: #AAAAAA; }
+:root[data-layout="msdos"] .dos-help p { margin: 0; white-space: pre; }
+/* The row cursor: a solid yellow bar with a pointer, so it reads without colour. */
+:root[data-layout="msdos"] tr.kbd-cursor > td { background: #FFFF55; color: #000000; }
+:root[data-layout="msdos"] tr.kbd-cursor > td a { color: #000000; }
+:root[data-layout="msdos"] tr.kbd-cursor > td:first-child::before { content: "\25BA "; }
+:root[data-layout="msdos"] :focus-visible { outline: 2px solid #FFFFFF; outline-offset: 1px; }
+@media (max-width: 700px) {
+    :root[data-layout="msdos"] body { padding-bottom: 80px; } /* the key line wraps to two rows */
+    /* The no-wrap 34px title ("C:\ CONFETTI BUTLER") is wider than a phone. */
+    :root[data-layout="msdos"] .header { padding-left: 12px; padding-right: 12px; }
+    :root[data-layout="msdos"] .header h1 { font-size: 22px; }
+}

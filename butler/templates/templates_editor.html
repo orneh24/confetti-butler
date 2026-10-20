@@ -40,6 +40,15 @@ h2 { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-
 pre.preview { font-size: 11px; white-space: pre-wrap; word-break: break-word; background: var(--bg-code); padding: 8px; max-height: 240px; overflow-y: auto; }
 .varrow { display: flex; gap: 4px; margin-bottom: 4px; }
 .varrow input { font-size: 11px; }
+/* Phone width: three columns (220 + editor + 320) cannot fit, so stack them and let
+   the toolbar wrap. The page scrolls as a whole instead of each column. */
+@media (max-width: 800px) {
+    .layout { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+    .col { border-right: none; border-bottom: 1px solid var(--border); overflow-y: visible; min-height: auto; }
+    .toolbar { flex-wrap: wrap; }
+    .toolbar input[type=text] { flex: 1 1 140px; min-width: 0; width: auto !important; }
+    .CodeMirror { height: 320px; flex: none; }
+}
 </style>
 {% endblock %}
 {% block content %}
