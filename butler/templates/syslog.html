@@ -99,7 +99,9 @@ function load() {
             } else {
                 hostCell = esc(hostCell);
             }
-            rows += (band ? '<tr class="stripe">' : '<tr>') +
+            rows += '<tr' + (band ? ' class="stripe"' : '') + ' data-ctx="syslog" data-host="' + ctxMenu.attr(m.host || m.source_ip) +
+                '" data-dev="' + ctxMenu.attr(m.device_id || '') + '" data-mnem="' + ctxMenu.attr(m.mnemonic || '') + '" data-msg="' + ctxMenu.attr(m.message) +
+                '" data-at="' + ctxMenu.attr(m.received_at) + '">' +
                 '<td>' + fmtTime(m.received_at) + '</td>' +
                 '<td>' + hostCell + '</td>' +
                 '<td class="' + sevCls + '">' + esc(sevLabel) + '</td>' +
@@ -119,6 +121,27 @@ document.getElementById('f-severity').addEventListener('change', load);
 document.getElementById('f-q').addEventListener('input', function () {
     clearTimeout(window._q_timer);
     window._q_timer = setTimeout(load, 300);
+});
+
+// Right-click a log line.
+function filterBy(id, value) {
+    document.getElementById(id).value = value;
+    load();
+}
+
+ctxMenu.register('syslog', function (row) {
+    var host = row.getAttribute('data-host'), dev = row.getAttribute('data-dev');
+    var mnem = row.getAttribute('data-mnem'), msg = row.getAttribute('data-msg');
+    return { title: host, items: [
+        { label: 'Copy message', action: function () { ctxMenu.copy(msg); } },
+        { label: 'Copy whole line', action: function () {
+            ctxMenu.copy(row.getAttribute('data-at') + ' ' + host + ' ' + (mnem ? mnem + ' ' : '') + msg);
+        } },
+        { label: 'Copy host', action: function () { ctxMenu.copy(host); } },
+        { label: 'Show only this host', action: function () { filterBy('f-host', host); } },
+        { label: 'Search this mnemonic', action: function () { filterBy('f-q', mnem); }, disabled: !mnem },
+        { label: 'Open device page', action: function () { window.location.href = '/devices/' + dev; }, disabled: !dev },
+    ] };
 });
 
 loadSources();

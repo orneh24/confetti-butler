@@ -79,7 +79,7 @@
 {% block scripts %}
 <script>
 function kv(k, v, cls) {
-    return '<div class="kv"><span class="k">' + k + '</span><span class="v' +
+    return '<div class="kv" data-ctx="kv"><span class="k">' + k + '</span><span class="v' +
         (cls ? ' ' + cls : '') + '">' + v + '</span></div>';
 }
 
@@ -225,7 +225,9 @@ function loadSyslog() {
             } else {
                 hostCell = esc(hostCell);
             }
-            rows += (band ? '<tr class="stripe">' : '<tr>') +
+            rows += '<tr' + (band ? ' class="stripe"' : '') + ' data-ctx="syslog" data-host="' + ctxMenu.attr(m.host || m.source_ip) +
+                '" data-dev="' + ctxMenu.attr(m.device_id || '') + '" data-mnem="' + ctxMenu.attr(m.mnemonic || '') + '" data-msg="' + ctxMenu.attr(m.message) +
+                '" data-at="' + ctxMenu.attr(m.received_at) + '">' +
                 '<td>' + new Date(m.received_at).toLocaleString() + '</td>' +
                 '<td>' + hostCell + '</td>' +
                 '<td class="' + sevCls + '">' + esc(sevLabel) + '</td>' +
@@ -256,7 +258,8 @@ function loadEvents() {
             var e = list[i];
             var cls = e.severity === 'info' ? 'ok' : (e.severity === 'warning' ? 'running' : 'bad');
             var subj = e.device_id ? '<a href="/devices/' + e.device_id + '">' + esc(e.subject) + '</a>' : esc(e.subject);
-            rows += '<tr><td>' + new Date(e.at).toLocaleString() + '</td>' +
+            rows += '<tr data-ctx="event" data-dev="' + ctxMenu.attr(e.device_id || '') + '" data-subject="' + ctxMenu.attr(e.subject) +
+                '" data-detail="' + ctxMenu.attr(e.detail) + '"><td>' + new Date(e.at).toLocaleString() + '</td>' +
                 '<td><span class="pill ' + cls + '">' + esc(e.severity) + '</span></td>' +
                 '<td>' + subj + '</td><td>' + esc(e.detail) + '</td></tr>';
         }
@@ -272,6 +275,43 @@ function pollAll() {
     loadSyslog();
     loadEvents();
 }
+
+// Right-click menus.
+function filterBy(id, value) {
+    document.getElementById(id).value = value;
+    loadSyslog();
+}
+
+ctxMenu.register('syslog', function (row) {
+    var host = row.getAttribute('data-host'), dev = row.getAttribute('data-dev');
+    var mnem = row.getAttribute('data-mnem'), msg = row.getAttribute('data-msg');
+    return { title: host, items: [
+        { label: 'Copy message', action: function () { ctxMenu.copy(msg); } },
+        { label: 'Copy whole line', action: function () {
+            ctxMenu.copy(row.getAttribute('data-at') + ' ' + host + ' ' + (mnem ? mnem + ' ' : '') + msg);
+        } },
+        { label: 'Copy host', action: function () { ctxMenu.copy(host); } },
+        { label: 'Show only this host', action: function () { filterBy('f-host', host); } },
+        { label: 'Search this mnemonic', action: function () { filterBy('f-q', mnem); }, disabled: !mnem },
+        { label: 'Open device page', action: function () { window.location.href = '/devices/' + dev; }, disabled: !dev },
+    ] };
+});
+ctxMenu.register('event', function (row) {
+    var dev = row.getAttribute('data-dev'), subject = row.getAttribute('data-subject');
+    return { title: subject, items: [
+        { label: 'Open device page', action: function () { window.location.href = '/devices/' + dev; }, disabled: !dev },
+        { label: 'Copy event', action: function () { ctxMenu.copy(subject); } },
+        { label: 'Copy detail', action: function () { ctxMenu.copy(row.getAttribute('data-detail')); }, disabled: !row.getAttribute('data-detail') },
+    ] };
+});
+ctxMenu.register('kv', function (row) {
+    var k = row.querySelector('.k'), v = row.querySelector('.v');
+    var val = v ? v.textContent : '';
+    return { title: k ? k.textContent : '', items: [
+        { label: 'Copy value', action: function () { ctxMenu.copy(val); }, disabled: !val },
+        { label: 'Copy name: value', action: function () { ctxMenu.copy((k ? k.textContent : '') + ': ' + val); } },
+    ] };
+});
 
 pollAll();
 setInterval(pollAll, 15000);

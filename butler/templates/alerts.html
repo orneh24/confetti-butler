@@ -85,7 +85,8 @@ function loadRules() {
         list.forEach(function (r) {
             var last = r.last_error ? '<span class="pill bad" title="' + esc(r.last_error).replace(/"/g, '&quot;') + '">failed</span> ' : '';
             last += r.last_fired_at ? new Date(r.last_fired_at).toLocaleString() : 'never';
-            rows += '<tr>' +
+            rows += '<tr data-ctx="rule" data-id="' + r.id + '" data-name="' + ctxMenu.attr(r.name) + '" data-target="' + ctxMenu.attr(r.target_display) +
+                '" data-desc="' + ctxMenu.attr(describe(r)) + '" data-on="' + (r.enabled ? '1' : '0') + '">' +
                 '<td><input type="checkbox"' + (r.enabled ? ' checked' : '') + ' onchange="toggleRule(' + r.id + ', this.checked)"></td>' +
                 '<td>' + esc(r.name) + '</td><td>' + esc(r.source) + '</td><td>' + esc(describe(r)) + '</td>' +
                 '<td>' + esc(r.target_display) + '</td><td>' + esc(r.cooldown_s) + 's</td><td>' + last + '</td>' +
@@ -109,10 +110,12 @@ function toggleRule(id, on) {
 }
 
 function deleteRule(id) {
+    if (!confirm('Delete this alert rule?')) { return; }
     fetch('/api/alert-rules/' + id, { method: 'DELETE' }).then(loadRules);
 }
 
 function testRule(id) {
+    if (!confirm('Send a real test notification to the rule target?')) { return; }
     say('rule-msg', 'sending test...', true);
     fetch('/api/alert-rules/' + id + '/test', { method: 'POST' }).then(function (x) { return x.json(); }).then(function (d) {
         say('rule-msg', d.ok ? 'test sent' : 'test failed: ' + d.error, d.ok);
@@ -149,6 +152,20 @@ function addRule() {
         }
     });
 }
+
+// Right-click a rule row.
+ctxMenu.register('rule', function (row) {
+    var id = row.getAttribute('data-id'), name = row.getAttribute('data-name');
+    var on = row.getAttribute('data-on') === '1';
+    return { title: name, items: [
+        { label: 'Copy name', action: function () { ctxMenu.copy(name); } },
+        { label: 'Copy target', action: function () { ctxMenu.copy(row.getAttribute('data-target')); } },
+        { label: 'Copy match description', action: function () { ctxMenu.copy(row.getAttribute('data-desc')); } },
+        { label: on ? 'Disable rule' : 'Enable rule', action: function () { toggleRule(id, !on); } },
+        { label: 'Send test notification', action: function () { testRule(id); } },
+        { label: 'Delete rule', danger: true, action: function () { deleteRule(id); } },
+    ] };
+});
 
 sourceChanged();
 loadRules();

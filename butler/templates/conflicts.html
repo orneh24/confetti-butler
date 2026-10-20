@@ -31,6 +31,7 @@ function mergeConflict(conflictId, ids, btn) {
         msg.className = 'msg err';
         return;
     }
+    if (!confirm('Merge device ' + loser + ' into ' + survivor + '? This cannot be undone.')) { return; }
     fetch('/api/devices/' + survivor + '/merge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -51,6 +52,7 @@ function mergeConflict(conflictId, ids, btn) {
 
 function dismissConflict(conflictId, btn) {
     var msg = btn.closest('form').querySelector('.msg');
+    if (!confirm('Mark conflict #' + conflictId + ' resolved without merging?')) { return; }
     fetch('/api/conflicts/' + conflictId + '/dismiss', { method: 'POST' }).then(function (r) {
         if (r.ok) { load(); return; }
         return r.json().then(function (data) {
@@ -69,18 +71,19 @@ function render(list) {
     var html = '';
     for (var i = 0; i < list.length; i++) {
         var c = list[i];
-        html += '<div class="section">' +
+        html += '<div class="section" data-ctx="conflict" data-id="' + c.id + '" data-devs="' + ctxMenu.attr(c.device_ids) +
+            '" data-detail="' + ctxMenu.attr(c.detail) + '">' +
             '<div class="section-header"><span>conflict #' + c.id + ' — ' + esc(c.source) + '</span></div>' +
             '<div class="section-body">' +
             '<div class="kv"><span class="k">seen</span><span>' + esc(c.seen_at) + '</span></div>' +
             '<div class="kv"><span class="k">matched device ids</span><span>' + esc(c.device_ids) + '</span></div>' +
             '<div class="kv"><span class="k">detail</span><span>' + esc(c.detail) + '</span></div>' +
-            '<pre>' + esc(c.candidate) + '</pre>' +
+            '<pre data-candidate>' + esc(c.candidate) + '</pre>' +
             '<form class="inline" onsubmit="return false;">' +
             '<input type="text" name="survivor" placeholder="survivor id">' +
             '<input type="text" name="loser" placeholder="loser id">' +
             '<button type="button" onclick="mergeConflict(' + c.id + ', \'' + esc(c.device_ids) + '\', this)">Merge</button>' +
-            '<button type="button" onclick="dismissConflict(' + c.id + ', this)" title="Mark resolved without merging — e.g. a single-device conflict you have checked">Dismiss</button>' +
+            '<button type="button" data-act="dismiss" onclick="dismissConflict(' + c.id + ', this)" title="Mark resolved without merging — e.g. a single-device conflict you have checked">Dismiss</button>' +
             '<span class="msg"></span>' +
             '</form>' +
             '</div></div>';
@@ -91,6 +94,23 @@ function render(list) {
 function load() {
     fetch('/api/conflicts').then(function (r) { return r.json(); }).then(render);
 }
+
+// Right-click a conflict card. Merge stays in the form: it needs the survivor and loser choice.
+ctxMenu.register('conflict', function (card) {
+    var id = card.getAttribute('data-id');
+    var devs = card.getAttribute('data-devs');
+    var ids = devs.match(/\d+/g) || [];
+    var items = ids.map(function (d) {
+        return { label: 'Open device ' + d, action: function () { window.location.href = '/devices/' + d; } };
+    });
+    items.push({ label: 'Copy matched device ids', action: function () { ctxMenu.copy(devs); } });
+    items.push({ label: 'Copy detail', action: function () { ctxMenu.copy(card.getAttribute('data-detail')); } });
+    items.push({ label: 'Copy candidate', action: function () { ctxMenu.copy(card.querySelector('[data-candidate]').textContent); } });
+    items.push({ label: 'Dismiss conflict', danger: true, action: function () {
+        dismissConflict(id, card.querySelector('button[data-act="dismiss"]'));
+    } });
+    return { title: 'conflict #' + id, items: items };
+});
 
 load();
 </script>

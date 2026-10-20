@@ -139,7 +139,7 @@ function esc(s) {
     return d.innerHTML;
 }
 function kv(k, v) {
-    return '<div class="kv"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
+    return '<div class="kv" data-ctx="kv"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
 }
 
 function loadDevice() {
@@ -161,14 +161,14 @@ function loadDevice() {
         var aliasRows = '';
         for (var i = 0; i < d.aliases.length; i++) {
             var a = d.aliases[i];
-            aliasRows += '<tr><td>' + esc(a.kind) + '</td><td>' + esc(a.value) + '</td><td>' + esc(a.first_seen) + '</td></tr>';
+            aliasRows += '<tr data-ctx="value" data-label="' + ctxMenu.attr(a.kind) + '" data-val="' + ctxMenu.attr(a.value) + '"><td>' + esc(a.kind) + '</td><td>' + esc(a.value) + '</td><td>' + esc(a.first_seen) + '</td></tr>';
         }
         document.getElementById('alias-rows').innerHTML = aliasRows || '<tr><td colspan="3" class="empty">none</td></tr>';
 
         var sourceRows = '';
         for (var j = 0; j < d.sources.length; j++) {
             var s = d.sources[j];
-            sourceRows += '<tr><td>' + esc(s.source) + '</td><td>' + esc(s.ref) + '</td><td>' + esc(s.last_seen) + '</td></tr>';
+            sourceRows += '<tr data-ctx="value" data-label="' + ctxMenu.attr(s.source) + '" data-val="' + ctxMenu.attr(s.ref) + '"><td>' + esc(s.source) + '</td><td>' + esc(s.ref) + '</td><td>' + esc(s.last_seen) + '</td></tr>';
         }
         document.getElementById('source-rows').innerHTML = sourceRows || '<tr><td colspan="3" class="empty">none</td></tr>';
     }).catch(function () {
@@ -285,7 +285,7 @@ function loadInterfaces() {
             if (f.input_errors !== null && (f.input_errors_24h || f.crc_errors_24h)) {
                 errs += '  +' + f.input_errors_24h + ' in, +' + f.crc_errors_24h + ' crc';
             }
-            rows += '<tr>' +
+            rows += '<tr data-ctx="interface" data-name="' + ctxMenu.attr(f.name) + '" data-ip="' + ctxMenu.attr(f.ip || '') + '" data-len="' + ctxMenu.attr(f.prefix_len || '') + '">' +
                 '<td>' + esc(f.name) + '</td>' +
                 '<td><span class="pill ' + (f.admin_status === 'up' ? 'ok' : 'bad') + '">' + esc(f.admin_status) + '</span></td>' +
                 '<td><span class="pill ' + (f.oper_status === 'up' ? 'ok' : 'bad') + '">' + esc(f.oper_status) + '</span></td>' +
@@ -337,7 +337,8 @@ function loadConfigs() {
         var rows = '', opts = '';
         for (var i = 0; i < list.length; i++) {
             var v = list[i];
-            rows += '<tr><td>#' + esc(v.id) + '</td><td>' + esc(v.captured_at) + '</td><td>' +
+            rows += '<tr data-ctx="config" data-id="' + v.id + '" data-prev="' + (i + 1 < list.length ? list[i + 1].id : '') +
+                '"><td>#' + esc(v.id) + '</td><td>' + esc(v.captured_at) + '</td><td>' +
                 esc(v.size) + ' bytes</td><td><button onclick="viewConfig(' + v.id + ')">View</button></td></tr>';
             opts += '<option value="' + v.id + '">#' + v.id + ' ' + esc(v.captured_at) + '</option>';
         }
@@ -384,7 +385,8 @@ function loadEvents() {
         for (var i = 0; i < list.length; i++) {
             var e = list[i];
             var cls = e.severity === 'info' ? 'ok' : (e.severity === 'warning' ? 'running' : 'bad');
-            rows += '<tr><td>' + new Date(e.at).toLocaleString() + '</td>' +
+            rows += '<tr data-ctx="event" data-line="' + ctxMenu.attr(new Date(e.at).toLocaleString() + ' ' + e.severity + ' ' + e.subject +
+                (e.detail ? ' - ' + e.detail : '')) + '"><td>' + new Date(e.at).toLocaleString() + '</td>' +
                 '<td><span class="pill ' + cls + '">' + esc(e.severity) + '</span></td>' +
                 '<td>' + esc(e.subject) + '</td><td>' + esc(e.detail) + '</td></tr>';
         }
@@ -422,6 +424,47 @@ function pollNow() {
 
 loadDevice();
 loadInterfaces();
+// Right-click menus.
+ctxMenu.register('interface', function (row) {
+    var name = row.getAttribute('data-name'), ip = row.getAttribute('data-ip'), len = row.getAttribute('data-len');
+    return { title: name, items: [
+        { label: 'Copy interface name', action: function () { ctxMenu.copy(name); } },
+        { label: 'Copy IP', action: function () { ctxMenu.copy(ip); }, disabled: !ip },
+        { label: 'Copy IP/prefix', action: function () { ctxMenu.copy(ip + '/' + len); }, disabled: !ip },
+    ] };
+});
+ctxMenu.register('config', function (row) {
+    var id = row.getAttribute('data-id'), prev = row.getAttribute('data-prev');
+    function diff(a, b) {
+        document.getElementById('diff-a').value = a;
+        document.getElementById('diff-b').value = b;
+        showDiff();
+    }
+    return { title: 'config #' + id, items: [
+        { label: 'View', action: function () { viewConfig(id); } },
+        { label: 'Diff against previous version', action: function () { diff(prev, id); }, disabled: !prev },
+        { label: 'Set as diff A', action: function () { document.getElementById('diff-a').value = id; } },
+        { label: 'Set as diff B', action: function () { document.getElementById('diff-b').value = id; } },
+        { label: 'Copy version id', action: function () { ctxMenu.copy(id); } },
+    ] };
+});
+ctxMenu.register('event', function (row) {
+    var line = row.getAttribute('data-line');
+    return { title: 'event', items: [ { label: 'Copy event line', action: function () { ctxMenu.copy(line); } } ] };
+});
+ctxMenu.register('value', function (row) {
+    var label = row.getAttribute('data-label'), val = row.getAttribute('data-val');
+    return { title: label, items: [ { label: 'Copy value', action: function () { ctxMenu.copy(val); }, disabled: !val } ] };
+});
+ctxMenu.register('kv', function (row) {
+    var k = row.querySelector('.k'), v = row.querySelector('.v');
+    var val = v ? v.textContent : '';
+    return { title: k ? k.textContent : '', items: [
+        { label: 'Copy value', action: function () { ctxMenu.copy(val); }, disabled: !val },
+        { label: 'Copy name: value', action: function () { ctxMenu.copy((k ? k.textContent : '') + ': ' + val); } },
+    ] };
+});
+
 loadConfigs();
 loadEvents();
 loadDrift();

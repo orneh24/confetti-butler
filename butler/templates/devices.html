@@ -106,7 +106,8 @@ function renderDevices(list) {
         var d = list[i];
         var pollCls = d.poll_state === 'running' ? 'running' : 'idle';
         if (d.role === 'node') { pollCls = 'node'; }
-        rows += '<tr>' +
+        rows += '<tr data-ctx="device" data-id="' + d.id + '" data-host="' + ctxMenu.attr(d.hostname) + '" data-ip="' + ctxMenu.attr(d.mgmt_ip || '') +
+            '" data-key="' + ctxMenu.attr(d.key) + '" data-role="' + ctxMenu.attr(d.role) + '">' +
             '<td><a href="/devices/' + d.id + '">' + esc(d.hostname) + '</a></td>' +
             '<td>' + esc(d.role) + '</td>' +
             '<td>' + esc(d.mgmt_ip || '') + '</td>' +
@@ -128,6 +129,7 @@ function loadDevices() {
 }
 
 function removeDevice(id) {
+    if (!confirm('Delete this device from the inventory?')) { return; }
     fetch('/api/devices/' + id, { method: 'DELETE' }).then(loadDevices);
 }
 
@@ -248,6 +250,31 @@ document.getElementById('cred-form').addEventListener('submit', function (ev) {
 function clearDefaultSecrets() {
     sendDefaultCredentials({ password: '', secret: '' }, 'secrets cleared');
 }
+
+// Right-click a device row.
+function pollDevice(id, name) {
+    ctxMenu.toast('Polling ' + name + '...');
+    fetch('/api/devices/' + id + '/poll', { method: 'POST' }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+        ctxMenu.toast(name + ': ' + (res.ok ? 'poll done' : (res.data.error || 'poll failed')));
+        loadDevices();
+    }).catch(function () { ctxMenu.toast(name + ': poll failed'); });
+}
+
+ctxMenu.register('device', function (row) {
+    var id = row.getAttribute('data-id'), host = row.getAttribute('data-host');
+    var ip = row.getAttribute('data-ip'), key = row.getAttribute('data-key');
+    return { title: ip ? host + ' | ' + ip : host, items: [
+        { label: 'Open device page', action: function () { window.location.href = '/devices/' + id; } },
+        { label: 'Open in new tab', action: function () { window.open('/devices/' + id, '_blank'); } },
+        { label: 'Copy hostname', action: function () { ctxMenu.copy(host); } },
+        { label: 'Copy management IP', action: function () { ctxMenu.copy(ip); }, disabled: !ip },
+        { label: 'Copy key', action: function () { ctxMenu.copy(key); } },
+        { label: 'Poll now', action: function () { pollDevice(id, host); }, disabled: row.getAttribute('data-role') === 'node' },
+        { label: 'Delete device', danger: true, action: function () { removeDevice(id); } },
+    ] };
+});
 
 loadDefaultCredentials();
 loadDevices();

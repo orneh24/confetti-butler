@@ -578,6 +578,50 @@ def _():
     return p
 
 
+@check("R34", "right-click menus: every page loads ctxmenu.js, destructive actions confirm, data-* values are quote-safe")
+def _():
+    # static/ctxmenu.js is one file for all pages. A function that deletes, merges, dismisses or
+    # sends a test must ask confirm() itself, so the button and the menu item both ask. A log
+    # line can hold a double quote, and esc() does not escape it, so an attribute filled with
+    # esc() lets that line break out of the attribute: use ctxMenu.attr().
+    import glob
+    p = []
+    base = read("butler/templates/base.html")
+    need('src="/static/ctxmenu.js"' in base, "base.html does not load /static/ctxmenu.js", p)
+    need(base.find("/static/ctxmenu.js") < base.find("{% block scripts %}"),
+         "ctxmenu.js must load before the page scripts (they call ctxMenu.register)", p)
+    for f in sorted(glob.glob("butler/templates/*.html")):
+        src = read(f)
+        for m in re.finditer(r"data-[\w-]+=\"' \+ esc\(", src):
+            p.append("%s: data-* attribute filled with esc(), use ctxMenu.attr(): %s" % (f, src[m.start():m.start() + 40]))
+        used = set(re.findall(r'data-ctx="(\w+)', src))
+        reg = set(re.findall(r"ctxMenu\.register\('(\w+)'", src))
+        if f.endswith("base.html"):
+            continue
+        for kind in sorted(used - reg):
+            p.append("%s: data-ctx=\"%s\" has no ctxMenu.register" % (f, kind))
+        for kind in sorted(reg - used):
+            p.append("%s: ctxMenu.register('%s') has no data-ctx row" % (f, kind))
+        for fn in re.finditer(r"^function (\w+)\([^)]*\) \{\r?\n(.*?)^\}", src, re.S | re.M):
+            body = fn.group(2)
+            risky = (re.search(r"method: 'DELETE'", body) or "/merge" in body
+                     or "/dismiss" in body or "/test'" in body)
+            if risky and "confirm(" not in body:
+                p.append("%s: function %s() deletes/merges/dismisses/tests but never calls confirm()" % (f, fn.group(1)))
+    # A quote inside a new confirm() text once broke a whole page script; parse every inline script.
+    node = shutil.which("node")
+    if node:
+        for f in sorted(glob.glob("butler/templates/*.html")):
+            for i, m in enumerate(re.finditer(r"<script>\r?\n(.*?)</script>", read(f), re.S)):
+                js = re.sub(r"\{\{.*?\}\}", "0", re.sub(r"\{%.*?%\}", "", m.group(1)))
+                tmp = os.path.join(TMP, "r34_%d.js" % i)
+                with open(tmp, "w", encoding="utf-8") as fh:
+                    fh.write(js)
+                r = subprocess.run([node, "--check", tmp], capture_output=True, text=True)
+                need(r.returncode == 0, "%s script %d does not parse: %s" % (f, i, r.stderr.strip()[:150]), p)
+    return p
+
+
 @check("R22", "platform registry: same tasks everywhere, config last, unknown platform = IOS")
 def _():
     p = []

@@ -135,7 +135,7 @@ function loadList() {
         var html = '';
         for (var i = 0; i < list.length; i++) {
             var t = list[i];
-            html += '<li class="' + (t.name === currentName ? 'active' : '') + '" onclick="openTemplate(\'' +
+            html += '<li data-ctx="template" data-name="' + ctxMenu.attr(t.name) + '" class="' + (t.name === currentName ? 'active' : '') + '" onclick="openTemplate(\'' +
                 t.name.replace(/'/g, "\\'") + '\')">' + esc(t.name) + '</li>';
         }
         document.getElementById('tlist').innerHTML = html || '<li class="empty">none yet</li>';
@@ -216,7 +216,8 @@ function loadVersions() {
     fetch('/api/templates/' + encodeURIComponent(currentName) + '/versions').then(function (r) { return r.json(); }).then(function (list) {
         var html = '';
         for (var i = 0; i < list.length; i++) {
-            html += '<div class="varrow"><span style="flex:1">v' + list[i].version + ' — ' + esc(list[i].saved_at) + '</span></div>';
+            html += '<div class="varrow" data-ctx="version" data-text="' + ctxMenu.attr('v' + list[i].version + ' — ' + list[i].saved_at) +
+                '"><span style="flex:1">v' + list[i].version + ' — ' + esc(list[i].saved_at) + '</span></div>';
         }
         document.getElementById('versions').innerHTML = html || '<div class="empty">none</div>';
     });
@@ -295,6 +296,19 @@ function preview() {
         }
     });
 }
+
+// Right-click the template list. The editor pane keeps the browser's own menu.
+ctxMenu.register('template', function (li) {
+    var name = li.getAttribute('data-name');
+    return { title: name, items: [
+        { label: 'Open template', action: function () { openTemplate(name); } },
+        { label: 'Copy name', action: function () { ctxMenu.copy(name); } },
+    ] };
+});
+ctxMenu.register('version', function (row) {
+    var text = row.getAttribute('data-text');
+    return { title: text, items: [ { label: 'Copy version and time', action: function () { ctxMenu.copy(text); } } ] };
+});
 
 loadList();
 loadDevices();

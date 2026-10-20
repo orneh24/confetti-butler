@@ -39,7 +39,8 @@ function loadFindings() {
         var rows = '';
         for (var i = 0; i < list.length; i++) {
             var f = list[i];
-            rows += '<tr><td>' + esc(f.kind) + '</td><td>' + esc(f.a) + '</td><td>' + esc(f.b || '') +
+            rows += '<tr data-ctx="finding" data-a="' + ctxMenu.attr(f.a) + '" data-b="' + ctxMenu.attr(f.b || '') + '" data-detail="' + ctxMenu.attr(f.detail) +
+                '"><td>' + esc(f.kind) + '</td><td>' + esc(f.a) + '</td><td>' + esc(f.b || '') +
                 '</td><td>' + esc(f.detail) + '</td><td>' + esc(f.checked_at) + '</td></tr>';
         }
         document.getElementById('finding-rows').innerHTML = rows;
@@ -52,7 +53,7 @@ function loadPrefixes() {
         var rows = '';
         for (var i = 0; i < list.length; i++) {
             var p = list[i];
-            rows += '<tr><td>' + esc(p.network) + '</td><td>' + p.interfaces + '</td><td>' + p.devices + '</td></tr>';
+            rows += '<tr data-ctx="prefix" data-net="' + ctxMenu.attr(p.network) + '"><td>' + esc(p.network) + '</td><td>' + p.interfaces + '</td><td>' + p.devices + '</td></tr>';
         }
         document.getElementById('prefix-rows').innerHTML = rows || '<tr><td colspan="3" class="empty">none yet</td></tr>';
     });
@@ -64,7 +65,8 @@ function loadAddresses() {
         for (var i = 0; i < list.length; i++) {
             var a = list[i];
             var cls = a.oper_status === 'up' ? 'ok' : 'bad';
-            rows += '<tr><td>' + esc(a.ip) + '/' + a.prefix_len + '</td>' +
+            rows += '<tr data-ctx="address" data-ip="' + ctxMenu.attr(a.ip) + '" data-len="' + ctxMenu.attr(a.prefix_len) + '" data-dev="' + ctxMenu.attr(a.device_id) +
+                '" data-if="' + ctxMenu.attr(a.interface) + '"><td>' + esc(a.ip) + '/' + a.prefix_len + '</td>' +
                 '<td><a href="/devices/' + a.device_id + '">' + esc(a.hostname) + '</a></td>' +
                 '<td>' + esc(a.interface) + '</td>' +
                 '<td><span class="pill ' + cls + '">' + esc(a.oper_status) + '</span></td></tr>';
@@ -82,6 +84,29 @@ function loadAll() {
 function analyze() {
     fetch('/api/ipam/analyze', { method: 'POST' }).then(function (r) { return r.json(); }).then(loadAll);
 }
+
+// Right-click a row.
+ctxMenu.register('address', function (row) {
+    var ip = row.getAttribute('data-ip'), len = row.getAttribute('data-len'), dev = row.getAttribute('data-dev');
+    return { title: ip + '/' + len, items: [
+        { label: 'Open device', action: function () { window.location.href = '/devices/' + dev; }, disabled: !dev },
+        { label: 'Copy IP', action: function () { ctxMenu.copy(ip); } },
+        { label: 'Copy IP/length', action: function () { ctxMenu.copy(ip + '/' + len); } },
+        { label: 'Copy interface', action: function () { ctxMenu.copy(row.getAttribute('data-if')); } },
+    ] };
+});
+ctxMenu.register('finding', function (row) {
+    var a = row.getAttribute('data-a'), b = row.getAttribute('data-b');
+    return { title: a, items: [
+        { label: 'Copy first value', action: function () { ctxMenu.copy(a); } },
+        { label: 'Copy second value', action: function () { ctxMenu.copy(b); }, disabled: !b },
+        { label: 'Copy detail', action: function () { ctxMenu.copy(row.getAttribute('data-detail')); } },
+    ] };
+});
+ctxMenu.register('prefix', function (row) {
+    var net = row.getAttribute('data-net');
+    return { title: net, items: [ { label: 'Copy prefix', action: function () { ctxMenu.copy(net); } } ] };
+});
 
 loadAll();
 </script>

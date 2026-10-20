@@ -342,6 +342,7 @@ butler/
                           Loaded AFTER theme.css on purpose: Retro 95 and MS-DOS bring their own colours
                           and beat Neon's per-card rules only by coming later. Pages use
                           .section > .section-header + .section-body, not their own card CSS
+  static/ctxmenu.js      — right-click menus, loaded once by base.html (the menu CSS is at the end of layout.css). A row carries data-ctx="<type>" and the page calls ctxMenu.register(type, fn); one document-level listener finds the row, so tables rebuilt by innerHTML keep working. Fill data-* attributes with ctxMenu.attr(), never esc() (esc leaves quotes). Safe items first, destructive last and red, and the function that deletes/merges/dismisses/tests asks confirm() itself so the button and the menu both ask. The browser's own menu stays on inputs, the CodeMirror editor and selected text. R34 checks it. Same file in confetti-traffic; confetti-topo has inline copies
   static/theme.js        — THEMES + LAYOUTS lists and the two header dropdowns (confetti-butler-theme,
                           confetti-butler-layout in localStorage), themeColor() for JS colours (a layout
                           change fires 'themechange' too), confettiBlast(), the header health dot
@@ -474,7 +475,7 @@ butler/
 the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above; `R16`..`R19`
 are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
 lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21` (drift check),
-`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery) and `R33` (OpenSSH, not Dropbear) cover the features added since (platform
+`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery), `R33` (OpenSSH, not Dropbear) and `R34` (right-click menus) cover the features added since (platform
 registry, SNMP, ICMP state machine, `/metrics` format, interface history, scheduled discovery); `R29` checks
 the container and Packer files against the repo. `R27` (LLDP crawl) and `R30` (BGP `Idle (Admin)`) moved to
 confetti-topo on 2026-10-14 and the numbers are not reused. Output is one line per check and a verdict:
