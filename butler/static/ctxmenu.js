@@ -1,11 +1,11 @@
 // Right-click menus. Pages mark an element with data-ctx="<type>" and register a
-// handler for that type; the handler gets the element and returns
+// handler for that type; the handler gets the element and the event and returns
 //   { title: 'text', items: [ { label, action, disabled, danger, confirm } ] }
 // or null (the browser's own menu then shows). Tables are rebuilt with innerHTML
 // on timers, so one listener on the document finds the row, not one per row.
 // Safe items first; items with danger:true are drawn last, in red. An item with
 // confirm:'text' asks before it runs.
-// The same file is in confetti-butler and confetti-traffic (and topo has its own inline copy).
+// The same file is in confetti-butler, confetti-traffic and confetti-topo.
 (function () {
     var handlers = {};
     var menu = null;
@@ -62,6 +62,7 @@
         menu.appendChild(b);
     }
 
+    // Returns the menu element, so a page can enable an item later (an item whose state needs a fetch).
     function open(x, y, spec) {
         if (!menu) {
             menu = document.createElement('div');
@@ -88,9 +89,11 @@
         menu.style.top = Math.max(0, Math.min(y, window.innerHeight - menu.offsetHeight - 4)) + 'px';
         var first = menu.querySelector('button:not(:disabled)');
         if (first) { first.focus(); }
+        return menu;
     }
 
     document.addEventListener('contextmenu', function (ev) {
+        if (ev.defaultPrevented) { return; }   // another handler (the topology map's) already owns this click
         var t = ev.target;
         if (!t.closest) { return; }
         if (t.closest('.ctx-menu')) { ev.preventDefault(); return; }
@@ -100,7 +103,7 @@
         var el = t.closest('[data-ctx]');
         var fn = el && handlers[el.getAttribute('data-ctx')];
         if (!fn) { closeMenu(); return; }
-        var spec = fn(el);
+        var spec = fn(el, ev);
         if (!spec || !spec.items || !spec.items.length) { closeMenu(); return; }
         ev.preventDefault();
         open(ev.clientX, ev.clientY, spec);
@@ -112,6 +115,8 @@
 
     window.ctxMenu = {
         register: function (type, fn) { handlers[type] = fn; },
+        open: open,
+        close: closeMenu,
         copy: copy,
         toast: toast,
         // For data-* attributes: esc() leaves quotes alone, so a log line could close the attribute.
