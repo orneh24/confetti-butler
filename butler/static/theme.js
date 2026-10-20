@@ -272,6 +272,14 @@ function confettiBlast(btn) {
     requestAnimationFrame(frame);
 }
 
+// Uptime for the header: minutes under an hour, then 2 hr 05 min, then 1 day 3 hr 05 min.
+function fmtUptime(s) {
+    var m = Math.floor(s / 60), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), r = m % 60;
+    if (m < 60) return m + ' min';
+    var out = h + ' hr ' + (r < 10 ? '0' : '') + r + ' min';
+    return d ? d + (d === 1 ? ' day ' : ' days ') + out : out;
+}
+
 // Header status dot, on every page: green and pulsing while /api/health
 // answers, red when it doesn't. A page that wants the data too (the
 // dashboard) defines window.onHealth(data) — data is null when unreachable.
@@ -280,7 +288,7 @@ function pollHealth() {
     var text = document.getElementById('health-text');
     fetch('/api/health').then(function (r) { return r.json(); }).then(function (data) {
         if (dot) dot.className = 'dot up';
-        if (text) text.textContent = data.uptime_s ? 'up since ' + Math.floor(data.uptime_s / 60) + 'm' : 'up';
+        if (text) text.textContent = data.uptime_s ? 'up since ' + fmtUptime(data.uptime_s) : 'up';
         if (window.onHealth) window.onHealth(data);
     }).catch(function () {
         if (dot) dot.className = 'dot down';
