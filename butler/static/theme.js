@@ -11,7 +11,7 @@ var THEMES = [
     ['contrast', 'High Contrast'],
     ['terminal', 'Terminal green'],
     ['confetti-night', 'Confetti Night'],
-    ['neon', 'Neon Streamers'],
+    ['rainbow', 'Rainbow'],
 ];
 
 // "Shuffle" is a mode, not a palette: it shows a random palette from THEMES

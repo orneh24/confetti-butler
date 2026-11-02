@@ -3,7 +3,7 @@
    marker; each other layout is CSS keyed on :root[data-layout=NAME] plus a few
    elements only it shows (.side-nav, .kpi-row, .taskbar — hidden in Classic).
    Retro 95 and Amber CRT bring their own colours, so they must stay AFTER all
-   theme rules: they beat Neon's .section:nth-child colours only by coming later. */
+   theme rules: they beat the themes' .section:nth-child colours only by coming later. */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
     font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;

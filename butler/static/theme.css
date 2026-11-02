@@ -1,7 +1,7 @@
 /* The one palette for every page. Dark is the default; any other theme is
    <html data-theme="NAME">, set by theme.js (the list of names lives there).
    Pages must not define their own :root colours — copies drift. The palettes,
-   header confetti and Neon rules are copied from confetti-traffic's hub
+   header confetti and Rainbow rules are copied from confetti-traffic's hub
    dashboard; layout.css (loaded after this file) holds structure and layouts. */
 :root {
     --bg:        #0d1117;
@@ -145,38 +145,41 @@
     --blue:      #4cc9f0;
     --cyan:      #ffd166;
 }
-/* Neon Streamers — near-black with neon accents; glowing streaks in the header */
-:root[data-theme="neon"] {
-    --bg:        #050608;
-    --bg-card:   #0d1014;
-    --bg-hover:  #151a20;
-    --bg-muted:  #161b22;
-    --bg-code:   #030405;
-    --stripe:    #1d232c;
-    --border:    #263040;
-    --border-soft: #161b22;
-    --badge-bg:  #0f1e2a;
-    --badge-border: #1f6f8a;
-    --text:      #ffffff;
-    --text-dim:  #c4d0dc;
-    --green:     #39ff14;
-    --green-bg:  #0b2a18;
-    --red:       #ff2052;
-    --red-bg:    #3a0d1c;
-    --yellow:    #fff200;
-    --yellow-bg: #2e2a05;
-    --gray:      #2e3a48;
-    --blue:      #00f0ff;
-    --cyan:      #ff2d95;
+/* Rainbow — pale lavender page, white boxes with bold dark borders, a navy header with a rainbow strip,
+   a different colour on each table column header. The structure rules below skip Retro 95 and the CRT
+   layouts, which bring their own colours. */
+:root[data-theme="rainbow"] {
+    --bg:        #f6f0ff;
+    --bg-card:   #ffffff;
+    --bg-hover:  #ece3ff;
+    --bg-muted:  #ece3ff;
+    --bg-code:   #f0e9fb;
+    --stripe:    #cfe6ff;
+    --border:    #1a1a2e;
+    --border-soft: #ddd3f2;
+    --badge-bg:  #efe6ff;
+    --badge-border: #6b21c8;
+    --text:      #14142b;
+    --text-dim:  #4a4a68;
+    --green:     #166a2e;
+    --green-bg:  #d4f5dc;
+    --red:       #c4162a;
+    --red-bg:    #ffd9de;
+    --yellow:    #8a5a00;
+    --purple:    #6b21c8;
+    --yellow-bg: #fff1a8;
+    --gray:      #8c8ca8;
+    --blue:      #0b5ed7;
+    --cyan:      #0b7a8a;
 }
 
-/* Header confetti, every theme but Neon (which has its own streaks). The
+/* Header confetti, every theme but Rainbow (which has its own strip). The
    shapes are a mask; their colours are stripes of the theme's own variables,
    so each theme gets confetti in its palette and a new theme needs nothing
    here. Pieces sit in 26px columns, so none spans two colours. Same rule in
    all three pages. */
-:root:not([data-theme="neon"]) .header { position: relative; isolation: isolate; }
-:root:not([data-theme="neon"]) .header::before {
+:root:not([data-theme="rainbow"]) .header { position: relative; isolation: isolate; }
+:root:not([data-theme="rainbow"]) .header::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -193,55 +196,77 @@
     -webkit-mask-position: 0 0, 52px 3px;
     mask-position: 0 0, 52px 3px;
 }
-/* Neon header: glowing streaks instead of confetti, as background layers
-   only. Odd tile sizes keep the repeat from lining up. */
-:root[data-theme="neon"] .header {
-    border-bottom-color: #ff2d95;
-    background-image:
-        radial-gradient(1.5px 7px, #ff8c00 0 60%, transparent 100%),
-        radial-gradient(1.5px 8px, #39ff14 0 60%, transparent 100%),
-        radial-gradient(1.5px 6px, #00f0ff 0 60%, transparent 100%),
-        radial-gradient(1.5px 7px, #fff200 0 60%, transparent 100%),
-        radial-gradient(1.5px 8px, #ff2d95 0 60%, transparent 100%);
-    background-size: 103px 43px, 139px 57px, 167px 39px, 119px 51px, 157px 47px;
-    background-position: 13px 9px, 53px 21px, 91px 5px, 29px 27px, 71px 15px;
+/* Rainbow structure. Every rule starts with the same prefix: the Rainbow theme, but not under Retro 95 or
+   the CRT layouts (they set their own colours and must win). */
+/* Header: navy, light text, a rainbow strip along its lower edge. */
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header {
+    position: relative;
+    margin-bottom: 6px;
+    background: #1b1464;
+    border-bottom: 0;
 }
-/* Neon boxes: each box a bright colour, cycling five. Inside a box the palette
-   flips to dark text and deep status colours, and the fills become tints, so
-   everything still reads against the bright background. */
-:root[data-theme="neon"] .section {
-    color: var(--text);
-    --text:      #000000;
-    --text-dim:  #1f1f1f;
-    --bg:        rgba(255,255,255,.35);
-    --bg-hover:  rgba(0,0,0,.10);
-    --bg-muted:  rgba(0,0,0,.14);
-    --bg-code:   rgba(0,0,0,.12);
-    --stripe:    rgba(128,128,128,.30);
-    --border:    rgba(0,0,0,.45);
-    --border-soft: rgba(0,0,0,.20);
-    --row-line:  rgba(0,0,0,.20);
-    --badge-bg:  rgba(255,255,255,.45);
-    --badge-border: rgba(0,0,0,.45);
-    --green:     #00661a;
-    --green-bg:  rgba(0,102,26,.15);
-    --red:       #a50018;
-    --red-bg:    rgba(165,0,24,.15);
-    --yellow:    #6b4f00;
-    --yellow-bg: rgba(107,79,0,.15);
-    --blue:      #003f9e;
-    --cyan:      #004e5a;
-    --gray:      rgba(0,0,0,.30);
-    --bg-card:   #ff9f1c;
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -6px;
+    height: 6px;
+    pointer-events: none;
+    background: linear-gradient(90deg, #ff3b5c, #ff9f1c, #ffe14d, #3ddc84, #2ec4ff, #6b4cff, #c04cff);
 }
-:root[data-theme="neon"] .section:nth-child(5n+2) { --bg-card: #00e5ff; }
-:root[data-theme="neon"] .section:nth-child(5n+3) { --bg-card: #b6ff00; }
-:root[data-theme="neon"] .section:nth-child(5n+4) { --bg-card: #ff7ac8; }
-:root[data-theme="neon"] .section:nth-child(5n+5) { --bg-card: #ffe600; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header h1,
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .page-title { color: #ffe14d; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .status { color: #d6d3ff; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .btn-nav {
+    background: transparent; border-color: transparent; color: #ffffff;
+}
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .btn-nav:hover {
+    background: rgba(255,255,255,.18); color: #ffffff;
+}
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .btn-nav-current {
+    background: #ffe14d; border-color: #ffe14d; color: #14142b;
+}
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .theme-select {
+    background: #2d2590; border-color: #8b83ff; color: #ffffff;
+}
+/* Boxes: bold dark borders. */
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .section {
+    border-width: 2px;
+}
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .section-header {
+    border-bottom-width: 2px;
+}
+/* Tables: a different colour on each column header (yellow, cyan, lavender, coral), dark text. */
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th {
+    color: #14142b;
+    border-bottom: 2px solid var(--border);
+}
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th:nth-child(4n+1) { background: #ffe14d; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th:nth-child(4n+2) { background: #67e0ef; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th:nth-child(4n+3) { background: #b79cff; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th:nth-child(4n+4) { background: #ff9a9a; }
+/* Summary tiles (Recent changes, Modern layout): a bold border, the coloured left edge stays. */
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .chg-tile {
+    border-width: 2px; border-left-width: 6px;
+}
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .kpi {
+    border: 2px solid var(--border);
+}
+/* Filters and fields in the page body: purple borders. */
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .container select,
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .container input[type="search"],
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .container input[type="text"] {
+    border: 2px solid var(--purple);
+}
+/* Pills: a dark outline, rounded. */
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .pill {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0 8px;
+}
 /* Zebra boxes: every other box a shade lighter (darker in Light), mixed from
    each theme's own card and text colours. Set as --bg-card, so sticky table
-   headers inside match the box. Neon colours its boxes itself. */
+   headers inside match the box. Rainbow keeps every box white. */
 :root { --bg-card-alt: color-mix(in srgb, var(--bg-card), var(--text) 6%); }
-:root:not([data-theme="neon"]) .container > .section:nth-child(even) {
+:root:not([data-theme="rainbow"]) .container > .section:nth-child(even) {
     --bg-card: var(--bg-card-alt);
 }

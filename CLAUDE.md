@@ -335,12 +335,12 @@ butler/
                           copied from confetti-traffic's hub UI; keep the two in step by hand.
   static/theme.css       — the ONE place colours live: dark :root + one :root[data-theme=NAME] block
                           per extra theme (Dark, Light, Monokai, High Contrast, Terminal green,
-                          Confetti Night, Neon Streamers); also the header confetti strip and Neon's
-                          per-card colours. Pages must not define their own :root colours
+                          Confetti Night, Rainbow); also the header confetti strip and the Rainbow header, box and table-header
+                          rules. Pages must not define their own :root colours
   static/layout.css      — Classic structure (.header, .section, tables, buttons) + the five layouts:
                           Classic, Modern (side menu, KPI tiles on the dashboard), Retro 95, MS-DOS, Neon Green CRT (the last two share one block driven by --crt-* palettes, as in confetti-traffic; MS-DOS adds an override block and bundles the VT323 font in static/fonts/, and a keyboard layer: base.html's .dos-menubar / .dos-fkeys / .dos-help, a row cursor, and one keydown IIFE at the end of theme.js that does nothing in any other layout; the block is the same in confetti-topo).
                           Loaded AFTER theme.css on purpose: Retro 95 and MS-DOS bring their own colours
-                          and beat Neon's per-card rules only by coming later. Pages use
+                          and beat the Rainbow rules only by coming later. Pages use
                           .section > .section-header + .section-body, not their own card CSS
   static/ctxmenu.js      — right-click menus, loaded once by base.html (the menu CSS is at the end of layout.css). A row carries data-ctx="<type>" and the page calls ctxMenu.register(type, fn); one document-level listener finds the row, so tables rebuilt by innerHTML keep working. Fill data-* attributes with ctxMenu.attr(), never esc() (esc leaves quotes). Safe items first, destructive last and red, and the function that deletes/merges/dismisses/tests asks confirm() itself so the button and the menu both ask. The browser's own menu stays on inputs, the CodeMirror editor and selected text. R34 checks it. The SAME file is in confetti-traffic and confetti-topo; copy it by hand and keep the three identical
   static/theme.js        — THEMES + LAYOUTS lists and the two header dropdowns (confetti-butler-theme,
