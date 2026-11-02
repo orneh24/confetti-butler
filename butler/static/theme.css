@@ -150,7 +150,7 @@
    layouts, which bring their own colours. */
 :root[data-theme="rainbow"] {
     --bg:        #f6f0ff;
-    --bg-card:   #ffffff;
+    --bg-card:   #f5f1fc;
     --bg-hover:  #ece3ff;
     --bg-muted:  #ece3ff;
     --bg-code:   #f0e9fb;
