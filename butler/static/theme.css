@@ -9,7 +9,7 @@
     --bg-hover:  #1c2128;
     --bg-muted:  #21262d;
     --bg-code:   #010409;
-    --stripe:    #0e1217;
+    --stripe:    #262d36;
     --border:    #30363d;
     --border-soft: #21262d;
     --badge-bg:  #1a2332;
@@ -32,7 +32,7 @@
     --bg-hover:  #d3d9e0;
     --bg-muted:  #d3d9e0;
     --bg-code:   #dde2e8;
-    --stripe:    #dde2e8;
+    --stripe:    #bcc4ce;
     --border:    #b6bfca;
     --border-soft: #d3d9e0;
     --badge-bg:  #ddf4ff;
@@ -56,7 +56,7 @@
     --bg-hover:  #363d29;
     --bg-muted:  #363d29;
     --bg-code:   #1a1d14;
-    --stripe:    #272c1d;
+    --stripe:    #394030;
     --border:    #4b5337;
     --border-soft: #363d29;
     --badge-bg:  #2f3a22;
@@ -80,7 +80,7 @@
     --bg-hover:  #1a1a1a;
     --bg-muted:  #1a1a1a;
     --bg-code:   #000000;
-    --stripe:    #0d0d0d;
+    --stripe:    #242424;
     --border:    #ffffff;
     --border-soft: #555555;
     --badge-bg:  #000000;
@@ -104,7 +104,7 @@
     --bg-hover:  #112011;
     --bg-muted:  #112011;
     --bg-code:   #020402;
-    --stripe:    #081008;
+    --stripe:    #153015;
     --border:    #1f4a1f;
     --border-soft: #112011;
     --badge-bg:  #0d2412;
@@ -128,7 +128,7 @@
     --bg-hover:  #1e2442;
     --bg-muted:  #20264a;
     --bg-code:   #0a0d1a;
-    --stripe:    #12162a;
+    --stripe:    #272e50;
     --border:    #2b3256;
     --border-soft: #20264a;
     --badge-bg:  #1d2346;
@@ -152,7 +152,7 @@
     --bg-hover:  #151a20;
     --bg-muted:  #161b22;
     --bg-code:   #030405;
-    --stripe:    #0a0c10;
+    --stripe:    #1d232c;
     --border:    #263040;
     --border-soft: #161b22;
     --badge-bg:  #0f1e2a;
@@ -210,13 +210,14 @@
    flips to dark text and deep status colours, and the fills become tints, so
    everything still reads against the bright background. */
 :root[data-theme="neon"] .section {
+    color: var(--text);
     --text:      #000000;
     --text-dim:  #1f1f1f;
     --bg:        rgba(255,255,255,.35);
     --bg-hover:  rgba(0,0,0,.10);
     --bg-muted:  rgba(0,0,0,.14);
     --bg-code:   rgba(0,0,0,.12);
-    --stripe:    rgba(0,0,0,.05);
+    --stripe:    rgba(128,128,128,.30);
     --border:    rgba(0,0,0,.45);
     --border-soft: rgba(0,0,0,.20);
     --row-line:  rgba(0,0,0,.20);

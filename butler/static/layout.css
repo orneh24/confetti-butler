@@ -135,7 +135,7 @@ table { width: 100%; border-collapse: collapse; font-size: 12px; }
 th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
 th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 10px; }
 tbody tr.stripe td { background: var(--stripe); }
-tbody tr:hover td { background: var(--bg-hover); }
+tbody tr:hover td { background: color-mix(in srgb, var(--stripe), var(--text) 12%); }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 12px; }
 .kv .k { color: var(--text-dim); }
 .v.ok { color: var(--green); }
@@ -306,7 +306,7 @@ button.primary { border-color: var(--blue); color: var(--blue); }
     --bg-hover:  #dcdcdc;
     --bg-muted:  #d4d4d4;
     --bg-code:   #ffffff;
-    --stripe:    #f2f2f2;
+    --stripe:    #e4e4e4;
     --border:    #808080;
     --border-soft: #dcdcdc;
     --badge-bg:  #ffffff;
@@ -517,7 +517,7 @@ button.primary { border-color: var(--blue); color: var(--blue); }
     --crt-rgb: 170, 170, 170;      --crt-fail-rgb: 255, 85, 85;
     --crt-bg: #0000AA;  --crt-bg-hi: #0000AA;  --crt-bg-lo: #0000AA;
     --crt-card: #0000AA;  --crt-hover: #0000C8;  --crt-muted: #000088;
-    --crt-code: #000070;  --crt-stripe: #000088;
+    --crt-code: #000070;  --crt-stripe: #2020D0;
     --crt-line: #55FFFF;  --crt-soft: #5555FF;
     --crt-hi: #FFFFFF;  --crt-mid: #AAAAAA;  --crt-gray: #8080FF;  --crt-accent: #55FFFF;
     --crt-red: #FF8080;  --crt-red-bg: #550000;
@@ -527,7 +527,7 @@ button.primary { border-color: var(--blue); color: var(--blue); }
     --crt-rgb: 57, 255, 20;      --crt-fail-rgb: 140, 255, 77;
     --crt-bg: #010d03;  --crt-bg-hi: #021c07;  --crt-bg-lo: #000502;
     --crt-card: #021407;  --crt-hover: #032a0a;  --crt-muted: #031a09;
-    --crt-code: #010a02;  --crt-stripe: #021005;
+    --crt-code: #010a02;  --crt-stripe: #04240a;
     --crt-line: #137a10;  --crt-soft: #0b4a0c;
     --crt-hi: #39ff14;  --crt-mid: #22b80c;  --crt-gray: #1d4a1a;  --crt-accent: #7dff6a;
     --crt-red: #ff5a3c;  --crt-red-bg: #3a1008;
