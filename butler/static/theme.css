@@ -199,13 +199,13 @@
 /* Rainbow structure. Every rule starts with the same prefix: the Rainbow theme, but not under Retro 95 or
    the CRT layouts (they set their own colours and must win). */
 /* Header: navy, light text, a rainbow strip along its lower edge. */
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header {
     position: relative;
     margin-bottom: 6px;
     background: #1b1464;
     border-bottom: 0;
 }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header::after {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header::after {
     content: "";
     position: absolute;
     left: 0; right: 0; bottom: -6px;
@@ -213,52 +213,52 @@
     pointer-events: none;
     background: linear-gradient(90deg, #ff3b5c, #ff9f1c, #ffe14d, #3ddc84, #2ec4ff, #6b4cff, #c04cff);
 }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header h1,
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .page-title { color: #ffe14d; }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .status { color: #d6d3ff; }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .btn-nav {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header h1,
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header .page-title { color: #ffe14d; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header .status { color: #d6d3ff; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header .btn-nav {
     background: transparent; border-color: transparent; color: #ffffff;
 }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .btn-nav:hover {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header .btn-nav:hover {
     background: rgba(255,255,255,.18); color: #ffffff;
 }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .btn-nav-current {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header .btn-nav-current {
     background: #ffe14d; border-color: #ffe14d; color: #14142b;
 }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .header .theme-select {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .header .theme-select {
     background: #2d2590; border-color: #8b83ff; color: #ffffff;
 }
 /* Boxes: bold dark borders. */
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .section {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .section {
     border-width: 2px;
 }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .section-header {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .section-header {
     border-bottom-width: 2px;
 }
 /* Tables: a different colour on each column header (yellow, cyan, lavender, coral), dark text. */
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) th {
     color: #14142b;
     border-bottom: 2px solid var(--border);
 }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th:nth-child(4n+1) { background: #ffe14d; }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th:nth-child(4n+2) { background: #67e0ef; }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th:nth-child(4n+3) { background: #b79cff; }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) th:nth-child(4n+4) { background: #ff9a9a; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) th:nth-child(4n+1) { background: #ffe14d; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) th:nth-child(4n+2) { background: #67e0ef; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) th:nth-child(4n+3) { background: #b79cff; }
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) th:nth-child(4n+4) { background: #ff9a9a; }
 /* Summary tiles (Recent changes, Modern layout): a bold border, the coloured left edge stays. */
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .chg-tile {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .chg-tile {
     border-width: 2px; border-left-width: 6px;
 }
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .kpi {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .kpi {
     border: 2px solid var(--border);
 }
 /* Filters and fields in the page body: purple borders. */
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .container select,
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .container input[type="search"],
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .container input[type="text"] {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .container select,
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .container input[type="search"],
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .container input[type="text"] {
     border: 2px solid var(--purple);
 }
 /* Pills: a dark outline, rounded. */
-:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"], [data-layout="greencrt"])) .pill {
+:root[data-theme="rainbow"]:not(:is([data-layout="retro95"], [data-layout="msdos"])) .pill {
     border: 1px solid var(--border);
     border-radius: 999px;
     padding: 0 8px;

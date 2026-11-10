@@ -1,0 +1,232 @@
+// Dashboard boxes you can move and resize. Loaded by dashboard.html only.
+//
+// Move: drag a box by its title bar; the other boxes shift to make room (the grid order changes, nothing floats).
+// Resize: drag the corner. The width snaps to whole grid columns (the full row at most); the height is free and
+// the box scrolls inside when it is smaller than its content. Double-click the corner to give one box its size back.
+// Remembered in this browser only (localStorage), so a new browser sees the default layout. "Reset layout" clears it.
+//
+// A box is a `.section` with a `data-box="<id>"` and a `.section-header`; the page's own code only touches the
+// elements inside the boxes, so its refresh never undoes the arrangement. Pointer events, so touch works too.
+// The SAME file is used by confetti-topo, confetti-butler and confetti-traffic: keep the three identical.
+var DashGrid = (function () {
+    var box, cfg, state = { order: [], span: {}, height: {} };
+
+    var CSS =
+        '.dg-bar { display: flex; justify-content: flex-end; padding: 8px 24px 0; }' +
+        '.dg-bar button { font-size: 11px; }' +
+        '.dg-on .section { position: relative; }' +
+        '.dg-on .section-header { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }' +
+        '.dg-on .section.dg-drag { opacity: .6; outline: 2px dashed var(--text-dim); outline-offset: -2px; }' +
+        '.dg-on .section.dg-drag .section-header { cursor: grabbing; }' +
+        'body.dg-moving, body.dg-moving * { user-select: none; -webkit-user-select: none; cursor: grabbing !important; }' +
+        'body.dg-sizing, body.dg-sizing * { user-select: none; -webkit-user-select: none; cursor: nwse-resize !important; }' +
+        '.dg-resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none;' +
+        '  background: linear-gradient(135deg, transparent 0 45%, var(--text-dim) 45% 55%, transparent 55% 70%, var(--text-dim) 70% 80%, transparent 80%); opacity: .7; }' +
+        '.dg-resize:hover { opacity: 1; }';
+
+    function key() { return cfg.prefix + '-dashboard-layout'; }
+
+    function load() {
+        try {
+            var s = JSON.parse(localStorage.getItem(key()));
+            if (s && typeof s === 'object') {
+                state = { order: Array.isArray(s.order) ? s.order : [], span: s.span || {}, height: s.height || {} };
+            }
+        } catch (e) { /* not remembered */ }
+    }
+
+    function save() {
+        try { localStorage.setItem(key(), JSON.stringify(state)); } catch (e) { /* not remembered */ }
+    }
+
+    function boxes() { return Array.prototype.slice.call(box.querySelectorAll(':scope > .section[data-box]')); }
+
+    function columns() {
+        var cols = getComputedStyle(box).gridTemplateColumns.split(' ').filter(Boolean);
+        return Math.max(1, cols.length);
+    }
+
+    // Put the saved size on one box. A span wider than the columns now on screen is the full row (a span past the
+    // last column would make the grid add columns of its own).
+    function applySize(el) {
+        var id = el.getAttribute('data-box');
+        var cols = columns();
+        var span = state.span[id];
+        el.style.gridColumn = span ? (span >= cols ? '1 / -1' : 'span ' + span) : '';
+        var body = el.querySelector('.section-body');
+        if (body) {
+            body.style.height = state.height[id] ? state.height[id] + 'px' : '';
+        }
+    }
+
+    function applyAll() {
+        var byId = {};
+        boxes().forEach(function (el) { byId[el.getAttribute('data-box')] = el; });
+        // Saved order first; boxes it does not know (a new one) stay after, in page order.
+        var seen = {};
+        state.order.forEach(function (id) {
+            if (byId[id] && !seen[id]) { box.appendChild(byId[id]); seen[id] = true; }
+        });
+        boxes().forEach(function (el) {
+            if (!seen[el.getAttribute('data-box')]) { box.appendChild(el); }
+        });
+        boxes().forEach(applySize);
+    }
+
+    function saveOrder() {
+        state.order = boxes().map(function (el) { return el.getAttribute('data-box'); });
+        save();
+    }
+
+    // ---- move ----------------------------------------------------------------------------------------------
+    function startMove(ev, el) {
+        var x0 = ev.clientX, y0 = ev.clientY, moving = false;
+
+        function over(e) {
+            var t = document.elementFromPoint(e.clientX, e.clientY);
+            var target = t && t.closest ? t.closest('.section[data-box]') : null;
+            if (!target || target === el || target.parentNode !== box) { return; }
+            var r = target.getBoundingClientRect();
+            var full = r.width > box.clientWidth * 0.8;
+            // A box that fills the row is passed on the way down; boxes side by side on the way across.
+            var after = full ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2;
+            box.insertBefore(el, after ? target.nextSibling : target);
+        }
+
+        function move(e) {
+            if (!moving) {
+                if (Math.abs(e.clientX - x0) + Math.abs(e.clientY - y0) < 5) { return; }
+                moving = true;
+                el.classList.add('dg-drag');
+                document.body.classList.add('dg-moving');
+            }
+            if (e.clientY < 70) { window.scrollBy(0, -14); }
+            else if (e.clientY > window.innerHeight - 70) { window.scrollBy(0, 14); }
+            over(e);
+        }
+
+        function end() {
+            document.removeEventListener('pointermove', move);
+            document.removeEventListener('pointerup', end);
+            document.removeEventListener('pointercancel', end);
+            if (moving) {
+                el.classList.remove('dg-drag');
+                document.body.classList.remove('dg-moving');
+                saveOrder();
+            }
+        }
+
+        // On the document, not the header with pointer capture: moving the box in the DOM (insertBefore) makes the
+        // browser drop the capture, and the drag would never see its pointerup.
+        document.addEventListener('pointermove', move);
+        document.addEventListener('pointerup', end);
+        document.addEventListener('pointercancel', end);
+    }
+
+    // ---- resize --------------------------------------------------------------------------------------------
+    function startSize(ev, el, grip) {
+        var id = el.getAttribute('data-box');
+        var r0 = el.getBoundingClientRect();
+        var body = el.querySelector('.section-body');
+        var head = el.querySelector('.section-header');
+        var x0 = ev.clientX, y0 = ev.clientY;
+        var cs = getComputedStyle(box);
+        var gap = parseFloat(cs.columnGap) || 0;
+        var unit = parseFloat(cs.gridTemplateColumns.split(' ')[0]) || r0.width;
+        var cols = columns();
+        document.body.classList.add('dg-sizing');
+
+        function move(e) {
+            var w = r0.width + (e.clientX - x0);
+            var span = Math.max(1, Math.min(cols, Math.round((w + gap) / (unit + gap))));
+            state.span[id] = span;
+            el.style.gridColumn = span >= cols ? '1 / -1' : 'span ' + span;
+            if (body) {
+                var h = Math.max(60, r0.height + (e.clientY - y0) - (head ? head.offsetHeight : 0) - 2);
+                state.height[id] = Math.round(h);
+                body.style.height = state.height[id] + 'px';
+            }
+        }
+
+        function end() {
+            grip.removeEventListener('pointermove', move);
+            grip.removeEventListener('pointerup', end);
+            grip.removeEventListener('pointercancel', end);
+            document.body.classList.remove('dg-sizing');
+            save();
+        }
+
+        grip.setPointerCapture(ev.pointerId);
+        grip.addEventListener('pointermove', move);
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
+    }
+
+    function reset() {
+        state = { order: [], span: {}, height: {} };
+        try { localStorage.removeItem(key()); } catch (e) { /* nothing saved anyway */ }
+        // Back to the page's own order: the order the boxes had when the page was built.
+        original.forEach(function (el) { box.appendChild(el); });
+        boxes().forEach(applySize);
+    }
+
+    var original = [];
+
+    function init(options) {
+        cfg = options || {};
+        box = document.querySelector(cfg.container || '.container');
+        if (!box || box.getAttribute('data-dg')) { return; }
+        box.setAttribute('data-dg', '1');
+        box.classList.add('dg-on');
+        var style = document.createElement('style');
+        style.textContent = CSS;
+        document.head.appendChild(style);
+        original = boxes();
+
+        boxes().forEach(function (el) {
+            var header = el.querySelector('.section-header');
+            if (!header) { return; }
+            header.title = 'Drag to move this box';
+            header.addEventListener('pointerdown', function (ev) {
+                if (ev.button !== 0 || (ev.target.closest && ev.target.closest('a, button, input, select, textarea'))) { return; }
+                startMove(ev, el);
+            });
+            var grip = document.createElement('div');
+            grip.className = 'dg-resize';
+            grip.title = 'Drag to resize (width in columns, height free). Double-click: original size';
+            grip.addEventListener('pointerdown', function (ev) {
+                if (ev.button !== 0) { return; }
+                ev.preventDefault();
+                startSize(ev, el, grip);
+            });
+            grip.addEventListener('dblclick', function () {
+                var id = el.getAttribute('data-box');
+                delete state.span[id];
+                delete state.height[id];
+                applySize(el);
+                save();
+            });
+            el.appendChild(grip);
+        });
+
+        var bar = document.createElement('div');
+        bar.className = 'dg-bar';
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Reset layout';
+        btn.title = 'Put the boxes back in their original order and size';
+        btn.addEventListener('click', reset);
+        bar.appendChild(btn);
+        box.parentNode.insertBefore(bar, box);
+
+        load();
+        applyAll();
+        var timer = null;
+        window.addEventListener('resize', function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () { boxes().forEach(applySize); }, 100);
+        });
+    }
+
+    return { init: init };
+})();

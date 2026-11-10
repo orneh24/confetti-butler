@@ -127,7 +127,6 @@ var LAYOUTS = [
     ['modern', 'Modern'],
     ['retro95', 'Retro 95', true],
     ['msdos', 'MS-DOS', true],
-    ['greencrt', 'Neon Green CRT', true],
 ];
 
 function applyLayout(name) {
@@ -135,7 +134,51 @@ function applyLayout(name) {
     if (!known || name === 'classic') document.documentElement.removeAttribute('data-layout');
     else document.documentElement.setAttribute('data-layout', name);
 }
-try { applyLayout(localStorage.getItem('confetti-butler-layout')); } catch (e) {}
+// MS-DOS has colour variants: the same layout, menu bar and keys, another palette (layout.css, data-variant on
+// :root). Blue is the default and has no attribute. The picker is only shown while MS-DOS is on.
+var VARIANTS = [
+    ['blue', 'DOS Blue'],
+    ['green', 'Neon Green'],
+];
+var VARIANT_KEY = 'confetti-butler-dos-variant';
+
+function applyVariant(name) {
+    if (name === 'green') document.documentElement.setAttribute('data-variant', 'green');
+    else document.documentElement.removeAttribute('data-variant');
+}
+
+try {
+    var savedLayout = localStorage.getItem('confetti-butler-layout');
+    // "Neon Green CRT" used to be a layout of its own: it is now the green variant of MS-DOS.
+    if (savedLayout === 'greencrt') {
+        savedLayout = 'msdos';
+        localStorage.setItem('confetti-butler-layout', 'msdos');
+        localStorage.setItem(VARIANT_KEY, 'green');
+    }
+    applyVariant(localStorage.getItem(VARIANT_KEY));
+    applyLayout(savedLayout);
+} catch (e) {}
+
+function setVariant(name) {
+    applyVariant(name);
+    try { localStorage.setItem(VARIANT_KEY, document.documentElement.getAttribute('data-variant') || 'blue'); } catch (e) {}
+    syncVariantSelect();
+    document.dispatchEvent(new Event('themechange'));
+}
+
+function syncVariantSelect() {
+    var sel = document.getElementById('variant-select');
+    if (!sel) return;
+    if (!sel.options.length) {
+        VARIANTS.forEach(function (v) {
+            var o = document.createElement('option');
+            o.value = v[0];
+            o.textContent = v[1];
+            sel.appendChild(o);
+        });
+    }
+    sel.value = document.documentElement.getAttribute('data-variant') || 'blue';
+}
 
 function setLayout(name) {
     applyLayout(name);
@@ -169,6 +212,7 @@ function syncLayoutSelect() {
         themeSel.disabled = own;
         themeSel.title = own ? 'This layout has its own colours' : '';
     }
+    syncVariantSelect();
 }
 
 // Shuffle also picks a layout with each theme, on the same timer. The pick is

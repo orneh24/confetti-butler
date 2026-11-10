@@ -23,12 +23,12 @@ and the choice is saved in your browser.
 
 ![The dashboard in four themes: Light, Terminal green, Confetti Night and Rainbow](docs/img/themes.png)
 
-![The dashboard in five layouts: Classic, Modern, Retro 95, MS-DOS and Neon Green CRT](docs/img/layouts.png)
+![The dashboard in five layouts: Classic, Modern, Retro 95, MS-DOS and MS-DOS Neon Green](docs/img/layouts.png)
 
 - **Themes:** Dark, Light, Monokai, High Contrast, Terminal green, Confetti Night and
   Rainbow. **Shuffle** switches between them at random every 5-10 minutes, and picks a random layout each time.
 - **Layouts:** Classic, Modern (side menu and summary tiles on the dashboard), Retro 95,
-  MS-DOS and Neon Green CRT. Retro 95 and the CRT layouts bring their own colours, so the theme picker is
+  MS-DOS (with a DOS Blue or Neon Green colour variant, picked in a second dropdown that shows only in MS-DOS). Retro 95 and MS-DOS bring their own colours, so the theme picker is
   disabled while one is on. MS-DOS can be driven from the keyboard: F10 or Alt for the menu bar, Up/Down
   and Enter on table rows, F6 between panels, F1 for the list.
 

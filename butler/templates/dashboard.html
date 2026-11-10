@@ -26,18 +26,18 @@
 {% endblock %}
 {% block content %}
 <div class="container">
-    <div class="section">
+    <div class="section" data-box="system">
         <div class="section-header"><span>System</span></div>
         <div class="section-body">
             <div id="time-body"><div class="kv"><span class="k">loading</span></div></div>
             <div id="system-body"><div class="kv"><span class="k">loading</span></div></div>
         </div>
     </div>
-    <div class="section">
+    <div class="section" data-box="services">
         <div class="section-header"><span>Services</span></div>
         <div class="section-body" id="services-body"><div class="kv"><span class="k">loading</span></div></div>
     </div>
-    <div class="section wide">
+    <div class="section wide" data-box="events">
         <div class="section-header"><span>Events — last 15</span></div>
         <div class="section-body">
             <table>
@@ -47,7 +47,7 @@
             <div class="empty" id="event-empty" style="display:none">no changes recorded yet</div>
         </div>
     </div>
-    <div class="section wide">
+    <div class="section wide" data-box="syslog">
         <div class="section-header"><span>Syslog — last 15</span><a href="/syslog">view all</a></div>
         <div class="section-body">
             <div class="filters">
@@ -77,6 +77,8 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="/static/dashgrid.js"></script>
+<script>DashGrid.init({ container: '.container', prefix: 'confetti-butler' });</script>
 <script>
 function kv(k, v, cls) {
     return '<div class="kv" data-ctx="kv"><span class="k">' + k + '</span><span class="v' +
