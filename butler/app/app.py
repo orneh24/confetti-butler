@@ -10,6 +10,7 @@ import difflib
 import os
 import shutil
 import subprocess
+from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request, Response
 
@@ -280,6 +281,11 @@ def device_page(device_id):
     return render_template("device.html", device_id=device_id)
 
 
+@app.route("/settings")
+def settings_page():
+    return render_template("settings.html")
+
+
 @app.route("/conflicts")
 def conflicts_page():
     return render_template("conflicts.html")
@@ -522,6 +528,73 @@ def api_default_credentials():
             conn.execute("DELETE FROM settings WHERE key = ?", (key,))
     conn.commit()
     return jsonify({"status": "ok"})
+
+
+# The other Confetti projects: a header shortcut each (static/confetti-links.js). Only a link target in the browser,
+# the server never fetches it. This app keeps the other two, so there is no url_butler here.
+LINK_KEYS = {"topo": "url_topo", "traffic": "url_traffic"}
+
+
+def clean_link(value):
+    """A link target for the header shortcut. Returns the URL without a trailing slash, "" for "clear", or raises
+    ValueError with the reason: http or https with a host, no user:password, no whitespace or markup characters."""
+    if not isinstance(value, str):
+        raise ValueError("must be text")
+    value = value.strip()
+    if not value:
+        return ""
+    if len(value) > 200 or any(c.isspace() or c in "<>\"'\\" for c in value):
+        raise ValueError("not a URL")
+    try:
+        u = urlparse(value)
+        u.port
+    except ValueError:
+        raise ValueError("not a URL")
+    if u.scheme not in ("http", "https") or not u.hostname:
+        raise ValueError("must start with http:// or https:// and have a host name")
+    if u.username or u.password:
+        raise ValueError("must not contain a user name or password")
+    return value.rstrip("/")
+
+
+def links_state(conn):
+    state = {}
+    for field, key in LINK_KEYS.items():
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        state[field] = (row[0] or "") if row else ""
+    return state
+
+
+@app.route("/api/settings/links", methods=["GET"])
+def api_get_links():
+    """URLs of the other Confetti projects, "" when not set. Not secrets."""
+    return jsonify(links_state(db.get_db()))
+
+
+@app.route("/api/settings/links", methods=["PUT"])
+def api_put_links():
+    """Partial update: body {"topo": url, "traffic": url}; "" clears one. All or nothing: a bad value changes nothing."""
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Body must be a JSON object"}), 400
+    fields = [k for k in LINK_KEYS if k in data]
+    if not fields:
+        return jsonify({"error": "no fields in body", "fields": list(LINK_KEYS)}), 400
+    clean = {}
+    for k in fields:
+        try:
+            clean[k] = clean_link(data[k])
+        except ValueError as e:
+            return jsonify({"error": "%s: %s" % (k, e)}), 400
+    conn = db.get_db()
+    for k, url in clean.items():
+        if url:
+            conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
+                         "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (LINK_KEYS[k], url))
+        else:
+            conn.execute("DELETE FROM settings WHERE key = ?", (LINK_KEYS[k],))
+    conn.commit()
+    return jsonify(links_state(conn))
 
 
 @app.route("/api/devices/<int:device_id>/credentials", methods=["GET"])

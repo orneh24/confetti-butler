@@ -1,6 +1,8 @@
 // Dashboard boxes you can move and resize. Loaded by dashboard.html only.
 //
 // Move: drag a box by its title bar; the other boxes shift to make room (the grid order changes, nothing floats).
+// Drop it on the middle of another box (that box gets an outline) and the two, with any box already on that row,
+// share the row: the columns are split between them. Dropped above or below a box it only changes the order.
 // Resize: drag the corner. The width snaps to whole grid columns (the full row at most); the height is free and
 // the box scrolls inside when it is smaller than its content. Double-click the corner to give one box its size back.
 // Remembered in this browser only (localStorage), so a new browser sees the default layout. "Reset layout" clears it.
@@ -9,7 +11,7 @@
 // elements inside the boxes, so its refresh never undoes the arrangement. Pointer events, so touch works too.
 // The SAME file is used by confetti-topo, confetti-butler and confetti-traffic: keep the three identical.
 var DashGrid = (function () {
-    var box, cfg, state = { order: [], span: {}, height: {} };
+    var box, cfg, state = { order: [], span: {}, height: {}, row: {} };
 
     var CSS =
         '.dg-bar { display: flex; justify-content: flex-end; padding: 8px 24px 0; }' +
@@ -18,6 +20,7 @@ var DashGrid = (function () {
         '.dg-on .section-header { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }' +
         '.dg-on .section.dg-drag { opacity: .6; outline: 2px dashed var(--text-dim); outline-offset: -2px; }' +
         '.dg-on .section.dg-drag .section-header { cursor: grabbing; }' +
+        '.dg-on .section.dg-join { outline: 2px solid var(--blue, var(--text-dim)); outline-offset: -2px; }' +
         'body.dg-moving, body.dg-moving * { user-select: none; -webkit-user-select: none; cursor: grabbing !important; }' +
         'body.dg-sizing, body.dg-sizing * { user-select: none; -webkit-user-select: none; cursor: nwse-resize !important; }' +
         '.dg-resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none;' +
@@ -30,7 +33,7 @@ var DashGrid = (function () {
         try {
             var s = JSON.parse(localStorage.getItem(key()));
             if (s && typeof s === 'object') {
-                state = { order: Array.isArray(s.order) ? s.order : [], span: s.span || {}, height: s.height || {} };
+                state = { order: Array.isArray(s.order) ? s.order : [], span: s.span || {}, height: s.height || {}, row: s.row || {} };
             }
         } catch (e) { /* not remembered */ }
     }
@@ -48,11 +51,18 @@ var DashGrid = (function () {
 
     // Put the saved size on one box. A span wider than the columns now on screen is the full row (a span past the
     // last column would make the grid add columns of its own).
+    // A box that starts a row (state.row: the first of boxes that were joined on one row) is pinned to column 1, so the
+    // row it was joined on is not shared with the box before it.
+    function colValue(id, span, cols) {
+        if (!span) { return ''; }
+        if (span >= cols) { return '1 / -1'; }
+        return state.row[id] ? '1 / span ' + span : 'span ' + span;
+    }
+
     function applySize(el) {
         var id = el.getAttribute('data-box');
         var cols = columns();
-        var span = state.span[id];
-        el.style.gridColumn = span ? (span >= cols ? '1 / -1' : 'span ' + span) : '';
+        el.style.gridColumn = colValue(id, state.span[id], cols);
         var body = el.querySelector('.section-body');
         if (body) {
             body.style.height = state.height[id] ? state.height[id] + 'px' : '';
@@ -79,14 +89,40 @@ var DashGrid = (function () {
     }
 
     // ---- move ----------------------------------------------------------------------------------------------
+    // The dragged box was dropped on the middle of `target`: the boxes on target's row (same top edge) and the
+    // dragged one share the columns of that row, first ones getting the extra column. Too many for the columns
+    // (or a one-column grid, e.g. a phone) means nothing is resized.
+    function joinRow(el, target) {
+        var cols = columns();
+        var top = target.getBoundingClientRect().top;
+        var group = boxes().filter(function (b) { return b === el || Math.abs(b.getBoundingClientRect().top - top) < 6; });
+        if (cols < 2 || group.length < 2 || group.length > cols) { return; }
+        var base = Math.floor(cols / group.length), extra = cols % group.length;
+        group.forEach(function (b, i) {
+            var id = b.getAttribute('data-box');
+            state.span[id] = base + (i < extra ? 1 : 0);
+            if (i === 0) { state.row[id] = true; } else { delete state.row[id]; }
+            applySize(b);
+        });
+    }
+
     function startMove(ev, el) {
-        var x0 = ev.clientX, y0 = ev.clientY, moving = false;
+        var x0 = ev.clientX, y0 = ev.clientY, moving = false, join = null;
+
+        function setJoin(t) {
+            if (join === t) { return; }
+            if (join) { join.classList.remove('dg-join'); }
+            join = t;
+            if (join) { join.classList.add('dg-join'); }
+        }
 
         function over(e) {
             var t = document.elementFromPoint(e.clientX, e.clientY);
             var target = t && t.closest ? t.closest('.section[data-box]') : null;
             if (!target || target === el || target.parentNode !== box) { return; }
             var r = target.getBoundingClientRect();
+            var fy = (e.clientY - r.top) / r.height;
+            setJoin(fy > 0.3 && fy < 0.7 ? target : null);   // the middle band: share this box's row
             var full = r.width > box.clientWidth * 0.8;
             // A box that fills the row is passed on the way down; boxes side by side on the way across.
             var after = full ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2;
@@ -100,9 +136,9 @@ var DashGrid = (function () {
                 el.classList.add('dg-drag');
                 document.body.classList.add('dg-moving');
             }
+            over(e);   // before scrolling: the scroll moves the boxes under the pointer
             if (e.clientY < 70) { window.scrollBy(0, -14); }
             else if (e.clientY > window.innerHeight - 70) { window.scrollBy(0, 14); }
-            over(e);
         }
 
         function end() {
@@ -112,6 +148,10 @@ var DashGrid = (function () {
             if (moving) {
                 el.classList.remove('dg-drag');
                 document.body.classList.remove('dg-moving');
+                var target = join;
+                setJoin(null);
+                delete state.row[el.getAttribute('data-box')];   // it moved: no longer pinned to a row start
+                if (target) { joinRow(el, target); }
                 saveOrder();
             }
         }
@@ -140,7 +180,7 @@ var DashGrid = (function () {
             var w = r0.width + (e.clientX - x0);
             var span = Math.max(1, Math.min(cols, Math.round((w + gap) / (unit + gap))));
             state.span[id] = span;
-            el.style.gridColumn = span >= cols ? '1 / -1' : 'span ' + span;
+            el.style.gridColumn = colValue(id, span, cols);
             if (body) {
                 var h = Math.max(60, r0.height + (e.clientY - y0) - (head ? head.offsetHeight : 0) - 2);
                 state.height[id] = Math.round(h);
@@ -163,7 +203,7 @@ var DashGrid = (function () {
     }
 
     function reset() {
-        state = { order: [], span: {}, height: {} };
+        state = { order: [], span: {}, height: {}, row: {} };
         try { localStorage.removeItem(key()); } catch (e) { /* nothing saved anyway */ }
         // Back to the page's own order: the order the boxes had when the page was built.
         original.forEach(function (el) { box.appendChild(el); });
@@ -203,6 +243,7 @@ var DashGrid = (function () {
                 var id = el.getAttribute('data-box');
                 delete state.span[id];
                 delete state.height[id];
+                delete state.row[id];
                 applySize(el);
                 save();
             });

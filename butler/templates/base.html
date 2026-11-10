@@ -13,7 +13,7 @@
 {# The page list lives here once. The current page is picked from the URL, so
    /devices/5 counts as Devices. #}
 {% set pages = [('/', 'Dashboard'), ('/devices', 'Devices'), ('/conflicts', 'Conflicts'), ('/ipam', 'IPAM'),
-                ('/templates', 'Templates'), ('/syslog', 'Syslog'), ('/alerts', 'Alerts')] %}
+                ('/templates', 'Templates'), ('/syslog', 'Syslog'), ('/alerts', 'Alerts'), ('/settings', 'Settings')] %}
 {% set here = '/' if request.path == '/' else '/' + request.path.strip('/').split('/')[0] %}
 <body class="{% block body_class %}{% endblock %}">
 
@@ -37,6 +37,7 @@
     </div>
     <div class="status">
         <span class="dot" id="health-dot"></span><span id="health-text">checking...</span>
+        <span id="confetti-links"></span>
         <select id="theme-select" class="btn-nav theme-select" aria-label="Colour theme" onchange="setTheme(this.value)"></select>
         <select id="layout-select" class="btn-nav theme-select" aria-label="Layout" onchange="setLayout(this.value)"></select>
         <select id="variant-select" class="btn-nav theme-select" aria-label="MS-DOS colour variant" title="MS-DOS colour variant" onchange="setVariant(this.value)"></select>
@@ -120,6 +121,7 @@ Tab                  move between buttons and fields</p>
 </div>
 
 <script src="/static/ctxmenu.js"></script>
+<script src="/static/confetti-links.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

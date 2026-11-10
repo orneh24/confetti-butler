@@ -330,7 +330,7 @@ butler/
     parsers/             — ios.py, regex only
   templates/            — base.html (head, header/nav, theme + layout pickers, footer, Retro taskbar,
                           written once) + dashboard, devices, device, conflicts, ipam, templates_editor,
-                          syslog, alerts, each `{% extends "base.html" %}` and holding only its own
+                          syslog, alerts, settings (the Topo and Traffic URLs for the header shortcut buttons), each `{% extends "base.html" %}` and holding only its own
                           content/CSS/JS (Jinja2 HTML — see constraint 7 re: {% raw %}). The look is
                           copied from confetti-traffic's hub UI; keep the two in step by hand.
   static/theme.css       — the ONE place colours live: dark :root + one :root[data-theme=NAME] block
@@ -342,6 +342,7 @@ butler/
                           Loaded AFTER theme.css on purpose: Retro 95 and MS-DOS bring their own colours
                           and beat the Rainbow rules only by coming later. Pages use
                           .section > .section-header + .section-body, not their own card CSS
+  static/confetti-links.js — the header shortcut buttons to the other Confetti projects (URLs from the Settings page, `GET /api/settings/links`); opens in a new tab; the SAME file as in confetti-topo and confetti-traffic, copy it by hand and keep the three identical
   static/dashgrid.js     — the dashboard's movable/resizable boxes: drag a `.section[data-box]` by its header, drag the corner grip to resize (width snaps to grid columns, height free), "Reset layout" button; saved per browser in `confetti-butler-dashboard-layout`. Injects its own CSS. The SAME file is in confetti-topo and confetti-traffic; copy it by hand and keep the three identical
   static/ctxmenu.js      — right-click menus, loaded once by base.html (the menu CSS is at the end of layout.css). A row carries data-ctx="<type>" and the page calls ctxMenu.register(type, fn); one document-level listener finds the row, so tables rebuilt by innerHTML keep working. Fill data-* attributes with ctxMenu.attr(), never esc() (esc leaves quotes). Safe items first, destructive last and red, and the function that deletes/merges/dismisses/tests asks confirm() itself so the button and the menu both ask. The browser's own menu stays on inputs, the CodeMirror editor and selected text. R34 checks it. The SAME file is in confetti-traffic and confetti-topo; copy it by hand and keep the three identical
   static/theme.js        — THEMES + LAYOUTS lists and the header dropdowns (confetti-butler-theme,
@@ -470,13 +471,19 @@ butler/
     it, adding a device emits one event per interface. `device_unreachable` /
     `device_recovered` fire only on the 0 → failing and failing → ok transitions of `fail_count`.
 
+16. **The URLs of the other Confetti projects are only link targets: http(s) with a host, validated on write, never fetched.** The Settings page
+    (`/settings`, new) keeps the Topo and Traffic URLs (`settings` keys `url_topo` / `url_traffic`, `GET|PUT /api/settings/links`); a value that is not
+    http:// or https:// with a host, or has a user:password, whitespace or markup characters, is a 400 and changes nothing (all or nothing); an empty
+    value clears. `static/confetti-links.js` (the same file as in confetti-topo and confetti-traffic) turns them into small header buttons that
+    open in a new tab with `noopener`, re-checks http(s) and never builds HTML from the URL. The server never connects to them. Checked by R35.
+
 ## Regression gate
 
 `python dev/regress.py` (stdlib only; `--static` skips the live tier, `-v` shows detail for passes) is
-the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above; `R16`..`R19`
+the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above (constraint 16 is `R35`); `R16`..`R19`
 are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
 lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21` (drift check),
-`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery), `R33` (OpenSSH, not Dropbear) and `R34` (right-click menus) cover the features added since (platform
+`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery), `R33` (OpenSSH, not Dropbear) and `R34` (right-click menus), `R35` (constraint 16, the other Confetti projects' URLs) cover the features added since (platform
 registry, SNMP, ICMP state machine, `/metrics` format, interface history, scheduled discovery); `R29` checks
 the container and Packer files against the repo. `R27` (LLDP crawl) and `R30` (BGP `Idle (Admin)`) moved to
 confetti-topo on 2026-10-14 and the numbers are not reused. Output is one line per check and a verdict:

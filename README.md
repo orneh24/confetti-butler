@@ -62,6 +62,7 @@ and the choice is saved in your browser.
   its config itself:
   `copy http://<butler>/configs/<device-key>.cfg running-config`.
 - **Syslog.** A UDP receiver, with each message linked to the device that sent it.
+- **Other Confetti projects.** Type the Topo and Traffic URLs on the Settings page and a small button for each appears at the right of the top menu (opens in a new tab).
 - **Look.** Seven colour themes (or Shuffle) and five layouts. See [Themes and layouts](#themes-and-layouts).
 
 Built for Cisco IOS / IOS-XE, and tested against CSR1000v routers on IOS-XE 17.3 and 3.11.

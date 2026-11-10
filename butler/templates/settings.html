@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block head %}
+<style>
+form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.msg { font-size: 12px; margin-top: 8px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container stack">
+    <div class="section">
+        <div class="section-header"><span>Other Confetti projects</span></div>
+        <div class="section-body">
+            <div class="hint">A small button for each URL that is filled in appears at the right of the top menu on every page and opens that project in a new tab. Only http:// or https://. Leave a field empty to remove its button. The server never connects to these addresses; they are only links.</div>
+            <form class="inline" id="links-form" autocomplete="off">
+                <input type="text" name="traffic" placeholder="Confetti Traffic URL, e.g. http://confetti-hub.example" size="42" aria-label="Confetti Traffic URL">
+                <input type="text" name="topo" placeholder="Confetti Topo URL, e.g. http://confetti-topo.example" size="42" aria-label="Confetti Topo URL">
+                <button type="submit">Save</button>
+            </form>
+            <div class="msg" id="links-msg"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+function loadLinks() {
+    fetch('/api/settings/links').then(function (r) { return r.json(); }).then(function (l) {
+        var f = document.getElementById('links-form');
+        f.traffic.value = l.traffic || '';
+        f.topo.value = l.topo || '';
+    });
+}
+
+document.getElementById('links-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = ev.target;
+    var msg = document.getElementById('links-msg');
+    fetch('/api/settings/links', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ traffic: f.traffic.value, topo: f.topo.value }),
+    }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+        msg.textContent = res.ok ? 'saved' : (res.data.error || 'save failed');
+        msg.className = res.ok ? 'msg ok' : 'msg err';
+        if (res.ok) { loadLinks(); ConfettiLinks.refresh(); }
+    });
+});
+
+loadLinks();
+</script>
+{% endraw %}
+{% endblock %}
