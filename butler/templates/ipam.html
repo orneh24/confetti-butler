@@ -109,5 +109,21 @@ ctxMenu.register('prefix', function (row) {
 });
 
 loadAll();
+
+// The whole page is one more menu target, so empty space has a menu. Header, nav, taskbar, DOS bars and footer keep the browser's menu.
+document.documentElement.setAttribute('data-ctx', 'page');
+ctxMenu.register('page', function (el, ev) {
+    if (ev.target.closest('.header, .side-nav, .taskbar, .dos-menubar, .dos-fkeys, .dos-help, .page-footer')) { return null; }
+    return { title: 'IPAM', items: [
+        { label: 'Refresh', action: loadAll },
+        { label: 'Go to Dashboard', action: function () { location.href = '/'; } },
+        { label: 'Go to Devices', action: function () { location.href = '/devices'; } },
+        { label: 'Go to Alerts', action: function () { location.href = '/alerts'; } },
+        { label: 'Go to Syslog', action: function () { location.href = '/syslog'; } },
+        { label: 'Go to Templates', action: function () { location.href = '/templates'; } },
+        { label: 'Go to Conflicts', action: function () { location.href = '/conflicts'; } },
+        { label: 'Go to Settings', action: function () { location.href = '/settings'; } },
+    ] };
+});
 </script>
 {% endblock %}

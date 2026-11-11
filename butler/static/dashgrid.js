@@ -1,8 +1,9 @@
 // Dashboard boxes you can move and resize. Loaded by dashboard.html only.
 //
 // Move: drag a box by its title bar; the other boxes shift to make room (the grid order changes, nothing floats).
-// Drop it on the middle of another box (that box gets an outline) and the two, with any box already on that row,
-// share the row: the columns are split between them. Dropped above or below a box it only changes the order.
+// Drop it on another box (that box gets an outline; on a full-width box only its middle band counts) and the two, with
+// any box already on that row, share the row: the columns are split between them. Dropped above or below a full-width
+// box it only changes the order.
 // Resize: drag the corner. The width snaps to whole grid columns (the full row at most); the height is free and
 // the box scrolls inside when it is smaller than its content. Double-click the corner to give one box its size back.
 // Remembered in this browser only (localStorage), so a new browser sees the default layout. "Reset layout" clears it.
@@ -122,8 +123,10 @@ var DashGrid = (function () {
             if (!target || target === el || target.parentNode !== box) { return; }
             var r = target.getBoundingClientRect();
             var fy = (e.clientY - r.top) / r.height;
-            setJoin(fy > 0.3 && fy < 0.7 ? target : null);   // the middle band: share this box's row
             var full = r.width > box.clientWidth * 0.8;
+            // Share this box's row: most of a box that is already beside another one, the middle band of a full-width box
+            // (its top and bottom edges there mean "above" and "below").
+            setJoin(full ? (fy > 0.3 && fy < 0.7 ? target : null) : (fy > 0.15 && fy < 0.85 ? target : null));
             // A box that fills the row is passed on the way down; boxes side by side on the way across.
             var after = full ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2;
             box.insertBefore(el, after ? target.nextSibling : target);

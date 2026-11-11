@@ -171,10 +171,10 @@ function renderWarnings(dangerous, security) {
     dangerous = dangerous || [];
     security = security || [];
     for (var i = 0; i < dangerous.length; i++) {
-        html += '<li class="danger">line ' + dangerous[i].line + ': ' + esc(dangerous[i].reason) + '</li>';
+        html += '<li class="danger" data-ctx="warning" data-text="' + ctxMenu.attr('line ' + dangerous[i].line + ': ' + dangerous[i].reason) + '">line ' + dangerous[i].line + ': ' + esc(dangerous[i].reason) + '</li>';
     }
     for (var j = 0; j < security.length; j++) {
-        html += '<li>line ' + security[j].line + ': ' + esc(security[j].reason) + '</li>';
+        html += '<li data-ctx="warning" data-text="' + ctxMenu.attr('line ' + security[j].line + ': ' + security[j].reason) + '">line ' + security[j].line + ': ' + esc(security[j].reason) + '</li>';
     }
     return html ? '<ul class="warn-list">' + html + '</ul>' : '';
 }
@@ -250,7 +250,7 @@ function loadVars() {
 }
 
 function varRow(key, value) {
-    return '<div class="varrow"><input type="text" placeholder="key" value="' + esc(key) +
+    return '<div class="varrow" data-ctx="var"><input type="text" placeholder="key" value="' + esc(key) +
         '" class="vkey"><input type="text" placeholder="value" value="' + esc(value) + '" class="vval"></div>';
 }
 
@@ -305,6 +305,18 @@ ctxMenu.register('template', function (li) {
         { label: 'Copy name', action: function () { ctxMenu.copy(name); } },
     ] };
 });
+ctxMenu.register('var', function (row) {
+    var k = row.querySelector('.vkey').value, v = row.querySelector('.vval').value;
+    return { title: k || 'variable', items: [
+        { label: 'Copy key', action: function () { ctxMenu.copy(k); }, disabled: !k },
+        { label: 'Copy value', action: function () { ctxMenu.copy(v); }, disabled: !v },
+        { label: 'Remove row (Save vars to apply)', action: function () { row.parentNode.removeChild(row); }, danger: true, confirm: 'Remove this row?' },
+    ] };
+});
+ctxMenu.register('warning', function (li) {
+    var t = li.getAttribute('data-text');
+    return { title: 'warning', items: [ { label: 'Copy warning', action: function () { ctxMenu.copy(t); } } ] };
+});
 ctxMenu.register('version', function (row) {
     var text = row.getAttribute('data-text');
     return { title: text, items: [ { label: 'Copy version and time', action: function () { ctxMenu.copy(text); } } ] };
@@ -313,5 +325,21 @@ ctxMenu.register('version', function (row) {
 loadList();
 loadDevices();
 {% endraw %}
+
+// The whole page is one more menu target, so empty space has a menu. Header, nav, taskbar, DOS bars and footer keep the browser's menu.
+document.documentElement.setAttribute('data-ctx', 'page');
+ctxMenu.register('page', function (el, ev) {
+    if (ev.target.closest('.header, .side-nav, .taskbar, .dos-menubar, .dos-fkeys, .dos-help, .page-footer')) { return null; }
+    return { title: 'Templates', items: [
+        { label: 'Refresh', action: function () { loadList(); loadDevices(); } },
+        { label: 'Go to Dashboard', action: function () { location.href = '/'; } },
+        { label: 'Go to Devices', action: function () { location.href = '/devices'; } },
+        { label: 'Go to Alerts', action: function () { location.href = '/alerts'; } },
+        { label: 'Go to Syslog', action: function () { location.href = '/syslog'; } },
+        { label: 'Go to IPAM', action: function () { location.href = '/ipam'; } },
+        { label: 'Go to Conflicts', action: function () { location.href = '/conflicts'; } },
+        { label: 'Go to Settings', action: function () { location.href = '/settings'; } },
+    ] };
+});
 </script>
 {% endblock %}

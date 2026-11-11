@@ -13,8 +13,8 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         <div class="section-body">
             <div class="hint">A small button for each URL that is filled in appears at the right of the top menu on every page and opens that project in a new tab. Only http:// or https://. Leave a field empty to remove its button. The server never connects to these addresses; they are only links.</div>
             <form class="inline" id="links-form" autocomplete="off">
-                <input type="text" name="traffic" placeholder="Confetti Traffic URL, e.g. http://confetti-hub.example" size="42" aria-label="Confetti Traffic URL">
-                <input type="text" name="topo" placeholder="Confetti Topo URL, e.g. http://confetti-topo.example" size="42" aria-label="Confetti Topo URL">
+                <span data-ctx="link" data-field="traffic" data-name="Confetti Traffic"><input type="text" name="traffic" placeholder="Confetti Traffic URL, e.g. http://confetti-hub.example" size="42" aria-label="Confetti Traffic URL"></span>
+                <span data-ctx="link" data-field="topo" data-name="Confetti Topo"><input type="text" name="topo" placeholder="Confetti Topo URL, e.g. http://confetti-topo.example" size="42" aria-label="Confetti Topo URL"></span>
                 <button type="submit">Save</button>
             </form>
             <div class="msg" id="links-msg"></div>
@@ -50,6 +50,35 @@ document.getElementById('links-form').addEventListener('submit', function (ev) {
 });
 
 loadLinks();
+
+// Right-click a URL field's wrapper (the field itself keeps the browser's menu).
+ctxMenu.register('link', function (el) {
+    var f = document.getElementById('links-form');
+    var input = f[el.getAttribute('data-field')];
+    var url = input.value.trim();
+    var ok = /^https?:\/\//i.test(url);
+    return { title: el.getAttribute('data-name') + ' URL', items: [
+        { label: 'Open in new tab', action: function () { window.open(url, '_blank', 'noopener'); }, disabled: !ok },
+        { label: 'Copy URL', action: function () { ctxMenu.copy(url); }, disabled: !url },
+        { label: 'Clear and save', action: function () { input.value = ''; f.requestSubmit(); }, disabled: !url, danger: true, confirm: 'Remove this link button?' },
+    ] };
+});
+
+// The whole page is one more menu target, so empty space has a menu. Header, nav, taskbar, DOS bars and footer keep the browser's menu.
+document.documentElement.setAttribute('data-ctx', 'page');
+ctxMenu.register('page', function (el, ev) {
+    if (ev.target.closest('.header, .side-nav, .taskbar, .dos-menubar, .dos-fkeys, .dos-help, .page-footer')) { return null; }
+    return { title: 'Settings', items: [
+        { label: 'Reload sections', action: function () { loadLinks(); } },
+        { label: 'Go to Dashboard', action: function () { location.href = '/'; } },
+        { label: 'Go to Devices', action: function () { location.href = '/devices'; } },
+        { label: 'Go to Alerts', action: function () { location.href = '/alerts'; } },
+        { label: 'Go to Syslog', action: function () { location.href = '/syslog'; } },
+        { label: 'Go to IPAM', action: function () { location.href = '/ipam'; } },
+        { label: 'Go to Templates', action: function () { location.href = '/templates'; } },
+        { label: 'Go to Conflicts', action: function () { location.href = '/conflicts'; } },
+    ] };
+});
 </script>
 {% endraw %}
 {% endblock %}

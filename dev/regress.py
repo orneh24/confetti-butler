@@ -595,6 +595,8 @@ def _():
         for m in re.finditer(r"data-[\w-]+=\"' \+ esc\(", src):
             p.append("%s: data-* attribute filled with esc(), use ctxMenu.attr(): %s" % (f, src[m.start():m.start() + 40]))
         used = set(re.findall(r'data-ctx="(\w+)', src))
+        if re.search(r"setAttribute\('data-ctx', 'page'\)", src):   # the whole-page menu
+            used.add('page')
         reg = set(re.findall(r"ctxMenu\.register\('(\w+)'", src))
         if f.endswith("base.html"):
             continue
