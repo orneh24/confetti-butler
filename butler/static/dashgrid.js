@@ -1,15 +1,15 @@
-// Dashboard boxes you can move and resize. Loaded by dashboard.html only.
+// Dashboard widgets you can move and resize. Loaded by dashboard.html only.
 //
-// Move: drag a box by its title bar; the other boxes shift to make room (the grid order changes, nothing floats).
-// Drop it on another box (that box gets an outline; on a full-width box only its middle band counts) and the two, with
-// any box already on that row, share the row: the columns are split between them. Dropped above or below a full-width
-// box it only changes the order.
+// Move: drag a widget by its title bar; the other widgets shift to make room (the grid order changes, nothing floats).
+// Drop it on another widget (that widget gets an outline; on a full-width widget only its middle band counts) and the two, with
+// any widget already on that row, share the row: the columns are split between them. Dropped above or below a full-width
+// widget it only changes the order.
 // Resize: drag the corner. The width snaps to whole grid columns (the full row at most); the height is free and
-// the box scrolls inside when it is smaller than its content. Double-click the corner to give one box its size back.
+// the widget scrolls inside when it is smaller than its content. Double-click the corner to give one widget its size back.
 // Remembered in this browser only (localStorage), so a new browser sees the default layout. "Reset layout" clears it.
 //
-// A box is a `.section` with a `data-box="<id>"` and a `.section-header`; the page's own code only touches the
-// elements inside the boxes, so its refresh never undoes the arrangement. Pointer events, so touch works too.
+// A widget is a `.section` with a `data-box="<id>"` and a `.section-header`; the page's own code only touches the
+// elements inside the widgets, so its refresh never undoes the arrangement. Pointer events, so touch works too.
 // The SAME file is used by confetti-topo, confetti-butler and confetti-traffic: keep the three identical.
 var DashGrid = (function () {
     var box, cfg, state = { order: [], span: {}, height: {}, row: {} };
@@ -19,8 +19,13 @@ var DashGrid = (function () {
         '.dg-bar button { font-size: 11px; }' +
         '.dg-on .section { position: relative; }' +
         '.dg-on .section-header { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }' +
-        '.dg-on .section.dg-drag { opacity: .6; outline: 2px dashed var(--text-dim); outline-offset: -2px; }' +
-        '.dg-on .section.dg-drag .section-header { cursor: grabbing; }' +
+        // The widget being dragged stays in the grid as the drop place: its content is hidden and it shows a grid pattern.
+        '.dg-on .section.dg-drag { outline: 2px dashed var(--text-dim); outline-offset: -2px;' +
+        '  background-image: repeating-linear-gradient(0deg, transparent 0 19px, rgba(128,128,128,.35) 19px 20px),' +
+        '  repeating-linear-gradient(90deg, transparent 0 19px, rgba(128,128,128,.35) 19px 20px); }' +
+        '.dg-on .section.dg-drag > * { visibility: hidden; }' +
+        // A copy of it follows the pointer.
+        '.dg-ghost { position: fixed; z-index: 10000; margin: 0; opacity: .85; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); }' +
         '.dg-on .section.dg-join { outline: 2px solid var(--blue, var(--text-dim)); outline-offset: -2px; }' +
         'body.dg-moving, body.dg-moving * { user-select: none; -webkit-user-select: none; cursor: grabbing !important; }' +
         'body.dg-sizing, body.dg-sizing * { user-select: none; -webkit-user-select: none; cursor: nwse-resize !important; }' +
@@ -52,8 +57,8 @@ var DashGrid = (function () {
 
     // Put the saved size on one box. A span wider than the columns now on screen is the full row (a span past the
     // last column would make the grid add columns of its own).
-    // A box that starts a row (state.row: the first of boxes that were joined on one row) is pinned to column 1, so the
-    // row it was joined on is not shared with the box before it.
+    // A widget that starts a row (state.row: the first of widgets that were joined on one row) is pinned to column 1, so the
+    // row it was joined on is not shared with the widget before it.
     function colValue(id, span, cols) {
         if (!span) { return ''; }
         if (span >= cols) { return '1 / -1'; }
@@ -73,7 +78,7 @@ var DashGrid = (function () {
     function applyAll() {
         var byId = {};
         boxes().forEach(function (el) { byId[el.getAttribute('data-box')] = el; });
-        // Saved order first; boxes it does not know (a new one) stay after, in page order.
+        // Saved order first; widgets it does not know (a new one) stay after, in page order.
         var seen = {};
         state.order.forEach(function (id) {
             if (byId[id] && !seen[id]) { box.appendChild(byId[id]); seen[id] = true; }
@@ -90,7 +95,7 @@ var DashGrid = (function () {
     }
 
     // ---- move ----------------------------------------------------------------------------------------------
-    // The dragged box was dropped on the middle of `target`: the boxes on target's row (same top edge) and the
+    // The dragged widget was dropped on the middle of `target`: the widgets on target's row (same top edge) and the
     // dragged one share the columns of that row, first ones getting the extra column. Too many for the columns
     // (or a one-column grid, e.g. a phone) means nothing is resized.
     function joinRow(el, target) {
@@ -108,7 +113,7 @@ var DashGrid = (function () {
     }
 
     function startMove(ev, el) {
-        var x0 = ev.clientX, y0 = ev.clientY, moving = false, join = null;
+        var x0 = ev.clientX, y0 = ev.clientY, moving = false, join = null, ghost = null, gx = 0, gy = 0;
 
         function setJoin(t) {
             if (join === t) { return; }
@@ -117,17 +122,35 @@ var DashGrid = (function () {
             if (join) { join.classList.add('dg-join'); }
         }
 
+        // The pointer is over no widget: if it is level with a row, it is in that row's empty space (right of the last
+        // widget or left of the first). Put the dragged widget next to them there and the grid fills the free columns.
+        function emptySpace(e) {
+            var row = boxes().filter(function (b) {
+                var r = b.getBoundingClientRect();
+                return e.clientY >= r.top && e.clientY <= r.bottom;
+            });
+            if (!row.length) { return; }
+            setJoin(null);
+            var last = row[row.length - 1], first = row[0];
+            if (e.clientX > last.getBoundingClientRect().right) {
+                if (last !== el) { box.insertBefore(el, last.nextSibling); }
+            } else if (e.clientX < first.getBoundingClientRect().left) {
+                if (first !== el) { box.insertBefore(el, first); }
+            }
+        }
+
         function over(e) {
             var t = document.elementFromPoint(e.clientX, e.clientY);
             var target = t && t.closest ? t.closest('.section[data-box]') : null;
-            if (!target || target === el || target.parentNode !== box) { return; }
+            if (!target) { emptySpace(e); return; }
+            if (target === el || target.parentNode !== box) { return; }
             var r = target.getBoundingClientRect();
             var fy = (e.clientY - r.top) / r.height;
             var full = r.width > box.clientWidth * 0.8;
-            // Share this box's row: most of a box that is already beside another one, the middle band of a full-width box
+            // Share this widget's row: most of a widget that is already beside another one, the middle band of a full-width widget
             // (its top and bottom edges there mean "above" and "below").
             setJoin(full ? (fy > 0.3 && fy < 0.7 ? target : null) : (fy > 0.15 && fy < 0.85 ? target : null));
-            // A box that fills the row is passed on the way down; boxes side by side on the way across.
+            // A widget that fills the row is passed on the way down; widgets side by side on the way across.
             var after = full ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2;
             box.insertBefore(el, after ? target.nextSibling : target);
         }
@@ -136,10 +159,20 @@ var DashGrid = (function () {
             if (!moving) {
                 if (Math.abs(e.clientX - x0) + Math.abs(e.clientY - y0) < 5) { return; }
                 moving = true;
+                var r = el.getBoundingClientRect();
+                gx = x0 - r.left; gy = y0 - r.top;
+                ghost = el.cloneNode(true);
+                ghost.classList.add('dg-ghost');
+                ghost.style.width = r.width + 'px';
+                ghost.style.height = r.height + 'px';
+                ghost.style.gridColumn = '';
+                document.body.appendChild(ghost);
                 el.classList.add('dg-drag');
                 document.body.classList.add('dg-moving');
             }
-            over(e);   // before scrolling: the scroll moves the boxes under the pointer
+            ghost.style.left = (e.clientX - gx) + 'px';
+            ghost.style.top = (e.clientY - gy) + 'px';
+            over(e);   // before scrolling: the scroll moves the widgets under the pointer
             if (e.clientY < 70) { window.scrollBy(0, -14); }
             else if (e.clientY > window.innerHeight - 70) { window.scrollBy(0, 14); }
         }
@@ -150,6 +183,7 @@ var DashGrid = (function () {
             document.removeEventListener('pointercancel', end);
             if (moving) {
                 el.classList.remove('dg-drag');
+                if (ghost) { ghost.remove(); ghost = null; }
                 document.body.classList.remove('dg-moving');
                 var target = join;
                 setJoin(null);
@@ -159,7 +193,7 @@ var DashGrid = (function () {
             }
         }
 
-        // On the document, not the header with pointer capture: moving the box in the DOM (insertBefore) makes the
+        // On the document, not the header with pointer capture: moving the widget in the DOM (insertBefore) makes the
         // browser drop the capture, and the drag would never see its pointerup.
         document.addEventListener('pointermove', move);
         document.addEventListener('pointerup', end);
@@ -208,7 +242,7 @@ var DashGrid = (function () {
     function reset() {
         state = { order: [], span: {}, height: {}, row: {} };
         try { localStorage.removeItem(key()); } catch (e) { /* nothing saved anyway */ }
-        // Back to the page's own order: the order the boxes had when the page was built.
+        // Back to the page's own order: the order the widgets had when the page was built.
         original.forEach(function (el) { box.appendChild(el); });
         boxes().forEach(applySize);
     }
@@ -229,7 +263,7 @@ var DashGrid = (function () {
         boxes().forEach(function (el) {
             var header = el.querySelector('.section-header');
             if (!header) { return; }
-            header.title = 'Drag to move this box';
+            header.title = 'Drag to move this widget';
             header.addEventListener('pointerdown', function (ev) {
                 if (ev.button !== 0 || (ev.target.closest && ev.target.closest('a, button, input, select, textarea'))) { return; }
                 startMove(ev, el);
@@ -258,7 +292,7 @@ var DashGrid = (function () {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = 'Reset layout';
-        btn.title = 'Put the boxes back in their original order and size';
+        btn.title = 'Put the widgets back in their original order and size';
         btn.addEventListener('click', reset);
         bar.appendChild(btn);
         box.parentNode.insertBefore(bar, box);
