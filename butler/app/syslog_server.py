@@ -10,13 +10,15 @@ correlates retroactively.
 Deliberately minimal: no relay, no TLS, no authentication. UDP syslog is
 lossy and anything on the segment can inject into it — this is a
 troubleshooting aid, never an audit trail. Ported near-verbatim from
-confetti-traffic's hub/app/syslog_server.py; the parsing logic and every hazard
-it guards against (constraints 17, 18, 20 in confetti-traffic's CLAUDE.md) are
-identical here — confetti-butler has a syslog listener as a second writer
-against the same database exactly as confetti-traffic's hub does.
+confetti-traffic's hub/app/syslog_server.py; every hazard it guards against
+(constraints 17, 18, 20 in confetti-traffic's CLAUDE.md) is identical here —
+confetti-butler has a syslog listener as a second writer against the same
+database exactly as confetti-traffic's hub does.
+
+Parsing and the row insert are syslog_core.py, the same file in confetti-butler,
+confetti-traffic and confetti-topo, so all three read a line the same way.
 """
 
-import re
 import socket
 import socketserver
 import sqlite3
@@ -26,114 +28,12 @@ from datetime import datetime, timezone
 
 from . import alerts
 from . import config
-
-SEVERITY_NAMES = {
-    0: "emerg", 1: "alert", 2: "crit", 3: "err",
-    4: "warning", 5: "notice", 6: "info", 7: "debug",
-}
+from . import syslog_core
 
 MAX_RAW = 4096          # truncate absurd messages before they reach the DB
 PRUNE_EVERY = 500       # rows between row-cap enforcement
 
-# <190>123: SW1: *Sep  8 12:00:00.123 UTC: %LINK-3-UPDOWN: Interface Gi2, ...
-PRI_RE       = re.compile(r"^<(\d{1,3})>")
-SEQ_RE       = re.compile(r"^\d+:\s+")
-HOSTCOLON_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]{0,62}):\s+")
-# The timezone group requires a following colon (Cisco-style devices write
-# "12:00:00.123 UTC: %LINK-..."). Without that lookahead it swallows the
-# hostname in plain RFC3164 lines like "Sep  8 12:02:00 SW3 %SEC-...".
-TIMESTAMP_RE = re.compile(
-    r"^\*?[A-Z][a-z]{2}\s+\d{1,2}\s+\d{1,2}:\d{2}:\d{2}(?:\.\d+)?"
-    r"(?:\s+[A-Z]{2,5}(?=:))?:?\s*"
-)
-HOSTWORD_RE  = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]{0,62})\s+(?=[%\w])")
-MNEMONIC_RE  = re.compile(r"%([A-Z0-9_]+)-(\d)-([A-Z0-9_]+)\s*:\s*(.*)$", re.S)
-
-
-def parse(raw, source_ip):
-    """Best-effort parse of an RFC3164 syslog line, including the Cisco-style
-    origin-id and %FACILITY-severity-MNEMONIC framing many network vendors
-    emit.
-
-    Never raises and never returns None — an unparseable line is still stored
-    with its raw text, because a message you cannot parse is often the one you
-    most want to see.
-    """
-    result = {
-        "source_ip": source_ip,
-        "host": None,
-        "facility": None,
-        "severity": None,
-        "mnemonic": None,
-        "device_time": None,
-        "message": raw,
-        "raw": raw,
-    }
-
-    rest = raw.strip()
-
-    m = PRI_RE.match(rest)
-    if m:
-        try:
-            pri = int(m.group(1))
-            if 0 <= pri <= 191:
-                result["facility"] = pri // 8
-                result["severity"] = pri % 8
-        except ValueError:
-            pass
-        rest = rest[m.end():]
-
-    rest = SEQ_RE.sub("", rest, count=1)
-
-    # "SW1: *Sep  8 ..." — Cisco-style origin-id
-    m = HOSTCOLON_RE.match(rest)
-    _host_taken = False
-    if m and not TIMESTAMP_RE.match(rest):
-        # Only an origin-id if what follows looks like the rest of a
-        # Cisco-style line — its own timestamp, or a
-        # %FACILITY-severity-MNEMONIC. Without this, "kernel: out of memory"
-        # or "ERROR: disk full" files itself under host "kernel"/"ERROR", and
-        # those then appear as separate devices in /api/syslog/sources and in
-        # the page's filter, where picking the real device by name hides them.
-        _after = rest[m.end():]
-        if TIMESTAMP_RE.match(_after) or MNEMONIC_RE.match(_after):
-            result["host"] = m.group(1)
-            rest = _after
-            _host_taken = True
-
-    if not _host_taken:
-        # "Sep  8 12:00:00 SW1 %LINK-3-..." — plain RFC3164. A bare word is
-        # only treated as a hostname when a timestamp preceded it; otherwise
-        # the first word of an unparseable line would become the host.
-        m = TIMESTAMP_RE.match(rest)
-        if m:
-            result["device_time"] = m.group(0).strip().rstrip(":")
-            rest = rest[m.end():]
-            m = HOSTWORD_RE.match(rest)
-            if m and not rest.startswith("%"):
-                result["host"] = m.group(1)
-                rest = rest[m.end():]
-
-    # A Cisco-style device puts its own timestamp after the origin-id
-    if result["device_time"] is None:
-        m = TIMESTAMP_RE.match(rest)
-        if m:
-            result["device_time"] = m.group(0).strip().rstrip(":")
-            rest = rest[m.end():]
-
-    m = MNEMONIC_RE.search(rest)
-    if m:
-        result["mnemonic"] = "%{}-{}-{}".format(m.group(1), m.group(2), m.group(3))
-        result["message"] = m.group(4).strip()
-        if result["severity"] is None:
-            try:
-                result["severity"] = int(m.group(2))
-            except ValueError:
-                pass
-    else:
-        result["message"] = rest.strip() or raw
-
-    return result
+parse = syslog_core.parse
 
 
 class _Store:
@@ -169,15 +69,7 @@ class _Store:
         # window. The API applies db.iso() on the way out.
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         with self.lock:
-            self.db.execute(
-                """INSERT INTO syslog
-                   (received_at, source_ip, host, facility, severity,
-                    mnemonic, device_time, message, raw)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (now, rec["source_ip"], rec["host"], rec["facility"],
-                 rec["severity"], rec["mnemonic"], rec["device_time"],
-                 rec["message"], rec["raw"]),
-            )
+            stored = syslog_core.insert(self.db, rec, now)
             self.since_prune += 1
             if self.since_prune >= PRUNE_EVERY:
                 # Row cap only, by id. AUTOINCREMENT ids are monotonic, so
@@ -190,8 +82,10 @@ class _Store:
                 self.since_prune = 0
             self.db.commit()
         # Hand the message to the alert thread. Appends to a deque and never
-        # raises, so alerting can not slow or break the receiver.
-        alerts.offer_syslog(rec)
+        # raises, so alerting can not slow or break the receiver. A message skipped
+        # as a duplicate of one pulled from another server was offered when stored.
+        if stored is not None:
+            alerts.offer_syslog(rec)
 
 
 class _Handler(socketserver.BaseRequestHandler):

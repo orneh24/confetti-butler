@@ -1,0 +1,59 @@
+{
+  "_note": "THE SAME FILE in confetti-butler, confetti-traffic and confetti-topo (copy by hand). Expected values were worked out by hand from syslog_core.py's rules, with documentation addresses (192.0.2.0/24). The two RFC 5424 cases are written to the RFC, not captured from a device. No PAN-OS line is included: none has been captured yet.",
+  "cases": [
+    {
+      "name": "cisco with sequence number, origin-id and timestamp",
+      "source_ip": "192.0.2.1",
+      "raw": "<189>123: SW1: *Sep  8 12:00:00.123 UTC: %LINK-3-UPDOWN: Interface GigabitEthernet2, changed state to down",
+      "expect": {"host": "SW1", "facility": 23, "severity": 5, "mnemonic": "%LINK-3-UPDOWN", "device_time": "*Sep  8 12:00:00.123 UTC", "message": "Interface GigabitEthernet2, changed state to down"}
+    },
+    {
+      "name": "plain rfc3164 with a host word",
+      "source_ip": "192.0.2.1",
+      "raw": "<189>Sep  8 12:02:00 SW3 %SEC-6-IPACCESSLOGP: list 101 permitted tcp 192.0.2.1(1) -> 192.0.2.2(2), 1 packet",
+      "expect": {"host": "SW3", "facility": 23, "severity": 5, "mnemonic": "%SEC-6-IPACCESSLOGP", "device_time": "Sep  8 12:02:00", "message": "list 101 permitted tcp 192.0.2.1(1) -> 192.0.2.2(2), 1 packet"}
+    },
+    {
+      "name": "pri severity wins over the mnemonic digit",
+      "source_ip": "192.0.2.1",
+      "raw": "<187>Nov 18 10:15:02 R1 %BGP-5-ADJCHANGE: neighbor 192.0.2.2 Down Peer closed the session",
+      "expect": {"host": "R1", "facility": 23, "severity": 3, "mnemonic": "%BGP-5-ADJCHANGE", "device_time": "Nov 18 10:15:02", "message": "neighbor 192.0.2.2 Down Peer closed the session"}
+    },
+    {
+      "name": "no pri: severity comes from the mnemonic",
+      "source_ip": "192.0.2.1",
+      "raw": "%LINEPROTO-5-UPDOWN: Line protocol on Interface Gi1, changed state to up",
+      "expect": {"host": null, "facility": null, "severity": 5, "mnemonic": "%LINEPROTO-5-UPDOWN", "device_time": null, "message": "Line protocol on Interface Gi1, changed state to up"}
+    },
+    {
+      "name": "a word and colon is not a host",
+      "source_ip": "192.0.2.1",
+      "raw": "<6>kernel: out of memory",
+      "expect": {"host": null, "facility": 0, "severity": 6, "mnemonic": null, "device_time": null, "message": "kernel: out of memory"}
+    },
+    {
+      "name": "unparseable text is kept",
+      "source_ip": "192.0.2.1",
+      "raw": "hello world",
+      "expect": {"host": null, "facility": null, "severity": null, "mnemonic": null, "device_time": null, "message": "hello world"}
+    },
+    {
+      "name": "cisco sequence number 1: is not rfc5424",
+      "source_ip": "192.0.2.1",
+      "raw": "<189>1: R2: *Nov 18 10:00:00.000 UTC: %SYS-5-CONFIG_I: Configured from console by admin on vty0 (192.0.2.9)",
+      "expect": {"host": "R2", "facility": 23, "severity": 5, "mnemonic": "%SYS-5-CONFIG_I", "device_time": "*Nov 18 10:00:00.000 UTC", "message": "Configured from console by admin on vty0 (192.0.2.9)"}
+    },
+    {
+      "name": "rfc5424, not cisco: msgid becomes the mnemonic",
+      "source_ip": "192.0.2.1",
+      "raw": "<165>1 2026-11-18T10:00:00Z fw1 appname 1234 SYSTEM - link up on ethernet1/1",
+      "expect": {"host": "fw1", "facility": 20, "severity": 5, "mnemonic": "SYSTEM", "device_time": "2026-11-18T10:00:00Z", "message": "link up on ethernet1/1"}
+    },
+    {
+      "name": "rfc5424 with structured data and a cisco mnemonic in the text",
+      "source_ip": "192.0.2.1",
+      "raw": "<189>1 2026-11-18T10:00:00.123+01:00 R1 - - - [exampleSDID@32473 iut=\"3\" eventSource=\"x\"] %LINK-3-UPDOWN: Interface Gi1, changed state to down",
+      "expect": {"host": "R1", "facility": 23, "severity": 5, "mnemonic": "%LINK-3-UPDOWN", "device_time": "2026-11-18T10:00:00.123+01:00", "message": "Interface Gi1, changed state to down"}
+    }
+  ]
+}

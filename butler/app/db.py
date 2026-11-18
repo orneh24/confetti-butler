@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from flask import g
 
 from . import config
+from . import syslog_core
 
 
 def get_db():
@@ -296,6 +297,9 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_syslog_host ON syslog(host);
         CREATE INDEX IF NOT EXISTS idx_syslog_source_ip ON syslog(source_ip);
     """)
+
+    # Migration: syslog.origin / origin_id / msg_hash (the same table in butler, traffic and topo).
+    syslog_core.migrate(db)
 
     # Migration: template_name landed after the initial schema (phase 6).
     cols = {r[1] for r in db.execute("PRAGMA table_info(devices)").fetchall()}

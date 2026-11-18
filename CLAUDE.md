@@ -324,6 +324,7 @@ butler/
     drift.py            — template vs running-config check
     alerts.py           — alert rules, webhook / mail sender thread
     syslog_server.py    — UDP/514 receiver (ported from confetti-traffic)
+    syslog_core.py      — syslog parser + the one insert path; the SAME file in confetti-traffic and confetti-topo (constraint 17)
     ipam.py              — overlap/duplicate-IP analysis
     rendering.py         — Jinja2 template rendering + safety checks + redact_secrets (stored configs)
     collectors/          — ssh.py, snmp.py, sweep.py, vcenter.py, confetti.py, seedfile.py
@@ -476,14 +477,20 @@ butler/
     http:// or https:// with a host, or has a user:password, whitespace or markup characters, is a 400 and changes nothing (all or nothing); an empty
     value clears. `static/confetti-links.js` (the same file as in confetti-topo and confetti-traffic) turns them into small header buttons that
     open in a new tab with `noopener`, re-checks http(s) and never builds HTML from the URL. The server never connects to them. Checked by R35.
+17. **Syslog is parsed and stored by one shared file, `app/syslog_core.py`, the same in confetti-butler, confetti-traffic and confetti-topo.**
+    Copy it by hand and keep the three byte-identical, with `dev/samples/syslog_cases.json` (a line in, the fields out; also identical).
+    `parse()` never raises and never drops a line (RFC 3164 and Cisco, plus RFC 5424). `insert()` is the only way a row is stored, and it
+    never commits. It skips a message when its `(origin, origin_id)` is already stored, or when a copy was pulled from another server within `dedup_s` (`syslog.origin`, `origin_id`,
+    `msg_hash`); two copies this server received itself are both kept (a link that flaps twice is two messages). Pulling from another
+    server is not built yet; the table, the parser and the rule are. Checked by R36 and R36-sync.
 
 ## Regression gate
 
 `python dev/regress.py` (stdlib only; `--static` skips the live tier, `-v` shows detail for passes) is
-the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above (constraint 16 is `R35`); `R16`..`R19`
+the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above (constraints 16 and 17 are `R35` and `R36`); `R16`..`R19`
 are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
 lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21` (drift check),
-`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery), `R33` (OpenSSH, not Dropbear) and `R34` (right-click menus), `R35` (constraint 16, the other Confetti projects' URLs) cover the features added since (platform
+`R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery), `R33` (OpenSSH, not Dropbear) and `R34` (right-click menus), `R35` (constraint 16, the other Confetti projects' URLs), `R36` (constraint 17, the shared syslog parser) and `R36-sync` (its file is identical in the three repos) cover the features added since (platform
 registry, SNMP, ICMP state machine, `/metrics` format, interface history, scheduled discovery); `R29` checks
 the container and Packer files against the repo. `R27` (LLDP crawl) and `R30` (BGP `Idle (Admin)`) moved to
 confetti-topo on 2026-10-14 and the numbers are not reused. Output is one line per check and a verdict:
