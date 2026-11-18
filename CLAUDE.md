@@ -472,22 +472,29 @@ butler/
     it, adding a device emits one event per interface. `device_unreachable` /
     `device_recovered` fire only on the 0 → failing and failing → ok transitions of `fail_count`.
 
-16. **The URLs of the other Confetti projects are only link targets: http(s) with a host, validated on write, never fetched.** The Settings page
+16. **The URLs of the other Confetti projects are only link targets: http(s) with a host, validated on write, fetched only by the syslog pull.** The Settings page
     (`/settings`, new) keeps the Topo and Traffic URLs (`settings` keys `url_topo` / `url_traffic`, `GET|PUT /api/settings/links`); a value that is not
     http:// or https:// with a host, or has a user:password, whitespace or markup characters, is a 400 and changes nothing (all or nothing); an empty
     value clears. `static/confetti-links.js` (the same file as in confetti-topo and confetti-traffic) turns them into small header buttons that
-    open in a new tab with `noopener`, re-checks http(s) and never builds HTML from the URL. The server never connects to them. Checked by R35.
+    open in a new tab with `noopener`, re-checks http(s) and never builds HTML from the URL. The server connects to one only for the syslog pull (constraint 18), opt-in per server, and never otherwise. Checked by R35.
 17. **Syslog is parsed and stored by one shared file, `app/syslog_core.py`, the same in confetti-butler, confetti-traffic and confetti-topo.**
     Copy it by hand and keep the three byte-identical, with `dev/samples/syslog_cases.json` (a line in, the fields out; also identical).
     `parse()` never raises and never drops a line (RFC 3164 and Cisco, plus RFC 5424). `insert()` is the only way a row is stored, and it
     never commits. It skips a message when its `(origin, origin_id)` is already stored, or when a copy was pulled from another server within `dedup_s` (`syslog.origin`, `origin_id`,
     `msg_hash`); two copies this server received itself are both kept (a link that flaps twice is two messages). Pulling from another
-    server is not built yet; the table, the parser and the rule are. Checked by R36 and R36-sync.
+    server is constraint 18. Checked by R36 and R36-sync.
+18. **Syslog may be pulled from the other Confetti servers, opt-in per server, and only their own messages.** The Settings page (`GET|PUT /api/settings/syslog-pull`,
+    `app/syslog_pull.py`, the same file as in confetti-topo and confetti-traffic, `BUTLER_SYSLOG_PULL_INTERVAL_S` 15) has a switch per server (`syslog_pull_<name>`, off by default; it needs
+    the URL from constraint 16 first). Switching on starts from the other server's newest message, never its history (`syslog_cursor_<name>`; a different URL or an id that goes
+    backwards resets it). The request is `GET <url>/api/syslog?after_id=N&origin=local` only, http(s) only, no redirect followed, a server that does not answer with
+    `X-Syslog-Max-Id` is refused, every field is length-limited text and `msg_hash` is recomputed here. `origin=local` is what stops a message travelling around a loop.
+    Rows go through `syslog_core.insert` (constraint 17). A failed request stores nothing and keeps the cursor; one server failing never stops the other. The topo token
+    (`syslog_token_topo`) is write-only: sent in an `Authorization` header, never in a URL, never returned by a GET. Checked by R37.
 
 ## Regression gate
 
 `python dev/regress.py` (stdlib only; `--static` skips the live tier, `-v` shows detail for passes) is
-the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above (constraints 16 and 17 are `R35` and `R36`); `R16`..`R19`
+the gate to run before handing back any code change. `R1`..`R15` are constraints 1..15 above (constraints 16, 17 and 18 are `R35`, `R36` and `R37`); `R16`..`R19`
 are cross-file checks (docs vs code task count, shell/Alpine hygiene, files the build scripts copy, poller
 lock); `R20` starts the real server from a temp copy and drives it over HTTP and UDP; `R21` (drift check),
 `R22`..`R26`, `R28` and `R31`/`R32` (alert rules and delivery), `R33` (OpenSSH, not Dropbear) and `R34` (right-click menus), `R35` (constraint 16, the other Confetti projects' URLs), `R36` (constraint 17, the shared syslog parser) and `R36-sync` (its file is identical in the three repos) cover the features added since (platform

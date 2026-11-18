@@ -11,7 +11,7 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     <div class="section">
         <div class="section-header"><span>Other Confetti projects</span></div>
         <div class="section-body">
-            <div class="hint">A small button for each URL that is filled in appears at the right of the top menu on every page and opens that project in a new tab. Only http:// or https://. Leave a field empty to remove its button. The server never connects to these addresses; they are only links.</div>
+            <div class="hint">A small button for each URL that is filled in appears at the right of the top menu on every page and opens that project in a new tab. Only http:// or https://. Leave a field empty to remove its button. The server connects to one of these addresses only for the syslog pull below, and only if you switch that on.</div>
             <form class="inline" id="links-form" autocomplete="off">
                 <span data-ctx="link" data-field="traffic" data-name="Confetti Traffic"><input type="text" name="traffic" placeholder="Confetti Traffic URL, e.g. http://confetti-hub.example" size="42" aria-label="Confetti Traffic URL"></span>
                 <span data-ctx="link" data-field="topo" data-name="Confetti Topo"><input type="text" name="topo" placeholder="Confetti Topo URL, e.g. http://confetti-topo.example" size="42" aria-label="Confetti Topo URL"></span>
@@ -20,11 +20,78 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
             <div class="msg" id="links-msg"></div>
         </div>
     </div>
+    <div class="section">
+        <div class="section-header"><span>Syslog from other servers</span></div>
+        <div class="section-body">
+            <div class="hint">Lets a device log to one Confetti server only. This server then reads the other one's own messages every few seconds (nothing it pulled itself is passed on) and skips a message it already has. Switching a server on starts from its newest message; its history is not copied. Set its URL in the section above first. Alert rules see a pulled message like any other.</div>
+            <div class="hint" id="sp-status">loading</div>
+            <div id="sp-rows"></div>
+            <form class="inline" id="sp-token-form" autocomplete="off">
+                <input type="password" name="token" placeholder="Confetti Topo access token (only if it has one)" size="42" aria-label="Confetti Topo access token" autocomplete="off">
+                <button type="submit">Save token</button>
+                <span class="hint" id="sp-token-state"></span>
+            </form>
+            <div class="msg" id="sp-msg"></div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 {% block scripts %}
 {% raw %}
 <script>
+var SP_NAMES = { topo: 'Confetti Topo', traffic: 'Confetti Traffic' };
+
+function loadSyslogPull() {
+    fetch('/api/settings/syslog-pull').then(function (r) { return r.json(); }).then(function (s) {
+        var box = document.getElementById('sp-rows');
+        box.innerHTML = '';
+        Object.keys(SP_NAMES).forEach(function (name) {
+            var sv = s.servers[name];
+            var row = document.createElement('div');
+            var label = document.createElement('label');
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = sv.pull;
+            cb.disabled = !sv.url && !sv.pull;
+            cb.onchange = function () { saveSyslogPull(name, { pull: cb.checked }); };
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(' Pull syslog from ' + SP_NAMES[name] + (sv.url ? '' : ' (set its URL above first)')));
+            row.appendChild(label);
+            var info = document.createElement('div');
+            info.className = 'hint';
+            if (sv.pull) {
+                info.textContent = sv.last_error ? 'last error: ' + sv.last_error :
+                    (sv.last_ok ? 'last pull ' + new Date(sv.last_ok).toLocaleString() + ', ' + sv.stored + ' stored since start' : 'waiting for the first pull');
+            }
+            row.appendChild(info);
+            box.appendChild(row);
+        });
+        document.getElementById('sp-token-state').textContent = s.servers.topo.token_set ? 'a token is saved (not shown); save an empty field to remove it' : 'no token saved';
+        document.getElementById('sp-status').textContent = s.running ? 'Checks every ' + s.interval_s + ' s.' : 'The pull thread is not running.';
+    });
+}
+
+function saveSyslogPull(name, part) {
+    var body = {};
+    body[name] = part;
+    fetch('/api/settings/syslog-pull', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+        var m = document.getElementById('sp-msg');
+        m.textContent = res.ok ? 'saved' : (res.data.error || 'save failed');
+        loadSyslogPull();
+    });
+}
+
+document.getElementById('sp-token-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = ev.target;
+    saveSyslogPull('topo', { token: f.token.value });
+    f.token.value = '';
+});
+
 function loadLinks() {
     fetch('/api/settings/links').then(function (r) { return r.json(); }).then(function (l) {
         var f = document.getElementById('links-form');
@@ -50,6 +117,7 @@ document.getElementById('links-form').addEventListener('submit', function (ev) {
 });
 
 loadLinks();
+loadSyslogPull();
 
 // Right-click a URL field's wrapper (the field itself keeps the browser's menu).
 ctxMenu.register('link', function (el) {
@@ -69,7 +137,7 @@ document.documentElement.setAttribute('data-ctx', 'page');
 ctxMenu.register('page', function (el, ev) {
     if (ev.target.closest('.header, .side-nav, .taskbar, .dos-menubar, .dos-fkeys, .dos-help, .page-footer')) { return null; }
     return { title: 'Settings', items: [
-        { label: 'Reload sections', action: function () { loadLinks(); } },
+        { label: 'Reload sections', action: function () { loadLinks(); loadSyslogPull(); } },
         { label: 'Go to Dashboard', action: function () { location.href = '/'; } },
         { label: 'Go to Devices', action: function () { location.href = '/devices'; } },
         { label: 'Go to Alerts', action: function () { location.href = '/alerts'; } },

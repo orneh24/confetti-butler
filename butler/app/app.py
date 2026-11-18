@@ -25,6 +25,7 @@ from . import metrics
 from . import poller
 from . import reach
 from . import rendering
+from . import syslog_pull
 from . import syslog_server
 from .collectors import confetti
 from .collectors import ssh as ssh_collector
@@ -531,7 +532,7 @@ def api_default_credentials():
 
 
 # The other Confetti projects: a header shortcut each (static/confetti-links.js). Only a link target in the browser,
-# the server never fetches it. This app keeps the other two, so there is no url_butler here.
+# the server fetches one only for the syslog pull (syslog_pull.py), opt-in. This app keeps the other two, so there is no url_butler here.
 LINK_KEYS = {"topo": "url_topo", "traffic": "url_traffic"}
 
 
@@ -588,6 +589,8 @@ def api_put_links():
             return jsonify({"error": "%s: %s" % (k, e)}), 400
     conn = db.get_db()
     for k, url in clean.items():
+        if url != (db.get_setting(conn, LINK_KEYS[k]) or ""):
+            conn.execute("DELETE FROM settings WHERE key = ?", ("syslog_cursor_" + k,))   # start from now again
         if url:
             conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
                          "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (LINK_KEYS[k], url))
@@ -595,6 +598,75 @@ def api_put_links():
             conn.execute("DELETE FROM settings WHERE key = ?", (LINK_KEYS[k],))
     conn.commit()
     return jsonify(links_state(conn))
+
+
+# Pull syslog from the other Confetti servers (syslog_pull.py, constraint 18). Off per server until switched on; a server
+# needs its URL set above first. A topo token is only needed if confetti-topo has TOPO_AUTH_TOKEN set; it is write-only.
+def clean_token(value):
+    if not isinstance(value, str) or len(value) > 200 or any(c.isspace() or ord(c) < 32 for c in value):
+        raise ValueError("not a usable token")
+    return value
+
+
+def syslog_pull_state(conn):
+    servers = {}
+    for name in LINK_KEYS:
+        st = syslog_pull.status.get(name, {})
+        cursor = db.get_setting(conn, "syslog_cursor_" + name)
+        servers[name] = {
+            "url": db.get_setting(conn, LINK_KEYS[name]) or "",
+            "pull": db.get_setting(conn, "syslog_pull_" + name) == "1",
+            "cursor": int(cursor) if cursor and cursor.isdigit() else None,
+            "token_set": bool(db.get_setting(conn, "syslog_token_" + name)),
+            "last_ok": st.get("last_ok", ""), "last_error": st.get("last_error", ""), "stored": st.get("stored", 0),
+        }
+    return {"servers": servers, "running": syslog_pull.is_running(), "interval_s": config.SYSLOG_PULL_INTERVAL_S}
+
+
+@app.route("/api/settings/syslog-pull", methods=["GET"])
+def api_get_syslog_pull():
+    """Per other server: its URL, whether pulling is on, the cursor and the last result. Never a token."""
+    return jsonify(syslog_pull_state(db.get_db()))
+
+
+@app.route("/api/settings/syslog-pull", methods=["PUT"])
+def api_put_syslog_pull():
+    """Body {"topo": {"pull": true, "token": "..."}, "traffic": {"pull": false}}; each part optional, "token": "" clears.
+    All or nothing. Switching a server on needs its URL set (Settings > other projects) and starts from its newest
+    message; switching it off forgets the cursor."""
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict) or not data:
+        return jsonify({"error": "Body must be a JSON object like {\"topo\": {\"pull\": true}}"}), 400
+    conn = db.get_db()
+    for name, body in data.items():
+        if name not in LINK_KEYS:
+            return jsonify({"error": "unknown server %r" % name, "servers": list(LINK_KEYS)}), 400
+        if not isinstance(body, dict) or not body or not set(body) <= {"pull", "token"}:
+            return jsonify({"error": "%s: body must have pull (true or false) and/or token" % name}), 400
+        if "pull" in body and not isinstance(body["pull"], bool):
+            return jsonify({"error": "%s: pull must be true or false" % name}), 400
+        if "token" in body:
+            if name != "topo":
+                return jsonify({"error": "%s has no access token" % name}), 400
+            try:
+                clean_token(body["token"])
+            except ValueError as e:
+                return jsonify({"error": "%s: %s" % (name, e)}), 400
+        if body.get("pull") and not db.get_setting(conn, LINK_KEYS[name]):
+            return jsonify({"error": "%s: set its URL first" % name}), 400
+    for name, body in data.items():
+        if "token" in body:
+            if body["token"]:
+                db.set_setting(conn, "syslog_token_" + name, body["token"])
+            else:
+                conn.execute("DELETE FROM settings WHERE key = ?", ("syslog_token_" + name,))
+        if body.get("pull") is True:
+            if db.get_setting(conn, "syslog_pull_" + name) != "1":
+                db.set_setting(conn, "syslog_pull_" + name, "1")
+        elif body.get("pull") is False:
+            conn.execute("DELETE FROM settings WHERE key IN (?, ?)", ("syslog_pull_" + name, "syslog_cursor_" + name))
+    conn.commit()
+    return jsonify(syslog_pull_state(conn))
 
 
 @app.route("/api/devices/<int:device_id>/credentials", methods=["GET"])
@@ -1045,9 +1117,15 @@ def api_events():
 SYSLOG_MAX_LIMIT = 2000
 
 
-def syslog_row(r):
+SYSLOG_PULL_LIMIT = 500
+
+
+def syslog_row(r, pulling):
     d = dict(r)
     d["received_at"] = db.iso(d["received_at"])
+    if not pulling:
+        d.pop("raw", None)
+        d.pop("msg_hash", None)
     return d
 
 
@@ -1058,27 +1136,44 @@ def api_syslog():
     ?minutes=N (default 60), or ?from=&to= for a pinned window — from/to win
     when either is present. Also ?host= (matches the parsed hostname or the
     source IP), ?severity=N, ?q= substring, ?limit=N, ?device_id=N.
+
+    For another Confetti server pulling this one: ?after_id=N returns rows with id > N, oldest
+    first, at most 500, each with raw and msg_hash, and ignores the time window. ?origin=local
+    returns only messages this server received itself, so a pulled row is never passed on.
     """
     args = request.args
     where = []
     params = []
 
-    frm = db.sqlite_ts_arg(args.get("from"))
-    to = db.sqlite_ts_arg(args.get("to"))
-    if frm or to:
-        if frm:
-            where.append("s.received_at >= ?")
-            params.append(frm)
-        if to:
-            where.append("s.received_at <= ?")
-            params.append(to)
-    else:
+    after_id = None
+    if args.get("after_id") not in (None, ""):
         try:
-            minutes = int(args.get("minutes", "60"))
+            after_id = max(0, int(args["after_id"]))
         except ValueError:
-            minutes = 60
-        where.append("s.received_at >= datetime('now', ? || ' minutes')")
-        params.append("-{:d}".format(abs(minutes)))
+            return jsonify({"error": "after_id must be a number"}), 400
+        where.append("s.id > ?")
+        params.append(after_id)
+    else:
+        frm = db.sqlite_ts_arg(args.get("from"))
+        to = db.sqlite_ts_arg(args.get("to"))
+        if frm or to:
+            if frm:
+                where.append("s.received_at >= ?")
+                params.append(frm)
+            if to:
+                where.append("s.received_at <= ?")
+                params.append(to)
+        else:
+            try:
+                minutes = int(args.get("minutes", "60"))
+            except ValueError:
+                minutes = 60
+            where.append("s.received_at >= datetime('now', ? || ' minutes')")
+            params.append("-{:d}".format(abs(minutes)))
+
+    if args.get("origin"):
+        where.append("s.origin = ?")
+        params.append(args["origin"])
 
     host = args.get("host")
     if host:
@@ -1106,14 +1201,15 @@ def api_syslog():
                      "OR s.raw LIKE ? ESCAPE '\\')")
         params.extend([db.like_arg(q)] * 3)
 
+    cap = SYSLOG_PULL_LIMIT if after_id is not None else SYSLOG_MAX_LIMIT
     try:
-        limit = int(args.get("limit", SYSLOG_MAX_LIMIT))
+        limit = int(args.get("limit", cap))
     except ValueError:
-        limit = SYSLOG_MAX_LIMIT
-    limit = max(1, min(limit, SYSLOG_MAX_LIMIT))
+        limit = cap
+    limit = max(1, min(limit, cap))
 
     sql = """SELECT s.id, s.received_at, s.source_ip, s.host, s.facility, s.severity,
-                    s.mnemonic, s.device_time, s.message,
+                    s.mnemonic, s.device_time, s.message, s.origin, s.raw, s.msg_hash,
                     COALESCE(dia.device_id, dih.device_id) AS device_id
              FROM syslog s
              LEFT JOIN device_aliases dia ON dia.kind = 'mgmt_ip' AND dia.value = s.source_ip
@@ -1122,12 +1218,18 @@ def api_syslog():
         sql += " WHERE " + " AND ".join(where)
     # id breaks ties: received_at has one-second resolution and a device can
     # emit a whole interface flap inside one second, which must stay in order.
-    sql += " ORDER BY s.received_at DESC, s.id DESC LIMIT ?"
+    if after_id is not None:
+        sql += " ORDER BY s.id ASC LIMIT ?"
+    else:
+        sql += " ORDER BY s.received_at DESC, s.id DESC LIMIT ?"
     params.append(limit)
 
     conn = db.get_db()
     rows = conn.execute(sql, params).fetchall()
-    return jsonify([syslog_row(r) for r in rows])
+    resp = jsonify([syslog_row(r, after_id is not None) for r in rows])
+    # A server pulling from this one reads this to notice that this database was reset.
+    resp.headers["X-Syslog-Max-Id"] = str(conn.execute("SELECT COALESCE(MAX(id), 0) FROM syslog").fetchone()[0])
+    return resp
 
 
 @app.route("/api/syslog/sources", methods=["GET"])

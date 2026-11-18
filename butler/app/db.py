@@ -333,6 +333,18 @@ def init_db():
     db.close()
 
 
+def get_setting(conn, key):
+    """A value from the settings table, or None."""
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row[0] if row else None
+
+
+def set_setting(conn, key, value):
+    """Upsert one settings row. The caller commits."""
+    conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
+                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
+
+
 def sqlite_now():
     """UTC timestamp in SQLite's own comparable format: 'YYYY-MM-DD HH:MM:SS'.
 

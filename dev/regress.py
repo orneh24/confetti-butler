@@ -1170,6 +1170,7 @@ def _():
 
 SYSLOG_CORE = "butler/app/syslog_core.py"
 SYSLOG_CASES = "dev/samples/syslog_cases.json"
+SYSLOG_PULL = "butler/app/syslog_pull.py"
 # The other two repos: (repo directory, the directory in it that holds syslog_core.py)
 SYSLOG_SIBLINGS = (("../confetti-topo", "topo/app"), ("../confetti-traffic", "hub/app"))
 
@@ -1244,18 +1245,204 @@ def _lf_bytes(path):
         return f.read().replace(b"\r\n", b"\n")
 
 
-@check("R36-sync", "syslog_core.py and syslog_cases.json are byte-identical in confetti-butler, confetti-traffic and confetti-topo")
+@check("R36-sync", "syslog_core.py, syslog_pull.py and syslog_cases.json are byte-identical in confetti-butler, confetti-traffic and confetti-topo")
 def _():
     p = []
     for repo, appdir in SYSLOG_SIBLINGS:
         if not os.path.isdir(repo):
             raise Skip("%s is not next to this repo, cannot compare" % repo)
         for mine, theirs in ((SYSLOG_CORE, os.path.join(repo, appdir, "syslog_core.py")),
+                             (SYSLOG_PULL, os.path.join(repo, appdir, "syslog_pull.py")),
                              (SYSLOG_CASES, os.path.join(repo, "dev/samples/syslog_cases.json"))):
             if not os.path.exists(theirs):
                 p.append("%s does not exist" % theirs)
                 continue
             need(_lf_bytes(mine) == _lf_bytes(theirs), "%s differs from %s" % (mine, theirs), p)
+    return p
+
+
+def _syslog_pull_engine(sc, sp, conn, get, put, peer, p, token=None):
+    """The pull rules (the syslog pull constraint), against a fake peer server on 127.0.0.1. The same helper is in
+    all three regress.py files; the caller passes its own settings get/put and the peer's name."""
+    import http.server
+    import threading
+
+    state = {"rows": [], "max": 0, "mode": "ok", "seen": []}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            state["seen"].append((self.path, self.headers.get("Authorization")))
+            if state["mode"] == "500":
+                self.send_response(500)
+                self.end_headers()
+                return
+            if state["mode"] == "redirect":
+                self.send_response(302)
+                self.send_header("Location", "http://127.0.0.1:%d/followed" % self.server.server_address[1])
+                self.end_headers()
+                return
+            after = int(re.search(r"after_id=(\d+)", self.path).group(1))
+            def newer(r):
+                return not (isinstance(r, dict) and isinstance(r.get("id"), int)) or r["id"] > after
+            body = json.dumps([r for r in state["rows"] if newer(r)]).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            if state["mode"] != "nomax":
+                self.send_header("X-Syslog-Max-Id", str(state["max"]))
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = "http://127.0.0.1:%d" % server.server_address[1]
+    sp.status.clear()
+
+    def row(i, text, ip="192.0.2.1", at="2026-11-18T10:00:00Z"):
+        r = sc.parse("<189>Nov 18 10:00:00 R1 %LINK-3-UPDOWN: " + text, ip)
+        r.update(id=i, received_at=at, origin="local")
+        return r
+
+    def stored():
+        return conn.execute("SELECT COUNT(*) FROM syslog WHERE origin = ?", (peer,)).fetchone()[0]
+
+    def pull():
+        return sp.pull_server(conn, peer, get, put, dedup_s=10)
+    try:
+        put(conn, "url_" + peer, url)
+        if token:
+            put(conn, "syslog_token_" + peer, token)
+        conn.commit()
+        need(pull() is None and state["seen"] == [], "a server that is not switched on was contacted", p)
+
+        put(conn, "syslog_pull_" + peer, "1")
+        conn.commit()
+        state["rows"] = [row(i, "old %d" % i) for i in range(1, 6)]
+        state["max"] = 5
+        need(pull() == 0 and stored() == 0 and get(conn, "syslog_cursor_" + peer) == "5",
+             "switching on must start from the newest message and copy no history (cursor %r)" % get(conn, "syslog_cursor_" + peer), p)
+
+        state["rows"] += [row(i, "new %d" % i) for i in (6, 7, 8)]
+        state["max"] = 8
+        need(pull() == 3 and stored() == 3 and get(conn, "syslog_cursor_" + peer) == "8",
+             "the next pull must store the 3 new rows and move the cursor to 8 (stored %d)" % stored(), p)
+        path, auth = state["seen"][-1]
+        need(path.startswith("/api/syslog?after_id=5&origin=local"), "the pull must ask for after_id=N&origin=local only: %s" % path, p)
+        if token:
+            need(auth == "Bearer " + token and token not in path, "the token must travel in the Authorization header, never in the URL", p)
+        else:
+            need(auth is None, "no token is set, but an Authorization header was sent", p)
+        got = conn.execute("SELECT origin_id, origin, host, mnemonic FROM syslog WHERE origin = ? ORDER BY origin_id", (peer,)).fetchall()
+        need([tuple(g)[:2] for g in got] == [(6, peer), (7, peer), (8, peer)] and got[0][2] == "R1" and got[0][3] == "%LINK-3-UPDOWN",
+             "pulled rows must keep origin, origin_id and the parsed fields: %r" % ([tuple(g) for g in got],), p)
+
+        # the same device line, received here and also pulled: stored once
+        sc.insert(conn, sc.parse("<189>Nov 18 10:00:00 R1 %LINK-3-UPDOWN: dup", "192.0.2.5"), "2026-11-18 10:00:00")
+        conn.commit()
+        state["rows"].append(row(9, "dup", ip="192.0.2.5", at="2026-11-18T10:00:03Z"))
+        state["max"] = 9
+        need(pull() == 0 and stored() == 3 and get(conn, "syslog_cursor_" + peer) == "9",
+             "a message this server already has must not be stored again, but the cursor moves on", p)
+
+        # the other server was reset: its newest id is below our cursor
+        state["rows"] = [row(1, "after the reset")]
+        state["max"] = 1
+        need(pull() == 1 and get(conn, "syslog_cursor_" + peer) == "1", "a reset peer must restart the cursor at 0 and pull again", p)
+
+        # a failing peer: nothing stored, cursor kept, the error is shown, other servers are not affected.
+        # It has a new row, so a client that did not refuse the answer would store it.
+        state["rows"] = [row(1, "after the reset"), row(2, "while failing", at="2026-11-18T10:03:00Z")]
+        state["max"] = 2
+        for mode in ("500", "nomax", "redirect"):
+            state["mode"] = mode
+            before = (stored(), get(conn, "syslog_cursor_" + peer))
+            sp.status.clear()
+            pull()
+            need((stored(), get(conn, "syslog_cursor_" + peer)) == before, "mode %s changed the stored rows or the cursor" % mode, p)
+            need(sp.status.get(peer, {}).get("last_error"), "mode %s: the error was not recorded" % mode, p)
+        state["mode"] = "ok"
+        seen_before = len(state["seen"])
+        for q in state["seen"]:
+            need("/followed" not in q[0], "a redirect was followed", p)
+
+        # junk rows are skipped, a good row after them is stored
+        state["rows"] = ["junk", {"id": "7"}, {"id": 10, "source_ip": "192.0.2.1"}, row(11, "good", at="2026-11-18T10:05:00Z")]
+        state["max"] = 11
+        need(pull() == 1 and get(conn, "syslog_cursor_" + peer) == "11", "rows that are not usable must be skipped, not stop the pull", p)
+        need(len(state["seen"]) > seen_before, "the fake peer was not asked", p)
+
+        for bad in ("file:///etc/passwd", "ftp://127.0.0.1/", "http://user:pw@127.0.0.1/", "127.0.0.1"):
+            try:
+                sc.fetch(bad, 0)
+                p.append("fetch() accepted %r; only http(s) addresses without a user name may be fetched" % bad)
+            except ValueError:
+                pass
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@check("R37", "syslog pull: off until switched on, starts from now, one request shape, skips duplicates, survives a bad or reset peer, never follows redirects or non-http URLs, token only in a header and never returned, serves only its own rows")
+def _():
+    # Constraint 18. Everything another server sends is untrusted text; nothing is stored from a failed request.
+    p = []
+    m, conn = fresh_db()
+    sc = _syslog_core()
+    sp = importlib.import_module("app.syslog_pull")
+    db = m["db"]
+    _syslog_pull_engine(sc, sp, conn, db.get_setting, db.set_setting, "topo", p, token="s3cret-token")
+    conn.close()
+
+    m, conn = fresh_db()
+    client = m["appmod"].app.test_client()
+    url = "/api/settings/syslog-pull"
+    state = client.get(url).get_json()
+    need(set(state["servers"]) == {"topo", "traffic"} and not any(v["pull"] for v in state["servers"].values()),
+         "pulling must be off for every server by default: %r" % state, p)
+    r = client.put(url, json={"topo": {"pull": True}})
+    need(r.status_code == 400 and conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 0,
+         "switching a server on without its URL must be a 400 that changes nothing: %s" % r.status_code, p)
+    client.put("/api/settings/links", json={"topo": "http://topo.example:8080"})
+    r = client.put(url, json={"topo": {"pull": True, "token": "s3cret-token"}})
+    need(r.status_code == 200 and r.get_json()["servers"]["topo"]["pull"] is True, "switching on with a URL set failed: %s" % r.status_code, p)
+    need("s3cret-token" not in client.get(url).get_data(as_text=True) and r.get_json()["servers"]["topo"]["token_set"] is True
+         and "s3cret-token" not in r.get_data(as_text=True), "a token must never be returned, only token_set", p)
+    for bad in ({"topo": True}, {"topo": {"pull": "yes"}}, {"nope": {"pull": True}}, {}, {"topo": {"pull": True, "x": 1}},
+                {"topo": {"pull": False}, "traffic": {"pull": True}}, {"traffic": {"token": "x"}}, {"topo": {"token": "a b"}}, [1], "x"):
+        r = client.put(url, json=bad)
+        need(r.status_code == 400, "%r was accepted (%s)" % (bad, r.status_code), p)
+    need(client.get(url).get_json()["servers"]["topo"]["pull"] is True, "a rejected PUT changed something (all or nothing)", p)
+    db.set_setting(conn, "syslog_cursor_topo", "42")
+    conn.commit()
+    client.put("/api/settings/links", json={"topo": "http://other.example:8080"})
+    need(db.get_setting(conn, "syslog_cursor_topo") is None, "a different URL is a different server: its cursor must be forgotten", p)
+    db.set_setting(conn, "syslog_cursor_topo", "42")
+    conn.commit()
+    client.put(url, json={"topo": {"pull": False}})
+    need(db.get_setting(conn, "syslog_pull_topo") is None and db.get_setting(conn, "syslog_cursor_topo") is None,
+         "switching off must delete the switch and the cursor", p)
+
+    # only this server's own messages are served to a puller: a pulled row is never passed on
+    sc.insert(conn, sc.parse("<189>Nov 18 10:00:00 R1 %LINK-3-UPDOWN: mine", "192.0.2.1"), db.sqlite_now())
+    sc.insert(conn, dict(sc.parse("<189>Nov 18 10:00:00 R2 %LINK-3-UPDOWN: theirs", "192.0.2.2"), received_at=db.sqlite_now()),
+              db.sqlite_now(), origin="topo", origin_id=5)
+    conn.commit()
+    r = client.get("/api/syslog?after_id=0&origin=local")
+    rows = r.get_json()
+    need([x["host"] for x in rows] == ["R1"] and "raw" in rows[0], "origin=local must return only rows this server received, with raw: %r" % ([x.get("host") for x in rows],), p)
+    need(r.headers.get("X-Syslog-Max-Id", "").isdigit(), "X-Syslog-Max-Id header is missing", p)
+    need(client.get("/api/syslog?after_id=x").status_code == 400, "a bad after_id must be a 400", p)
+    r = client.get("/api/syslog?minutes=5&q=mine")
+    need(r.status_code == 200 and [x["host"] for x in r.get_json()] == ["R1"], "the q filter must work: %s" % r.status_code, p)
+    page = client.get("/api/syslog?minutes=5").get_json()
+    need(len(page) == 2 and all("raw" not in x and "msg_hash" not in x for x in page) and {x["origin"] for x in page} == {"local", "topo"},
+         "the page API must show both rows with their origin and without raw or msg_hash", p)
+
+    src = read("butler/app/syslog_core.py")
+    need("urlopen(" not in src.replace("opener.open(", "") and "Authorization" in src, "the pull must use the no-redirect opener, with the token in a header", p)
     return p
 
 

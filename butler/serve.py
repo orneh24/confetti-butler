@@ -44,6 +44,11 @@ def _start_background_services():
     else:
         poller.start()
 
+    # Pulls syslog from the other Confetti servers, once an operator switches that on in Settings.
+    from app import db, syslog_pull
+    syslog_pull.start(db.connect, "butler", db.get_setting, db.set_setting, config.SYSLOG_PULL_INTERVAL_S,
+                      config.SYSLOG_DEDUP_S)
+
     try:
         from app import reach
     except ImportError:

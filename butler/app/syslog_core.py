@@ -6,10 +6,19 @@ passes in a sqlite3 connection and does its own commit.
 
 Parsing is best-effort and never discards: a line that cannot be parsed is stored with its raw
 text, because a message you cannot parse is often the one you most want to see.
+
+pull_once() reads another Confetti server's syslog (GET /api/syslog?after_id=N&origin=local) so a
+device only has to log to one of them. Everything the other server sends is untrusted text: it is
+type-checked and length-limited, stored as text, and its msg_hash is recomputed here, never trusted.
 """
 
 import hashlib
+import json
 import re
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
 
 SEVERITY_NAMES = {
     0: "emerg", 1: "alert", 2: "crit", 3: "err",
@@ -221,3 +230,114 @@ def insert(db, rec, now, origin="local", origin_id=None, dedup_s=10):
          rec["mnemonic"], rec["device_time"], rec["message"], rec["raw"],
          origin, origin_id, rec["msg_hash"]))
     return cur.lastrowid
+
+
+# ---------------------------------------------------------------- pulling from another server
+
+PEERS = ("butler", "traffic", "topo")      # the origin names; a pulled row's origin is one of these
+PULL_LIMIT = 500                           # rows per request (the server caps it at the same number)
+MAX_BODY = 8 * 1024 * 1024
+MAX_TEXT = 4200                            # a server truncates raw at 4096 plus a marker
+_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect could send the token to another host; treat it as an error."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _text(value, limit):
+    return value[:limit] if isinstance(value, str) else None
+
+
+def _small_int(value, low, high):
+    return value if isinstance(value, int) and not isinstance(value, bool) and low <= value <= high else None
+
+
+def clean_row(row, now):
+    """One row from another server -> the dict insert() takes, or None if it is not usable."""
+    if not isinstance(row, dict):
+        return None
+    origin_id = row.get("id")
+    raw = _text(row.get("raw"), MAX_TEXT)
+    source_ip = _text(row.get("source_ip"), 64)
+    if not (isinstance(origin_id, int) and not isinstance(origin_id, bool) and origin_id > 0 and raw and source_ip):
+        return None
+    received = row.get("received_at")
+    received = sqlite_ts(received) if isinstance(received, str) and _TS_RE.match(received) else now
+    return {
+        "origin_id": origin_id,
+        "source_ip": source_ip,
+        "host": _text(row.get("host"), 128),
+        "facility": _small_int(row.get("facility"), 0, 23),
+        "severity": _small_int(row.get("severity"), 0, 7),
+        "mnemonic": _text(row.get("mnemonic"), 128),
+        "device_time": _text(row.get("device_time"), 64),
+        "message": _text(row.get("message"), MAX_TEXT) or raw,
+        "raw": raw,
+        "received_at": received,
+    }
+
+
+def fetch(base_url, after_id, token=None, timeout=10):
+    """GET <base_url>/api/syslog?after_id=N&origin=local. Returns (rows, remote_max_id).
+
+    Only http and https are fetched (urllib would also open file: and ftp:), a redirect is an
+    error, the token goes in a header and never in the URL, and the answer must carry
+    X-Syslog-Max-Id: a server that does not (an older build that ignores after_id and origin) is
+    refused, because its rows could be ones it pulled from somewhere else.
+    """
+    parts = urllib.parse.urlsplit(base_url)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.username or parts.password:
+        raise ValueError("not an http(s) server address")
+    url = "{}://{}/api/syslog?after_id={:d}&origin=local&limit={:d}".format(
+        parts.scheme, parts.netloc, after_id, PULL_LIMIT)
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    if token:
+        req.add_header("Authorization", "Bearer " + token)
+    opener = urllib.request.build_opener(_NoRedirect)
+    with opener.open(req, timeout=timeout) as resp:
+        body = resp.read(MAX_BODY + 1)
+        max_id = resp.headers.get("X-Syslog-Max-Id")
+    if len(body) > MAX_BODY:
+        raise ValueError("answer too large")
+    if max_id is None or not max_id.isdigit():
+        raise ValueError("this server cannot be pulled from (no X-Syslog-Max-Id header)")
+    rows = json.loads(body.decode("utf-8", "replace"))
+    if not isinstance(rows, list):
+        raise ValueError("answer is not a list")
+    return rows, int(max_id)
+
+
+def pull_once(db, name, base_url, after_id, token=None, timeout=10, dedup_s=10, on_stored=None):
+    """Store the next batch from another server. Returns (new_cursor, stored, more).
+
+    The caller commits. Rows go through insert(), so a message this server already has (it received
+    the same device line itself, or pulled it from the third server) is skipped. If the other
+    server's newest id is below our cursor it was reset: the cursor goes back to 0 and the
+    duplicate rule absorbs any overlap. on_stored(db, rec), if given, is called for each stored row
+    (confetti-topo uses it to ask for an early poll).
+    """
+    if name not in PEERS:
+        raise ValueError("unknown server name")
+    rows, remote_max = fetch(base_url, after_id, token, timeout)
+    if remote_max < after_id:
+        return 0, 0, True
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    stored = 0
+    cursor = after_id
+    for row in rows:
+        rec = clean_row(row, now)
+        if rec is None:
+            if isinstance(row, dict) and isinstance(row.get("id"), int):
+                cursor = max(cursor, row["id"])       # unusable, but do not stop on it forever
+            continue
+        origin_id = rec.pop("origin_id")
+        cursor = max(cursor, origin_id)
+        if insert(db, rec, now, origin=name, origin_id=origin_id, dedup_s=dedup_s) is not None:
+            stored += 1
+            if on_stored is not None:
+                on_stored(db, rec)
+    return cursor, stored, len(rows) >= PULL_LIMIT
